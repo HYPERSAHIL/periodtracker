@@ -49,6 +49,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         globIgnores: ['**/_worker.js'],
         navigateFallback: '/index.html',
+        // /admin is served by the sync worker and must never fall back to the app shell
+        navigateFallbackDenylist: [/^\/admin/, /^\/api\//],
       },
     }),
   ],
