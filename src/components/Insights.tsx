@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { AppProps } from '../App';
 import { frequency, regularity } from '../lib/cycle';
+import { patternCards, symptomsByPhase, trackingCompleteness, windowStats } from '../lib/stats';
 import { prettyDate } from '../lib/date';
 import { DayEntry } from '../types';
 
@@ -53,6 +55,7 @@ function series(entries: Record<string, DayEntry>, key: 'bbt' | 'weight'): { dat
 
 export default function Insights(p: AppProps) {
   const { stats, settings } = p;
+  const [win, setWin] = useState<6 | 12>(6);
   const reg = regularity(stats);
   const symptoms = frequency(p.entries, 'symptoms').slice(0, 8);
   const moods = frequency(p.entries, 'moods').slice(0, 8);
@@ -64,19 +67,28 @@ export default function Insights(p: AppProps) {
   const lhPositives = Object.values(p.entries)
     .filter((e) => e.lhTest === 'positive')
     .sort((a, b) => b.date.localeCompare(a.date));
+  const w = windowStats(stats.cycleLengths, win);
+  const comp = trackingCompleteness(p.entries);
+  const patterns = patternCards(p.entries, stats, p.facts, settings);
+  const phases = symptomsByPhase(p.entries, stats, p.facts);
 
   if (stats.clusters.length === 0) {
     return (
-      <div className="card">
-        <div className="empty">
-          <div className="big">📊</div>
-          <strong>No data yet</strong>
-          <br />
-          <br />
-          Log at least one period and your patterns will appear here — cycle lengths, regularity,
-          temperatures, and your most frequent symptoms and moods.
+      <>
+        <div className="card" style={{ display: 'flex', justifyContent: 'center' }}>
+          <button className="btn ghost sm" onClick={p.openReport}>🖨️ Clinician report</button>
         </div>
-      </div>
+        <div className="card">
+          <div className="empty">
+            <div className="big">📊</div>
+            <strong>No data yet</strong>
+            <br />
+            <br />
+            Log at least one period and your patterns will appear here — cycle lengths, regularity,
+            temperatures, and your most frequent symptoms and moods.
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -93,10 +105,46 @@ export default function Insights(p: AppProps) {
   return (
     <>
       <div className="stat-row">
-        <div className="stat"><div className="v">{stats.avgCycle}d</div><div className="l">Avg cycle length</div></div>
+        <div className="stat"><div className="v">{w.median ?? stats.avgCycle}d</div><div className="l">Median cycle</div></div>
         <div className="stat"><div className="v">{stats.avgPeriod}d</div><div className="l">Avg period</div></div>
         <div className="stat"><div className="v">{stats.cycleLengths.length}</div><div className="l">Cycles logged</div></div>
       </div>
+
+      <div className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
+          <button className={win === 6 ? 'on' : ''} onClick={() => setWin(6)}>6 cycles</button>
+          <button className={win === 12 ? 'on' : ''} onClick={() => setWin(12)}>12 cycles</button>
+        </div>
+        <button className="btn ghost sm" onClick={p.openReport}>🖨️ Clinician report</button>
+      </div>
+
+      <div className="card">
+        <h3>Window statistics</h3>
+        <div className="kv-grid">
+          <span>Median</span><strong>{w.median ?? '—'} d</strong>
+          <span>Mean</span><strong>{w.mean ?? '—'} d</strong>
+          <span>Shortest / longest</span><strong>{w.shortest ?? '—'} / {w.longest ?? '—'} d</strong>
+          <span>Range</span><strong>{w.range ?? '—'} d</strong>
+          <span>Trend</span><strong>{w.slope === null ? '—' : `${w.slope < 0 ? '−' : '+'}${Math.abs(w.slope).toFixed(1)} d/cycle`}</strong>
+          <span>Completeness</span><strong>{comp.pct}% of days</strong>
+        </div>
+        {comp.total > 0 && (
+          <p className="hint">{comp.logged} of {comp.total} days since your first log have an entry. Explicit daily check-ins improve phase analysis.</p>
+        )}
+      </div>
+
+      {patterns.length > 0 && (
+        <div className="card">
+          <h3>Patterns</h3>
+          {patterns.map((c) => (
+            <div key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{c.title}</div>
+              <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 0' }}>{c.detail}</p>
+            </div>
+          ))}
+          <p className="hint">Deterministic observations from your logs — patterns, not diagnoses.</p>
+        </div>
+      )}
 
       <div className="card">
         <h3>Regularity</h3>
@@ -182,6 +230,25 @@ export default function Insights(p: AppProps) {
               <div className="n">LH+</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {symptoms.length > 0 && (
+        <div className="card">
+          <h3>Symptoms by phase</h3>
+          {phases.map((ph) => (
+            <div key={ph.phase} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+              <strong style={{ width: 82, flex: 'none' }}>{ph.phase}</strong>
+              <span style={{ color: 'var(--text-2)' }}>
+                {ph.days > 0
+                  ? ph.topSymptoms.length
+                    ? ph.topSymptoms.map((s) => `${s.name} ×${s.count}`).join(' · ')
+                    : 'no symptoms logged'
+                  : 'no check-ins'}
+              </span>
+            </div>
+          ))}
+          <p className="hint">Counted only on days with an explicit check-in, so silent days don't dilute the picture.</p>
         </div>
       )}
 

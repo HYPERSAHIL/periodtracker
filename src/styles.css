@@ -1153,3 +1153,167 @@ input[type='date']:focus-visible {
       var(--bg);
   }
 }
+
+/* ---------- v2 additions ---------- */
+
+.why-link {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 5px 12px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 14px;
+  font-size: 13.5px;
+}
+
+.kv-grid span {
+  color: var(--text-2);
+}
+
+.topic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.topic-row:last-child {
+  border-bottom: none;
+}
+
+.topic-row .tr-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topic-row .tr-title {
+  font-weight: 700;
+  font-size: 14.5px;
+}
+
+.topic-row .tr-sub {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.chip.static {
+  cursor: default;
+  opacity: 0.85;
+}
+
+label.mini {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+
+.pingate {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.pingate .pin-input {
+  max-width: 200px;
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 8px;
+}
+
+/* ---------- print report ---------- */
+
+.print-sheet {
+  background: #fff;
+  color: #111;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 26px 28px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.print-sheet h2 {
+  margin: 0 0 2px;
+  font-size: 19px;
+}
+
+.print-sheet h3 {
+  margin: 18px 0 4px;
+  font-size: 14px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 3px;
+}
+
+.print-sheet .meta {
+  color: #555;
+  font-size: 11.5px;
+  margin: 0;
+}
+
+.print-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.print-sheet th,
+.print-sheet td {
+  border: 1px solid #ddd;
+  padding: 4px 8px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.print-sheet .footnote {
+  margin-top: 20px;
+  font-size: 10.5px;
+  color: #666;
+  border-top: 1px solid #ddd;
+  padding-top: 8px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    position: absolute;
+    inset: 0;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

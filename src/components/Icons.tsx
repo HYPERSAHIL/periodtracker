@@ -49,6 +49,13 @@ export const IconChart = (_p: P) => (
   </svg>
 );
 
+export const IconBook = (_p: P) => (
+  <svg viewBox="0 0 24 24" {...base}>
+    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" />
+    <path d="M4 20.5V5.5M20 18v3H6.5" />
+  </svg>
+);
+
 export const IconGear = (_p: P) => (
   <svg viewBox="0 0 24 24" {...base}>
     <circle cx="12" cy="12" r="3.2" />

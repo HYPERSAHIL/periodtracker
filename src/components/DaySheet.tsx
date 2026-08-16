@@ -1,19 +1,30 @@
 import { useEffect, useState } from 'react';
-import { DayEntry, FLOWS, MOODS, MUCUS_OPTIONS, SYMPTOMS } from '../types';
+import {
+  DayEntry,
+  FLOWS,
+  MOODS,
+  MUCUS_OPTIONS,
+  SYMPTOMS,
+  Settings,
+} from '../types';
 import { DayFacts, Phase } from '../lib/cycle';
 import { prettyDate } from '../lib/date';
 
 const cToF = (c: number) => (c * 9) / 5 + 32;
 const fToC = (f: number) => ((f - 32) * 5) / 9;
+const kgToLb = (kg: number) => kg * 2.20462;
+const lbToKg = (lb: number) => lb / 2.20462;
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const SEVERITY_CYCLE = ['mild', 'moderate', 'severe'] as const;
+const IMPACT_CYCLE = ['none', 'some', 'lot'] as const;
 
 export default function DaySheet({
   date,
   entry,
   facts,
   phase,
-  tempUnit,
-  weightUnit,
+  settings,
   onClose,
   onSave,
   onDelete,
@@ -22,31 +33,46 @@ export default function DaySheet({
   entry: DayEntry | null;
   facts?: DayFacts;
   phase: Phase;
-  tempUnit: 'C' | 'F';
-  weightUnit: 'kg' | 'lb';
+  settings: Settings;
   onClose: () => void;
   onSave: (e: DayEntry) => void;
   onDelete: () => void;
 }) {
-  const [flow, setFlow] = useState<DayEntry['flow']>(entry?.flow ?? null);
-  const [symptoms, setSymptoms] = useState<string[]>(entry?.symptoms ?? []);
-  const [moods, setMoods] = useState<string[]>(entry?.moods ?? []);
-  const [note, setNote] = useState(entry?.note ?? '');
-  const [mucus, setMucus] = useState<DayEntry['mucus']>(entry?.mucus ?? null);
-  const [bbt, setBbt] = useState<string>(
-    entry?.bbt != null ? String(round2(tempUnit === 'F' ? cToF(entry.bbt) : entry.bbt)) : ''
+  const [d, setD] = useState<DayEntry>(() => ({
+    date,
+    checkedIn: entry?.checkedIn ?? false,
+    flow: entry?.flow ?? null,
+    clots: entry?.clots ?? false,
+    symptoms: entry?.symptoms ?? [],
+    moods: entry?.moods ?? [],
+    note: entry?.note ?? '',
+    mucus: entry?.mucus ?? null,
+    bbt: entry?.bbt ?? null,
+    weight: entry?.weight ?? null,
+    lhTest: entry?.lhTest ?? null,
+    pregnancyTest: entry?.pregnancyTest ?? null,
+    intercourse: entry?.intercourse ?? null,
+    drive: entry?.drive ?? null,
+    sleepHours: entry?.sleepHours ?? null,
+    sleepQuality: entry?.sleepQuality ?? null,
+    water: entry?.water ?? null,
+    steps: entry?.steps ?? null,
+    exerciseMinutes: entry?.exerciseMinutes ?? null,
+    alcohol: entry?.alcohol ?? null,
+    caffeine: entry?.caffeine ?? null,
+    smoked: entry?.smoked ?? false,
+    supplements: entry?.supplements ?? false,
+    pillTaken: entry?.pillTaken ?? false,
+    pillMissed: entry?.pillMissed ?? false,
+    symptomSeverity: entry?.symptomSeverity ?? null,
+    routineImpact: entry?.routineImpact ?? null,
+  }));
+  const [bbtText, setBbtText] = useState(
+    entry?.bbt != null ? String(round2(settings.tempUnit === 'F' ? cToF(entry.bbt) : entry.bbt)) : ''
   );
-  const [weight, setWeight] = useState<string>(
-    entry?.weight != null
-      ? String(round2(weightUnit === 'lb' ? entry.weight * 2.20462 : entry.weight))
-      : ''
+  const [weightText, setWeightText] = useState(
+    entry?.weight != null ? String(round2(settings.weightUnit === 'lb' ? kgToLb(entry.weight) : entry.weight)) : ''
   );
-  const [lhTest, setLhTest] = useState<DayEntry['lhTest']>(entry?.lhTest ?? null);
-  const [pregnancyTest, setPregnancyTest] = useState<DayEntry['pregnancyTest']>(
-    entry?.pregnancyTest ?? null
-  );
-  const [intercourse, setIntercourse] = useState(entry?.intercourse ?? false);
-  const [contraception, setContraception] = useState(entry?.contraception ?? false);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -54,31 +80,50 @@ export default function DaySheet({
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
 
-  const toggle = (list: string[], setList: (v: string[]) => void, s: string) =>
-    setList(list.includes(s) ? list.filter((x) => x !== s) : [...list, s]);
+  const set = (patch: Partial<DayEntry>) => setD((prev) => ({ ...prev, ...patch }));
 
-  const parsedBbt = parseFloat(bbt);
-  const parsedWeight = parseFloat(weight);
-  const bbtC = Number.isFinite(parsedBbt) && parsedBbt > 0 ? (tempUnit === 'F' ? fToC(parsedBbt) : parsedBbt) : null;
+  const toggle = (list: 'symptoms' | 'moods', s: string) =>
+    set({
+      [list]: d[list].includes(s) ? d[list].filter((x) => x !== s) : [...d[list], s],
+    } as Partial<DayEntry>);
+
+  const parsedBbt = parseFloat(bbtText);
+  const parsedWeight = parseFloat(weightText);
+  const bbtC = Number.isFinite(parsedBbt) && parsedBbt > 0 ? (settings.tempUnit === 'F' ? fToC(parsedBbt) : parsedBbt) : null;
   const weightKg =
     Number.isFinite(parsedWeight) && parsedWeight > 0
-      ? weightUnit === 'lb'
-        ? parsedWeight / 2.20462
+      ? settings.weightUnit === 'lb'
+        ? lbToKg(parsedWeight)
         : parsedWeight
       : null;
 
   const isEmpty =
-    !flow &&
-    symptoms.length === 0 &&
-    moods.length === 0 &&
-    !note.trim() &&
-    !mucus &&
+    !d.checkedIn &&
+    !d.flow &&
+    !d.clots &&
+    d.symptoms.length === 0 &&
+    d.moods.length === 0 &&
+    !d.note.trim() &&
+    !d.mucus &&
     bbtC === null &&
     weightKg === null &&
-    !lhTest &&
-    !pregnancyTest &&
-    !intercourse &&
-    !contraception;
+    !d.lhTest &&
+    !d.pregnancyTest &&
+    !d.intercourse &&
+    !d.drive &&
+    d.sleepHours == null &&
+    !d.sleepQuality &&
+    d.water == null &&
+    d.steps == null &&
+    d.exerciseMinutes == null &&
+    d.alcohol == null &&
+    d.caffeine == null &&
+    !d.smoked &&
+    !d.supplements &&
+    !d.pillTaken &&
+    !d.pillMissed &&
+    !d.symptomSeverity &&
+    !d.routineImpact;
 
   const save = () => {
     if (isEmpty) {
@@ -86,19 +131,311 @@ export default function DaySheet({
       return;
     }
     onSave({
-      date,
-      flow,
-      symptoms,
-      moods,
-      note: note.trim(),
-      mucus,
+      ...d,
       bbt: bbtC != null ? round2(bbtC) : null,
       weight: weightKg != null ? round2(weightKg) : null,
-      lhTest,
-      pregnancyTest,
-      intercourse,
-      contraception,
+      note: d.note.trim(),
     });
+  };
+
+  const order = settings.trackerOrder.length
+    ? settings.trackerOrder
+    : ['flow', 'checkin', 'symptoms', 'mood', 'discharge', 'measurements', 'tests', 'intimacy', 'sleep', 'activity', 'lifestyle', 'meds', 'note'];
+  const visible = order.filter((id) => !settings.trackerHidden.includes(id));
+
+  const section = (id: string) => {
+    switch (id) {
+      case 'flow':
+        return (
+          <div className="field" key={id}>
+            <label>Flow</label>
+            <div className="flow-row">
+              <div
+                className={`flow-opt${d.flow === null ? ' on' : ''}`}
+                onClick={() => set({ flow: null })}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && set({ flow: null })}
+              >
+                <div className="drops">—</div>
+                None
+              </div>
+              {FLOWS.map((f) => (
+                <div
+                  key={f.id}
+                  className={`flow-opt${d.flow === f.id ? ' on' : ''}`}
+                  onClick={() => set({ flow: d.flow === f.id ? null : f.id })}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && set({ flow: d.flow === f.id ? null : f.id })}
+                >
+                  <div className="drops">{'●'.repeat(f.dots)}</div>
+                  {f.label}
+                </div>
+              ))}
+            </div>
+            {d.flow && (
+              <button
+                type="button"
+                className={`chip${d.clots ? ' on' : ''}`}
+                style={{ marginTop: 8 }}
+                onClick={() => set({ clots: !d.clots })}
+              >
+                Clots
+              </button>
+            )}
+          </div>
+        );
+      case 'checkin':
+        return (
+          <div className="field" key={id}>
+            <label>Check-in</label>
+            <button type="button" className={`chip${d.checkedIn ? ' on' : ''}`} onClick={() => set({ checkedIn: !d.checkedIn })}>
+              ✓ I checked in today — this reflects how I felt
+            </button>
+            <p className="hint">Explicit check-ins make your insights trustworthy: a missing day means “forgot”, not “felt fine”.</p>
+          </div>
+        );
+      case 'symptoms':
+        return (
+          <div className="field" key={id}>
+            <label>Symptoms</label>
+            <div className="chips">
+              {SYMPTOMS.map((s) => (
+                <button key={s} type="button" className={`chip${d.symptoms.includes(s) ? ' on' : ''}`} onClick={() => toggle('symptoms', s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            {d.symptoms.length > 0 && (
+              <>
+                <div className="chips" style={{ marginTop: 10 }}>
+                  <span className="chip static">Overall severity:</span>
+                  {SEVERITY_CYCLE.map((s) => (
+                    <button key={s} type="button" className={`chip${d.symptomSeverity === s ? ' on' : ''}`} onClick={() => set({ symptomSeverity: d.symptomSeverity === s ? null : s })}>
+                      {s[0].toUpperCase() + s.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <div className="chips" style={{ marginTop: 8 }}>
+                  <span className="chip static">Affected my day:</span>
+                  {IMPACT_CYCLE.map((s) => (
+                    <button key={s} type="button" className={`chip${d.routineImpact === s ? ' on' : ''}`} onClick={() => set({ routineImpact: d.routineImpact === s ? null : s })}>
+                      {s === 'none' ? 'Not much' : s === 'some' ? 'Somewhat' : 'A lot'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      case 'mood':
+        return (
+          <div className="field" key={id}>
+            <label>Mood</label>
+            <div className="chips">
+              {MOODS.map((m) => (
+                <button key={m.id} type="button" className={`chip${d.moods.includes(m.id) ? ' on' : ''}`} onClick={() => toggle('moods', m.id)}>
+                  <span aria-hidden>{m.emoji}</span> {m.id}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'discharge':
+        return (
+          <div className="field" key={id}>
+            <label>Discharge</label>
+            <div className="chips">
+              {MUCUS_OPTIONS.map((m) => (
+                <button key={m.id} type="button" className={`chip${d.mucus === m.id ? ' on' : ''}`} onClick={() => set({ mucus: d.mucus === m.id ? null : m.id })}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="hint">Egg-white or watery discharge often marks the most fertile days.</p>
+          </div>
+        );
+      case 'measurements':
+        return (
+          <div className="two-col" key={id}>
+            <div className="field">
+              <label htmlFor="bbt-in">Temperature (°{settings.tempUnit})</label>
+              <input
+                id="bbt-in"
+                className="num-in"
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                placeholder={settings.tempUnit === 'C' ? '36.5' : '97.7'}
+                value={bbtText}
+                onChange={(e) => setBbtText(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="weight-in">Weight ({settings.weightUnit})</label>
+              <input
+                id="weight-in"
+                className="num-in"
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                placeholder={settings.weightUnit === 'kg' ? '60.0' : '132'}
+                value={weightText}
+                onChange={(e) => setWeightText(e.target.value)}
+              />
+            </div>
+          </div>
+        );
+      case 'tests':
+        return (
+          <div className="field" key={id}>
+            <label>Tests</label>
+            <div className="chips">
+              <button type="button" className={`chip${d.lhTest === 'positive' ? 'on' : ''}`} onClick={() => set({ lhTest: d.lhTest === 'positive' ? null : 'positive' })}>
+                🟣 LH positive
+              </button>
+              <button type="button" className={`chip${d.lhTest === 'negative' ? 'on' : ''}`} onClick={() => set({ lhTest: d.lhTest === 'negative' ? null : 'negative' })}>
+                LH negative
+              </button>
+              <button type="button" className={`chip${d.pregnancyTest === 'positive' ? 'on' : ''}`} onClick={() => set({ pregnancyTest: d.pregnancyTest === 'positive' ? null : 'positive' })}>
+                ✅ Preg. positive
+              </button>
+              <button type="button" className={`chip${d.pregnancyTest === 'faint' ? 'on' : ''}`} onClick={() => set({ pregnancyTest: d.pregnancyTest === 'faint' ? null : 'faint' })}>
+                Faint line
+              </button>
+              <button type="button" className={`chip${d.pregnancyTest === 'negative' ? 'on' : ''}`} onClick={() => set({ pregnancyTest: d.pregnancyTest === 'negative' ? null : 'negative' })}>
+                Preg. negative
+              </button>
+            </div>
+          </div>
+        );
+      case 'intimacy':
+        return (
+          <div className="field" key={id}>
+            <label>Intimacy</label>
+            <div className="chips">
+              <button type="button" className={`chip${d.intercourse === 'protected' ? 'on' : ''}`} onClick={() => set({ intercourse: d.intercourse === 'protected' ? null : 'protected' })}>
+                💞 Protected
+              </button>
+              <button type="button" className={`chip${d.intercourse === 'unprotected' ? 'on' : ''}`} onClick={() => set({ intercourse: d.intercourse === 'unprotected' ? null : 'unprotected' })}>
+                💞 Unprotected
+              </button>
+            </div>
+            <div className="chips" style={{ marginTop: 8 }}>
+              <span className="chip static">Drive:</span>
+              {(['low', 'normal', 'high'] as const).map((v) => (
+                <button key={v} type="button" className={`chip${d.drive === v ? ' on' : ''}`} onClick={() => set({ drive: d.drive === v ? null : v })}>
+                  {v[0].toUpperCase() + v.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'sleep':
+        return (
+          <div className="field" key={id}>
+            <label>Sleep</label>
+            <div className="chips">
+              <span className="chip static">Hours:</span>
+              {[5, 6, 7, 8, 9, 10].map((h) => (
+                <button key={h} type="button" className={`chip${d.sleepHours === h ? ' on' : ''}`} onClick={() => set({ sleepHours: d.sleepHours === h ? null : h })}>
+                  {h}
+                </button>
+              ))}
+            </div>
+            <div className="chips" style={{ marginTop: 8 }}>
+              <span className="chip static">Quality:</span>
+              {(['poor', 'fair', 'good'] as const).map((q) => (
+                <button key={q} type="button" className={`chip${d.sleepQuality === q ? ' on' : ''}`} onClick={() => set({ sleepQuality: d.sleepQuality === q ? null : q })}>
+                  {q[0].toUpperCase() + q.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'activity':
+        return (
+          <div className="field" key={id}>
+            <label>Activity</label>
+            <div className="two-col">
+              <div>
+                <label className="mini" htmlFor="ex-in">Exercise (min)</label>
+                <input id="ex-in" className="num-in" type="number" inputMode="numeric" min="0" value={d.exerciseMinutes ?? ''} onChange={(e) => set({ exerciseMinutes: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} />
+              </div>
+              <div>
+                <label className="mini" htmlFor="steps-in">Steps</label>
+                <input id="steps-in" className="num-in" type="number" inputMode="numeric" min="0" step="500" value={d.steps ?? ''} onChange={(e) => set({ steps: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })} />
+              </div>
+            </div>
+            <div className="chips" style={{ marginTop: 10 }}>
+              <span className="chip static">Water (glasses):</span>
+              {[2, 4, 6, 8, 10].map((w) => (
+                <button key={w} type="button" className={`chip${d.water === w ? ' on' : ''}`} onClick={() => set({ water: d.water === w ? null : w })}>
+                  {w}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      case 'lifestyle':
+        return (
+          <div className="field" key={id}>
+            <label>Lifestyle</label>
+            <div className="chips">
+              <span className="chip static">Alcohol:</span>
+              {[0, 1, 2, 3, 5].map((n) => (
+                <button key={n} type="button" className={`chip${d.alcohol === n ? 'on' : ''}`} onClick={() => set({ alcohol: d.alcohol === n ? null : n })}>
+                  {n === 0 ? 'None' : n}
+                </button>
+              ))}
+            </div>
+            <div className="chips" style={{ marginTop: 8 }}>
+              <span className="chip static">Caffeine (cups):</span>
+              {[0, 1, 2, 3, 4].map((n) => (
+                <button key={n} type="button" className={`chip${d.caffeine === n ? 'on' : ''}`} onClick={() => set({ caffeine: d.caffeine === n ? null : n })}>
+                  {n}
+                </button>
+              ))}
+              <button type="button" className={`chip${d.smoked ? 'on' : ''}`} onClick={() => set({ smoked: !d.smoked })}>
+                🚬 Smoked/vaped
+              </button>
+            </div>
+          </div>
+        );
+      case 'meds':
+        return (
+          <div className="field" key={id}>
+            <label>Medication</label>
+            <div className="chips">
+              <button type="button" className={`chip${d.pillTaken ? 'on' : ''}`} onClick={() => set({ pillTaken: !d.pillTaken, pillMissed: false })}>
+                💊 Contraception taken
+              </button>
+              <button type="button" className={`chip${d.pillMissed ? 'on' : ''}`} onClick={() => set({ pillMissed: !d.pillMissed, pillTaken: false })}>
+                ⏰ Missed / late
+              </button>
+              <button type="button" className={`chip${d.supplements ? 'on' : ''}`} onClick={() => set({ supplements: !d.supplements })}>
+                🧬 Supplements/prenatal
+              </button>
+            </div>
+          </div>
+        );
+      case 'note':
+        return (
+          <div className="field" key={id}>
+            <label htmlFor="day-note">Notes</label>
+            <textarea
+              id="day-note"
+              className="note"
+              placeholder="Anything you want to remember about today…"
+              value={d.note}
+              onChange={(e) => set({ note: e.target.value })}
+            />
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
@@ -114,143 +451,7 @@ export default function DaySheet({
           {facts?.ovulation && <span className="tag leaf">Ovulation (est.)</span>}
         </div>
 
-        <div className="field">
-          <label>Flow</label>
-          <div className="flow-row">
-            <div
-              className={`flow-opt${flow === null ? ' on' : ''}`}
-              onClick={() => setFlow(null)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && setFlow(null)}
-            >
-              <div className="drops">—</div>
-              None
-            </div>
-            {FLOWS.map((f) => (
-              <div
-                key={f.id}
-                className={`flow-opt${flow === f.id ? ' on' : ''}`}
-                onClick={() => setFlow(flow === f.id ? null : f.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && setFlow(flow === f.id ? null : f.id)}
-              >
-                <div className="drops">{'●'.repeat(f.dots)}</div>
-                {f.label}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Symptoms</label>
-          <div className="chips">
-            {SYMPTOMS.map((s) => (
-              <button key={s} type="button" className={`chip${symptoms.includes(s) ? ' on' : ''}`} onClick={() => toggle(symptoms, setSymptoms, s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Mood</label>
-          <div className="chips">
-            {MOODS.map((m) => (
-              <button key={m.id} type="button" className={`chip${moods.includes(m.id) ? ' on' : ''}`} onClick={() => toggle(moods, setMoods, m.id)}>
-                <span aria-hidden>{m.emoji}</span> {m.id}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Discharge</label>
-          <div className="chips">
-            {MUCUS_OPTIONS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className={`chip${mucus === m.id ? ' on' : ''}`}
-                onClick={() => setMucus(mucus === m.id ? null : m.id)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <p className="hint">Egg-white or watery discharge often marks the most fertile days.</p>
-        </div>
-
-        <div className="two-col">
-          <div className="field">
-            <label htmlFor="bbt-in">Temperature (°{tempUnit})</label>
-            <input
-              id="bbt-in"
-              className="num-in"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              placeholder={tempUnit === 'C' ? '36.5' : '97.7'}
-              value={bbt}
-              onChange={(e) => setBbt(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="weight-in">Weight ({weightUnit})</label>
-            <input
-              id="weight-in"
-              className="num-in"
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              placeholder={weightUnit === 'kg' ? '60.0' : '132'}
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Tests</label>
-          <div className="chips">
-            <button type="button" className={`chip${lhTest === 'positive' ? 'on' : ''}`} onClick={() => setLhTest(lhTest === 'positive' ? null : 'positive')}>
-              🟣 LH positive
-            </button>
-            <button type="button" className={`chip${lhTest === 'negative' ? 'on' : ''}`} onClick={() => setLhTest(lhTest === 'negative' ? null : 'negative')}>
-              LH negative
-            </button>
-            <button type="button" className={`chip${pregnancyTest === 'positive' ? 'on' : ''}`} onClick={() => setPregnancyTest(pregnancyTest === 'positive' ? null : 'positive')}>
-              ✅ Preg. positive
-            </button>
-            <button type="button" className={`chip${pregnancyTest === 'negative' ? 'on' : ''}`} onClick={() => setPregnancyTest(pregnancyTest === 'negative' ? null : 'negative')}>
-              Preg. negative
-            </button>
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Also today</label>
-          <div className="chips">
-            <button type="button" className={`chip${intercourse ? 'on' : ''}`} onClick={() => setIntercourse(!intercourse)}>
-              💞 Intercourse
-            </button>
-            <button type="button" className={`chip${contraception ? 'on' : ''}`} onClick={() => setContraception(!contraception)}>
-              💊 Contraception taken
-            </button>
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="day-note">Notes</label>
-          <textarea
-            id="day-note"
-            className="note"
-            placeholder="Anything you want to remember about today…"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </div>
+        {visible.map((id) => section(id))}
 
         <button className="btn primary" onClick={save}>
           {isEmpty ? 'Clear this day' : 'Save'}
@@ -259,6 +460,11 @@ export default function DaySheet({
           <button className="btn danger" style={{ marginTop: 10 }} onClick={onDelete}>
             Delete this log
           </button>
+        )}
+        {settings.trackerHidden.length > 0 && (
+          <p className="hint" style={{ textAlign: 'center', marginTop: 10 }}>
+            {settings.trackerHidden.length} section(s) hidden — manage in Settings → Trackers.
+          </p>
         )}
       </div>
     </div>

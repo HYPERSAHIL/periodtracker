@@ -13,6 +13,8 @@ export default function Onboarding({
 }) {
   const [step, setStep] = useState(0);
   const [mode, setMode] = useState<Mode>('cycle');
+  const [birthYear, setBirthYear] = useState('');
+  const [consented, setConsented] = useState(false);
   const [lastStart, setLastStart] = useState(addDays(todayISO(), -5));
   const [periodLength, setPeriodLength] = useState(5);
   const [cycleLength, setCycleLength] = useState(28);
@@ -20,12 +22,15 @@ export default function Onboarding({
   const [dueFromScan, setDueFromScan] = useState(true); // true: due date known; false: compute from LMP
 
   const isPregnant = mode === 'pregnant';
-  const totalSteps = isPregnant ? 2 : 3;
+  const ageOk = /^\d{4}$/.test(birthYear) && Number(birthYear) <= new Date().getFullYear() - 13;
+  const totalSteps = isPregnant ? 3 : 4;
 
   const finish = () => {
     updateSettings({
       onboarded: true,
       mode,
+      birthYear: Number(birthYear),
+      consentAt: new Date().toISOString(),
       lastPeriodStart: isPregnant ? null : lastStart || todayISO(),
       avgPeriodLength: periodLength,
       avgCycleLength: cycleLength,
@@ -54,7 +59,33 @@ export default function Onboarding({
             Track your cycle, predict your period and fertile window, and see your patterns —
             with all of your data staying on your device.
           </p>
+          <div className="field">
+            <label htmlFor="ob-year">Year of birth</label>
+            <input
+              id="ob-year"
+              className="num-in"
+              type="number"
+              inputMode="numeric"
+              placeholder="e.g. 1998"
+              value={birthYear}
+              onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            />
+            <p className="hint">Period Tracker is designed for people 13 or older.</p>
+          </div>
+          <button type="button" className={`chip${consented ? ' on' : ''}`} onClick={() => setConsented(!consented)}>
+            ✓ I agree that my health logs are stored locally on this device only
+          </button>
+          <div className="grow" />
+          <button className="btn primary" disabled={!ageOk || !consented} onClick={() => setStep(1)}>
+            Continue
+          </button>
+        </>
+      )}
+
+      {step === 1 && (
+        <>
           <h2 style={{ fontSize: 19, marginBottom: 6 }}>What brings you here?</h2>
+          <p className="lead">You can switch modes anytime in Settings — nothing is locked in.</p>
           <div className="mode-grid">
             {MODES.map((m) => (
               <button
@@ -70,18 +101,18 @@ export default function Onboarding({
             ))}
           </div>
           <div className="grow" />
-          <button className="btn primary" onClick={() => setStep(1)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
+            Back
+          </button>
+          <button className="btn primary" onClick={() => setStep(2)}>
             Continue
           </button>
-          <p className="hint" style={{ textAlign: 'center' }}>
-            You can switch modes anytime in Settings — nothing is locked in.
-          </p>
         </>
       )}
 
-      {step === 1 && !isPregnant && (
+      {step === 2 && !isPregnant && (
         <>
-          <div className="steps">Step 2 of 3 · Your last period</div>
+          <div className="steps">Step 3 of 4 · Your last period</div>
           <h2>When did your last period start?</h2>
           <p className="lead">
             {mode === 'perimenopause'
@@ -105,18 +136,18 @@ export default function Onboarding({
             </div>
           </div>
           <div className="grow" />
-          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(1)}>
             Back
           </button>
-          <button className="btn primary" disabled={!dateOk(lastStart)} onClick={() => setStep(2)}>
+          <button className="btn primary" disabled={!dateOk(lastStart)} onClick={() => setStep(3)}>
             Continue
           </button>
         </>
       )}
 
-      {step === 1 && isPregnant && (
+      {step === 2 && isPregnant && (
         <>
-          <div className="steps">Step 2 of 2 · Your pregnancy</div>
+          <div className="steps">Step 3 of 3 · Your pregnancy</div>
           <h2>When is the baby due?</h2>
           <p className="lead">
             Period predictions pause automatically during pregnancy — this app switches to
@@ -156,7 +187,7 @@ export default function Onboarding({
             </div>
           )}
           <div className="grow" />
-          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(1)}>
             Back
           </button>
           <button className="btn primary" disabled={!dateOk(dueDate)} onClick={finish}>
@@ -165,9 +196,9 @@ export default function Onboarding({
         </>
       )}
 
-      {step === 2 && !isPregnant && (
+      {step === 3 && !isPregnant && (
         <>
-          <div className="steps">Step 3 of 3 · Your typical cycle</div>
+          <div className="steps">Step 4 of 4 · Your typical cycle</div>
           <h2>How long is your cycle?</h2>
           <p className="lead">
             From the first day of one period to the first day of the next. The average is around
@@ -183,7 +214,7 @@ export default function Onboarding({
             </p>
           </div>
           <div className="grow" />
-          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(1)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(2)}>
             Back
           </button>
           <button className="btn primary" onClick={finish}>

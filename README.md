@@ -8,21 +8,23 @@ own device — no account, no cloud, no tracking.
 
 ## Features
 
-- **Four modes** — cycle tracking, trying to conceive, pregnancy, and perimenopause, switchable anytime
-- **Cycle logging** — flow intensity (spotting → heavy), 18 symptoms, 10 moods, and freeform notes for any day
-- **Fertility signs** — cervical mucus/discharge quality, basal body temperature, weight, LH ovulation tests, and pregnancy tests
-- **Predictions** — next period, fertile window, and ovulation estimates based on your own logged cycles (rolling average of your last 6)
-- **Pregnancy mode** — week + day tracking, trimester info, progress bar, and due date from a clinician or computed from your last period
-- **Calendar** — month view with logged periods, predicted days, fertile window, ovulation and positive-LH markers
-- **Insights** — cycle length chart, regularity read, BBT and weight line charts, positive-LH history, and your most-logged symptoms & moods
-- **Life events** — intercourse and contraception logging
+- **Four modes** — cycle tracking, trying to conceive, pregnancy, and perimenopause, switchable anytime, with age gate + local-storage consent
+- **80+ loggable signals** — flow + clots, 32 symptoms with per-day severity and routine impact, 14 moods, discharge quality, BBT, weight, LH/OPK and pregnancy tests (incl. faint-line), intimacy + drive, sleep hours/quality, exercise/steps/water, alcohol/caffeine/smoking, contraception + supplements, notes — plus explicit **daily check-ins** that separate "no symptoms" from "forgot to log"
+- **Personalizable tracker** — reorder and hide any logging section
+- **Transparent forecasts** — median-based prediction with uncertainty windows derived from your own variation, a "why this estimate" explainer, late-period and stale-history states, and a policy layer: hormonal contraception suppresses fertility estimates, pregnancy pauses cycle forecasts
+- **Contraception regimen** — method, start date, patch/ring change intervals, injection/implant/IUD renewal dates surfaced on the dashboard
+- **Safety notices** — deterministic, source-attributed banners (ACOG/CDC guidance) for heavy bleeding, bleeding between periods or after long gaps, pregnancy pain/bleeding combinations, and unusual discharge — observations, never diagnoses; crisis-line resources in Settings
+- **Pregnancy mode** — week + day tracking, trimester info, progress bar, due date from clinician or LMP
+- **Insights** — 6/12-cycle windows (median/mean/range/trend), tracking completeness, symptoms by cycle phase (check-in aware), deterministic pattern cards, BBT/weight charts, positive-LH history
+- **Learn hub** — 8 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
+- **Clinician report** — printable summary with opt-in sensitive sections
 - **Reminders** — optional "period is coming" notifications
-- **Your data, yours** — JSON export/import, one-tap erase, and *nothing* ever leaves the device
+- **Your data, yours** — plain or **AES-GCM passphrase-encrypted** JSON export/import, optional app PIN, one-tap erase, and *nothing* ever leaves the device
 - **PWA** — install to your home screen, works fully offline, light/dark/system theme, °C/°F and kg/lb units
 
-Predictions use the calendar method (ovulation ≈ 14 days before the next period), with temperature
-and discharge signs as supporting fertility clues. They are estimates, not medical advice or
-contraception guidance.
+Predictions use the calendar method (ovulation ≈ 14 days before the next period) with median-based
+robust statistics; temperature and discharge signs add fertility-awareness clues. Everything is
+estimation support — not medical advice, diagnosis, or contraception guidance.
 
 ## Stack
 

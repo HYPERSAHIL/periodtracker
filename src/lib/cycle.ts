@@ -1,4 +1,4 @@
-import { DayEntry, Settings } from '../types';
+import { ContraceptionRegimen, DayEntry, HORMONAL_METHODS, Settings } from '../types';
 import { addDays, clamp, diffDays, todayISO } from './date';
 
 export interface PeriodCluster {
@@ -10,19 +10,26 @@ export interface PeriodCluster {
 export type Phase = 'menstrual' | 'follicular' | 'ovulation' | 'luteal' | 'unknown';
 
 export interface CycleStats {
-  clusters: PeriodCluster[]; // chronological
-  cycleLengths: number[]; // chronological, between consecutive period starts
-  avgCycle: number;
+  clusters: PeriodCluster[];
+  cycleLengths: number[]; // all valid intervals, chronological
+  avgCycle: number; // robust median of recent intervals (or baseline)
   avgPeriod: number;
-  usingDefaults: boolean; // true until two or more period starts have been logged
+  usingDefaults: boolean;
   lastStart: string | null;
-  nextStart: string | null; // null while predictions are paused
-  daysUntilNext: number | null;
-  ovulationDate: string | null; // predicted, current cycle
+  nextStart: string | null;
+  daysUntilNext: number | null; // negative = late
+  lateBy: number | null; // days past the prediction, while still "late" not "reset"
+  ovulationDate: string | null;
   fertileStart: string | null;
   fertileEnd: string | null;
-  cycleDay: number | null; // 1-based day of current cycle
+  cycleDay: number | null;
   predictionsPaused: boolean;
+  stale: boolean; // last period too old to extrapolate from
+  uncertaintyDays: number; // ± around nextStart
+  periodWindow: { start: string; end: string } | null;
+  fertileSuppressed: boolean; // hormonal contraception → fertility forecasts hidden
+  includedLengths: number[];
+  excludedLengths: number[];
 }
 
 /** Group logged flow days into consecutive-day bleeding episodes ("periods"). */
@@ -47,65 +54,110 @@ export function periodClusters(entries: Record<string, DayEntry>): PeriodCluster
   return clusters;
 }
 
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
 function mean(nums: number[]): number {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
-export function computeStats(
-  entries: Record<string, DayEntry>,
-  settings: Settings
-): CycleStats {
+/** ± days around the point forecast, derived from the user's own variation. */
+function uncertaintyFromHistory(lengths: number[]): number {
+  if (lengths.length <= 1) return 7;
+  if (lengths.length === 2) return Math.min(14, Math.max(5, Math.ceil(Math.abs(lengths[1] - lengths[0]) / 2) + 3));
+  const center = median(lengths);
+  const mad = median(lengths.map((l) => Math.abs(l - center)));
+  const residuals = lengths.map((l) => Math.abs(l - center)).sort((a, b) => a - b);
+  const coverage = residuals[Math.ceil((residuals.length - 1) * 0.8)];
+  // 1.4826 × MAD ≈ standard deviation; +2 days avoids false precision
+  const spread = Math.ceil(Math.max(mad * 1.4826, coverage) + 2);
+  return Math.min(14, Math.max(2, spread));
+}
+
+export function isHormonal(c: ContraceptionRegimen): boolean {
+  return HORMONAL_METHODS.includes(c.method);
+}
+
+export function computeStats(entries: Record<string, DayEntry>, settings: Settings): CycleStats {
   const clusters = periodClusters(entries);
   const starts = clusters.map((c) => c.start);
-  const cycleLengths: number[] = [];
+
+  const allIntervals: number[] = [];
+  const excluded: number[] = [];
   for (let i = 1; i < starts.length; i++) {
     const len = diffDays(starts[i - 1], starts[i]);
-    if (len >= 15 && len <= 90) cycleLengths.push(len); // ignore logging gaps/artifacts
+    if (len >= 15 && len <= 90) allIntervals.push(len);
+    else excluded.push(len);
   }
-  const recentLengths = cycleLengths.slice(-6);
-  const recentPeriods = clusters.slice(-6).map((c) => c.length);
-
+  const included = allIntervals.slice(-6);
   const usingDefaults = starts.length < 2;
+
   const avgCycle = usingDefaults
     ? clamp(settings.avgCycleLength, 15, 90)
-    : clamp(Math.round(mean(recentLengths)), 15, 90);
+    : clamp(Math.round(median(included)), 15, 90);
   const avgPeriod = usingDefaults
     ? clamp(settings.avgPeriodLength, 1, 14)
-    : clamp(Math.round(mean(recentPeriods)), 1, 14);
+    : clamp(Math.round(mean(clusters.slice(-6).map((c) => c.length))), 1, 14);
 
   const today = todayISO();
   const lastStart = starts.length ? starts[starts.length - 1] : settings.lastPeriodStart;
   const paused = settings.predictionsPaused || settings.mode === 'pregnant';
-  const nextStart = lastStart && !paused ? addDays(lastStart, avgCycle) : null;
+  const daysSinceLast = lastStart ? diffDays(lastStart, today) : null;
+  const stale = !paused && daysSinceLast !== null && daysSinceLast > 90;
 
+  const uncertaintyDays = usingDefaults ? 7 : uncertaintyFromHistory(included);
 
-  // If the predicted start is already in the past (late period), roll predictions
-  // forward from the missed prediction so the calendar keeps showing a future window.
-  let effectiveNext = nextStart;
-  if (effectiveNext) {
-    while (diffDays(today, effectiveNext) < 0) effectiveNext = addDays(effectiveNext, avgCycle);
+  let nextStart: string | null = null;
+  let lateBy: number | null = null;
+  let daysUntilNext: number | null = null;
+  if (lastStart && !paused && !stale) {
+    let anchor = addDays(lastStart, avgCycle);
+    const overdue = diffDays(today, anchor); // >0 means anchor already passed
+    if (overdue > 0) {
+      if (overdue <= uncertaintyDays + 7) {
+        lateBy = overdue; // plausible late period — surface it, don't silently re-anchor
+      } else {
+        // far overdue: likely a real change (or pregnancy) — re-anchor forward
+        while (diffDays(today, anchor) < 0) anchor = addDays(anchor, avgCycle);
+      }
+    }
+    nextStart = anchor;
+    daysUntilNext = diffDays(today, anchor);
   }
 
-  const daysUntilNext = effectiveNext ? diffDays(today, effectiveNext) : null;
-  const ovulationDate = effectiveNext ? addDays(effectiveNext, -14) : null;
+  const fertileSuppressed = !paused && isHormonal(settings.contraception);
+  const ovulationDate = nextStart && !fertileSuppressed ? addDays(nextStart, -14) : null;
   const fertileStart = ovulationDate ? addDays(ovulationDate, -5) : null;
   const fertileEnd = ovulationDate ? addDays(ovulationDate, 1) : null;
   const cycleDay = lastStart ? diffDays(lastStart, today) + 1 : null;
 
   return {
     clusters,
-    cycleLengths,
+    cycleLengths: allIntervals,
     avgCycle,
     avgPeriod,
     usingDefaults,
     lastStart,
-    nextStart: effectiveNext,
+    nextStart,
     daysUntilNext,
+    lateBy,
     ovulationDate,
     fertileStart,
     fertileEnd,
     cycleDay: cycleDay && cycleDay > 0 ? cycleDay : null,
     predictionsPaused: paused,
+    stale,
+    uncertaintyDays,
+    periodWindow: nextStart
+      ? { start: addDays(nextStart, -uncertaintyDays), end: addDays(nextStart, uncertaintyDays) }
+      : null,
+    fertileSuppressed,
+    includedLengths: included,
+    excludedLengths: excluded,
   };
 }
 
@@ -118,7 +170,8 @@ export interface DayFacts {
 
 /**
  * Precomputed facts for every interesting date: from the first logged day up to
- * ~10 months past today (6 future prediction cycles).
+ * ~10 months past today (6 future prediction cycles). Fertility markers are
+ * omitted while hormonal contraception suppresses them.
  */
 export function buildFacts(
   entries: Record<string, DayEntry>,
@@ -135,23 +188,20 @@ export function buildFacts(
     if (e.flow) touch(e.date).period = true;
   }
 
-  if (!stats.predictionsPaused && stats.lastStart && stats.avgCycle) {
+  if (!stats.predictionsPaused && !stats.stale && stats.lastStart && stats.avgCycle) {
     const today = todayISO();
-    const end = addDays(today, Math.round(horizonMonths * 30.5));
-
-    // Future period predictions (start from the last *logged* prediction anchor)
     let anchor = stats.nextStart ?? addDays(stats.lastStart, stats.avgCycle);
     let guard = 0;
-    while (diffDays(today, anchor) < -stats.avgCycle && guard++ < 24) {
-      anchor = addDays(anchor, stats.avgCycle);
-    }
+    while (diffDays(today, anchor) < -stats.avgCycle && guard++ < 24) anchor = addDays(anchor, stats.avgCycle);
     for (let c = 0; c < 6; c++) {
       for (let i = 0; i < stats.avgPeriod; i++) touch(addDays(anchor, i)).predicted = true;
-      const ovu = addDays(anchor, -14);
-      for (let i = -5; i <= 1; i++) touch(addDays(ovu, i)).fertile = true;
-      touch(ovu).ovulation = true;
+      if (!stats.fertileSuppressed) {
+        const ovu = addDays(anchor, -14);
+        for (let i = -5; i <= 1; i++) touch(addDays(ovu, i)).fertile = true;
+        touch(ovu).ovulation = true;
+      }
       anchor = addDays(anchor, stats.avgCycle);
-      if (diffDays(today, anchor) > diffDays(today, end)) break;
+      if (diffDays(today, anchor) > Math.round(horizonMonths * 30.5)) break;
     }
   }
   return facts;

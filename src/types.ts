@@ -1,11 +1,27 @@
 export type Flow = 'spotting' | 'light' | 'medium' | 'heavy';
-export type Mucus = 'dry' | 'sticky' | 'creamy' | 'watery' | 'eggwhite';
-export type TestResult = 'negative' | 'positive';
+export type Mucus = 'dry' | 'sticky' | 'creamy' | 'watery' | 'eggwhite' | 'unusual';
+export type TestResult = 'negative' | 'positive' | 'faint' | 'unclear';
 export type Mode = 'cycle' | 'ttc' | 'pregnant' | 'perimenopause';
+export type Severity = 'mild' | 'moderate' | 'severe';
+export type ContraceptionMethod =
+  | 'none'
+  | 'pill'
+  | 'patch'
+  | 'ring'
+  | 'injection'
+  | 'implant'
+  | 'iud'
+  | 'condom'
+  | 'other';
+
+export const HORMONAL_METHODS: ContraceptionMethod[] = ['pill', 'patch', 'ring', 'injection', 'implant', 'iud'];
 
 export interface DayEntry {
   date: string; // YYYY-MM-DD
+  /** Explicit "I checked in today" marker — distinguishes no-symptom days from forgotten days. */
+  checkedIn: boolean;
   flow: Flow | null;
+  clots: boolean;
   symptoms: string[];
   moods: string[];
   note: string;
@@ -14,23 +30,53 @@ export interface DayEntry {
   weight: number | null; // stored in kg
   lhTest: TestResult | null; // ovulation (LH) test
   pregnancyTest: TestResult | null;
-  intercourse: boolean;
-  contraception: boolean; // pill / contraceptive taken
+  intercourse: 'protected' | 'unprotected' | null;
+  drive: 'low' | 'normal' | 'high' | null;
+  sleepHours: number | null;
+  sleepQuality: 'poor' | 'fair' | 'good' | null;
+  water: number | null; // glasses
+  steps: number | null;
+  exerciseMinutes: number | null;
+  alcohol: number | null; // drinks
+  caffeine: number | null; // cups
+  smoked: boolean;
+  supplements: boolean; // prenatal vitamin / supplements taken
+  pillTaken: boolean;
+  pillMissed: boolean;
+  symptomSeverity: Severity | null; // overall severity for the day
+  routineImpact: 'none' | 'some' | 'lot' | null; // impact on daily routine
+}
+
+export interface ContraceptionRegimen {
+  method: ContraceptionMethod;
+  startDate: string | null;
+  /** patch / ring change interval */
+  changeEveryDays: number | null;
+  /** injection / implant / IUD next date */
+  nextRenewal: string | null;
 }
 
 export interface Settings {
-  avgCycleLength: number; // used until enough data is collected
+  avgCycleLength: number;
   avgPeriodLength: number;
-  lastPeriodStart: string | null; // baseline from onboarding, used when no logs exist
+  lastPeriodStart: string | null;
   theme: 'system' | 'light' | 'dark';
   reminders: boolean;
-  remindDaysBefore: number; // 1..5
-  predictionsPaused: boolean; // pregnancy / menopause / personal preference
+  remindDaysBefore: number;
+  predictionsPaused: boolean;
   onboarded: boolean;
   mode: Mode;
-  dueDate: string | null; // pregnancy mode
+  dueDate: string | null;
   tempUnit: 'C' | 'F';
   weightUnit: 'kg' | 'lb';
+  contraception: ContraceptionRegimen;
+  trackerOrder: string[]; // section ids in display order
+  trackerHidden: string[];
+  pinHash: string | null; // salted SHA-256, gate only (not encryption)
+  pinSalt: string | null;
+  birthYear: number | null;
+  consentAt: string | null; // when local-health-storage consent was given
+  bookmarks: string[]; // content slugs
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -46,6 +92,14 @@ export const DEFAULT_SETTINGS: Settings = {
   dueDate: null,
   tempUnit: 'C',
   weightUnit: 'kg',
+  contraception: { method: 'none', startDate: null, changeEveryDays: null, nextRenewal: null },
+  trackerOrder: [],
+  trackerHidden: [],
+  pinHash: null,
+  pinSalt: null,
+  birthYear: null,
+  consentAt: null,
+  bookmarks: [],
 };
 
 export const FLOWS: { id: Flow; label: string; dots: number }[] = [
@@ -61,18 +115,13 @@ export const MUCUS_OPTIONS: { id: Mucus; label: string }[] = [
   { id: 'creamy', label: 'Creamy' },
   { id: 'watery', label: 'Watery' },
   { id: 'eggwhite', label: 'Egg white' },
+  { id: 'unusual', label: 'Unusual color/smell' },
 ];
-
-export const MODE_INFO: Record<Mode, { label: string; blurb: string; emoji: string }> = {
-  cycle: { label: 'Track my cycle', blurb: 'Periods, symptoms, and predictions', emoji: '🌸' },
-  ttc: { label: 'Trying to conceive', blurb: 'Fertility signs, ovulation tests, fertile days', emoji: '🌱' },
-  pregnant: { label: "I'm pregnant", blurb: 'Week-by-week tracking until due date', emoji: '🤰' },
-  perimenopause: { label: 'Perimenopause', blurb: 'Irregular cycles and changing symptoms', emoji: '🍂' },
-};
 
 export const SYMPTOMS: string[] = [
   'Cramps',
   'Headache',
+  'Migraine',
   'Bloating',
   'Acne',
   'Tender breasts',
@@ -82,14 +131,36 @@ export const SYMPTOMS: string[] = [
   'Cravings',
   'Insomnia',
   'Dizziness',
+  'Fainting',
   'Digestive issues',
+  'Diarrhea',
+  'Constipation',
   'Hot flashes',
   'Night sweats',
   'Body aches',
   'Joint pain',
   'Brain fog',
   'Mood swings',
+  'Breathlessness',
+  'Palpitations',
+  'Severe pelvic pain',
+  'Pelvic pain',
+  'Pain with intercourse',
+  'Urinary discomfort',
+  'Vision changes',
+  'Hair loss',
+  'Cold hands/feet',
+  'Swelling/edema',
 ];
+
+export const PERIMENO_HIGHLIGHT = new Set([
+  'Hot flashes',
+  'Night sweats',
+  'Brain fog',
+  'Mood swings',
+  'Joint pain',
+  'Insomnia',
+]);
 
 export const MOODS: { id: string; emoji: string }[] = [
   { id: 'Happy', emoji: '😊' },
@@ -102,6 +173,52 @@ export const MOODS: { id: string; emoji: string }[] = [
   { id: 'Stressed', emoji: '😣' },
   { id: 'Sensitive', emoji: '🥺' },
   { id: 'Tired', emoji: '🥱' },
+  { id: 'Weepy', emoji: '😢' },
+  { id: 'Angry', emoji: '😡' },
+  { id: 'Numb', emoji: '😶' },
+  { id: 'Foggy', emoji: '🌀' },
 ];
 
-export type Tab = 'home' | 'calendar' | 'insights' | 'settings';
+export const MODE_INFO: Record<Mode, { label: string; blurb: string; emoji: string }> = {
+  cycle: { label: 'Track my cycle', blurb: 'Periods, symptoms, and predictions', emoji: '🌸' },
+  ttc: { label: 'Trying to conceive', blurb: 'Fertility signs, ovulation tests, fertile days', emoji: '🌱' },
+  pregnant: { label: "I'm pregnant", blurb: 'Week-by-week tracking until due date', emoji: '🤰' },
+  perimenopause: { label: 'Perimenopause', blurb: 'Irregular cycles and changing symptoms', emoji: '🍂' },
+};
+
+export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal: boolean }> = {
+  none: { label: 'None', hormonal: false },
+  pill: { label: 'Pill', hormonal: true },
+  patch: { label: 'Patch', hormonal: true },
+  ring: { label: 'Ring', hormonal: true },
+  injection: { label: 'Injection', hormonal: true },
+  implant: { label: 'Implant', hormonal: true },
+  iud: { label: 'Hormonal IUD', hormonal: true },
+  condom: { label: 'Condom / barrier', hormonal: false },
+  other: { label: 'Other', hormonal: false },
+};
+
+export type Tab = 'home' | 'calendar' | 'insights' | 'learn' | 'settings';
+
+/** Logging sheet sections — ids are stable and persisted in trackerOrder/trackerHidden. */
+export interface TrackerSectionDef {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export const TRACKER_SECTIONS: TrackerSectionDef[] = [
+  { id: 'flow', label: 'Flow', description: 'Bleeding intensity and clots' },
+  { id: 'checkin', label: 'Check-in', description: 'Mark today as reviewed' },
+  { id: 'symptoms', label: 'Symptoms', description: `${SYMPTOMS.length} symptoms with severity` },
+  { id: 'mood', label: 'Mood', description: `${MOODS.length} moods` },
+  { id: 'discharge', label: 'Discharge', description: 'Cervical mucus quality' },
+  { id: 'measurements', label: 'Measurements', description: 'Temperature, weight' },
+  { id: 'tests', label: 'Tests', description: 'Ovulation (LH) and pregnancy tests' },
+  { id: 'intimacy', label: 'Intimacy', description: 'Intercourse and drive' },
+  { id: 'sleep', label: 'Sleep', description: 'Hours and quality' },
+  { id: 'activity', label: 'Activity', description: 'Exercise, steps, water' },
+  { id: 'lifestyle', label: 'Lifestyle', description: 'Alcohol, caffeine, smoking' },
+  { id: 'meds', label: 'Medication', description: 'Contraception, supplements' },
+  { id: 'note', label: 'Notes', description: 'Freeform journal' },
+];

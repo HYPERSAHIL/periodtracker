@@ -1,40 +1,116 @@
 import { useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { parseBackup, toBackup } from '../lib/storage';
+import { encryptBackup, decryptBackup, hashPin, randomSaltB64 } from '../lib/crypto';
+import { CRISIS_NOTE } from '../lib/safety';
 import { Stepper } from './Onboarding';
 import { todayISO, prettyDate } from '../lib/date';
-import { Mode, MODE_INFO } from '../types';
+import { ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, TRACKER_SECTIONS } from '../types';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '2.0.0';
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
+const METHODS: ContraceptionMethod[] = ['none', 'pill', 'patch', 'ring', 'injection', 'implant', 'iud', 'condom', 'other'];
 
 export default function SettingsView(p: AppProps) {
   const { settings, updateSettings } = p;
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmErase, setConfirmErase] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [passModal, setPassModal] = useState<'none' | 'encrypt' | 'decrypt'>('none');
+  const [pass, setPass] = useState('');
+  const [pinModal, setPinModal] = useState(false);
+  const [pin, setPin] = useState('');
+  const pendingEncrypted = useRef<string | null>(null);
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(toBackup(p.entries, settings), null, 2)], {
-      type: 'application/json',
-    });
+  const reg = settings.contraception;
+
+  const download = (obj: unknown, name: string) => {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `period-tracker-backup-${todayISO()}.json`;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const exportData = (encrypted: boolean) => {
+    const backup = toBackup(p.entries, settings);
+    if (!encrypted) {
+      download(backup, `period-tracker-backup-${todayISO()}.json`);
+      return;
+    }
+    encryptBackup(JSON.stringify(backup), pass).then((enc) => {
+      download(enc, `period-tracker-backup-${todayISO()}.enc.json`);
+      setPassModal('none');
+      setPass('');
+    });
+  };
+
   const importData = async (file: File) => {
     const text = await file.text();
-    const parsed = parseBackup(text);
+    let parsed = parseBackup(text);
     if (!parsed) {
+      // maybe encrypted — ask for passphrase
+      try {
+        const maybe = JSON.parse(text);
+        if (maybe?.app === 'period-tracker' && maybe?.format === 'encrypted') {
+          pendingEncrypted.current = text;
+          setPassModal('decrypt');
+          return;
+        }
+      } catch {
+        /* fallthrough */
+      }
       setImportMsg('That file is not a valid Period Tracker backup.');
       return;
     }
     p.replaceAll(parsed.settings, parsed.entries);
     setImportMsg('Backup restored ✓');
+  };
+
+  const finishDecrypt = () => {
+    const text = pendingEncrypted.current;
+    if (!text) return;
+    let file: unknown;
+    try {
+      file = JSON.parse(text);
+    } catch {
+      setImportMsg('Corrupt backup file.');
+      return;
+    }
+    decryptBackup(file, pass).then((plain) => {
+      if (!plain) {
+        setImportMsg('Wrong passphrase — could not decrypt.');
+        return;
+      }
+      const parsed = parseBackup(plain);
+      if (!parsed) {
+        setImportMsg('Decrypted, but the contents are not a valid backup.');
+        return;
+      }
+      p.replaceAll(parsed.settings, parsed.entries);
+      setImportMsg('Encrypted backup restored ✓');
+      setPassModal('none');
+      setPass('');
+      pendingEncrypted.current = null;
+    });
+  };
+
+  const savePin = async () => {
+    if (!/^\d{4,8}$/.test(pin)) return;
+    const salt = randomSaltB64();
+    const h = await hashPin(pin, salt);
+    updateSettings({ pinHash: h, pinSalt: salt });
+    sessionStorage.setItem('pt.unlocked', '1');
+    setPinModal(false);
+    setPin('');
+  };
+
+  const clearPin = () => {
+    updateSettings({ pinHash: null, pinSalt: null });
+    setPinModal(false);
+    setPin('');
   };
 
   const enableReminders = async (on: boolean) => {
@@ -223,13 +299,132 @@ export default function SettingsView(p: AppProps) {
       </div>
 
       <div className="card">
+        <h3>Contraception</h3>
+        <div className="chips" style={{ marginBottom: 12 }}>
+          {METHODS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`chip${reg.method === m ? 'on' : ''}`}
+              onClick={() => updateSettings({ contraception: { ...reg, method: m } })}
+            >
+              {METHOD_INFO[m].label}
+            </button>
+          ))}
+        </div>
+        {METHOD_INFO[reg.method].hormonal && (
+          <p className="hint" style={{ marginBottom: 10 }}>
+            Hormonal method: fertile-window and ovulation estimates are suppressed (they assume ovulation). Period predictions stay, widened by your uncertainty.
+          </p>
+        )}
+        {(reg.method === 'patch' || reg.method === 'ring') && (
+          <div className="set-row">
+            <div>
+              <div className="t">Change every</div>
+              <div className="d">Days between patch/ring changes</div>
+            </div>
+            <Stepper value={reg.changeEveryDays ?? 7} min={1} max={35} onChange={(v) => updateSettings({ contraception: { ...reg, changeEveryDays: v } })} suffix="d" />
+          </div>
+        )}
+        {reg.method !== 'none' && (
+          <div className="set-row">
+            <div>
+              <div className="t">Started on</div>
+              <div className="d">Anchors change/renewal reminders</div>
+            </div>
+            <input type="date" style={{ width: 150 }} value={reg.startDate ?? ''} onChange={(e) => updateSettings({ contraception: { ...reg, startDate: e.target.value || null } })} />
+          </div>
+        )}
+        {['injection', 'implant', 'iud'].includes(reg.method) && (
+          <div className="set-row">
+            <div>
+              <div className="t">Next renewal</div>
+              <div className="d">Shown on your dashboard as it approaches</div>
+            </div>
+            <input type="date" style={{ width: 150 }} value={reg.nextRenewal ?? ''} onChange={(e) => updateSettings({ contraception: { ...reg, nextRenewal: e.target.value || null } })} />
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h3>Trackers</h3>
+        <p className="hint" style={{ margin: '0 0 8px' }}>Show, hide, and reorder the sections in the daily log.</p>
+        {TRACKER_SECTIONS.map((s) => {
+          const idx = settings.trackerOrder.indexOf(s.id);
+          const hidden = settings.trackerHidden.includes(s.id);
+          return (
+            <div key={s.id} className="set-row">
+              <div>
+                <div className="t" style={hidden ? { opacity: 0.5, textDecoration: 'line-through' } : undefined}>{s.label}</div>
+                <div className="d">{s.description}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="cal-nav" style={{ width: 30, height: 30, fontSize: 13 }} aria-label={`Move ${s.label} up`} disabled={idx <= 0}
+                  onClick={() => {
+                    const order = [...settings.trackerOrder];
+                    const i = order.indexOf(s.id);
+                    [order[i - 1], order[i]] = [order[i], order[i - 1]];
+                    updateSettings({ trackerOrder: order });
+                  }}>↑</button>
+                <button className="cal-nav" style={{ width: 30, height: 30, fontSize: 13 }} aria-label={`Move ${s.label} down`} disabled={idx < 0 || idx >= settings.trackerOrder.length - 1}
+                  onClick={() => {
+                    const order = [...settings.trackerOrder];
+                    const i = order.indexOf(s.id);
+                    [order[i + 1], order[i]] = [order[i], order[i + 1]];
+                    updateSettings({ trackerOrder: order });
+                  }}>↓</button>
+                <button className={`chip${!hidden ? 'on' : ''}`} onClick={() => updateSettings({ trackerHidden: hidden ? settings.trackerHidden.filter((x) => x !== s.id) : [...settings.trackerHidden, s.id] })}>
+                  {hidden ? 'Show' : 'Hide'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="card">
+        <h3>Privacy &amp; security</h3>
+        <div className="set-row">
+          <div>
+            <div className="t">App PIN</div>
+            <div className="d">{settings.pinHash ? 'Enabled — asked when the app opens' : 'Optional gate for prying eyes (not encryption)'}</div>
+          </div>
+          <button className="btn ghost sm" onClick={() => setPinModal(true)}>{settings.pinHash ? 'Change' : 'Set PIN'}</button>
+        </div>
+        {settings.pinHash && (
+          <div className="set-row">
+            <div>
+              <div className="t">Remove PIN</div>
+              <div className="d">Stop asking on launch</div>
+            </div>
+            <button className="btn ghost sm" onClick={clearPin}>Remove</button>
+          </div>
+        )}
+        <div className="set-row">
+          <div>
+            <div className="t">Consent</div>
+            <div className="d">Local health-data storage agreed {settings.consentAt ? prettyDate(settings.consentAt.slice(0, 10), { withYear: true }) : 'during setup'}</div>
+          </div>
+        </div>
+        <div className="set-row">
+          <div>
+            <div className="t">Age confirmation</div>
+            <div className="d">{settings.birthYear ? `Birth year ${settings.birthYear}` : 'Not provided'}</div>
+          </div>
+          <input type="number" style={{ width: 100 }} className="num-in" min="1930" max="2013" placeholder="Year"
+            value={settings.birthYear ?? ''} onChange={(e) => updateSettings({ birthYear: e.target.value ? Number(e.target.value) : null })} />
+        </div>
+      </div>
+
+      <div className="card">
         <h3>Your data</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
           Everything lives in this browser only. Export a backup before switching phones or clearing
-          browser data — there is no copy anywhere else.
+          browser data — there is no copy anywhere else. Encrypted exports use AES-GCM with your passphrase; the passphrase is never stored.
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn ghost" onClick={exportData}>Export JSON</button>
+          <button className="btn ghost" onClick={() => setPassModal('encrypt')}>🔒 Encrypted export</button>
+          <button className="btn ghost" onClick={() => exportData(false)}>Plain JSON</button>
           <button className="btn ghost" onClick={() => fileRef.current?.click()}>Import</button>
         </div>
         <input
@@ -262,18 +457,73 @@ export default function SettingsView(p: AppProps) {
       </div>
 
       <div className="card">
+        <h3>Need support now?</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', margin: 0 }}>{CRISIS_NOTE}</p>
+      </div>
+
+      <div className="card">
         <h3>About</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 8px' }}>
           Period Tracker v{APP_VERSION} — free, open-source, and local-first. Predictions use the
           calendar method (ovulation ≈ 14 days before your next period); temperature and discharge
           signs add fertility awareness clues. All of it is estimation support, not medical advice.
         </p>
-        <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
+          <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
           <a href="https://github.com/HYPERSAHIL/periodtracker" target="_blank" rel="noreferrer" style={{ color: 'var(--rose-600)', fontWeight: 700 }}>
             View source on GitHub →
           </a>
         </p>
       </div>
+
+      {passModal !== 'none' && (
+        <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && setPassModal('none')}>
+          <div className="sheet" role="dialog" aria-modal="true">
+            <div className="grab" />
+            <h2>{passModal === 'encrypt' ? '🔒 Encrypted export' : '🔑 Passphrase'}</h2>
+            <p className="hint" style={{ marginBottom: 14 }}>
+              {passModal === 'encrypt'
+                ? 'Choose a passphrase. If you forget it, the backup cannot be recovered — there is no reset.'
+                : 'Enter the passphrase this backup was encrypted with.'}
+            </p>
+            <input
+              className="num-in"
+              type="password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              placeholder="Passphrase"
+              aria-label="Passphrase"
+            />
+            <button className="btn primary" style={{ marginTop: 12 }} disabled={pass.length < 4} onClick={() => (passModal === 'encrypt' ? exportData(true) : finishDecrypt())}>
+              {passModal === 'encrypt' ? 'Encrypt & download' : 'Decrypt & restore'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pinModal && (
+        <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && setPinModal(false)}>
+          <div className="sheet" role="dialog" aria-modal="true">
+            <div className="grab" />
+            <h2>🔐 App PIN</h2>
+            <p className="hint" style={{ marginBottom: 14 }}>
+              4–8 digits. This is a convenience gate, not encryption — your data itself is unchanged on disk.
+            </p>
+            <input
+              className="num-in"
+              type="password"
+              inputMode="numeric"
+              maxLength={8}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="••••"
+              aria-label="PIN"
+            />
+            <button className="btn primary" style={{ marginTop: 12 }} disabled={!/^\d{4,8}$/.test(pin)} onClick={savePin}>
+              Save PIN
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

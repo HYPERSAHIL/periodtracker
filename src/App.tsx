@@ -11,13 +11,17 @@ import {
 } from './lib/storage';
 import { todayISO } from './lib/date';
 import { Logo, IconHome, IconCalendar, IconChart, IconGear } from './components/Icons';
+import { IconBook } from './components/Icons';
 import Onboarding from './components/Onboarding';
 import Dashboard from './components/Dashboard';
 import CalendarView from './components/CalendarView';
 import Insights from './components/Insights';
 import SettingsView from './components/SettingsView';
+import Learn from './components/Learn';
+import Report from './components/Report';
 import PregnancyScreen from './components/PregnancyScreen';
 import DaySheet from './components/DaySheet';
+import PinGate from './components/PinGate';
 
 export interface AppProps {
   entries: Record<string, DayEntry>;
@@ -30,6 +34,7 @@ export interface AppProps {
   updateSettings: (patch: Partial<Settings>) => void;
   eraseAll: () => void;
   openDay: (date: string) => void;
+  openReport: () => void;
 }
 
 export default function App() {
@@ -37,6 +42,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [tab, setTab] = useState<Tab>('home');
   const [sheetDate, setSheetDate] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('pt.unlocked') === '1');
 
   useEffect(() => saveEntries(entries), [entries]);
   useEffect(() => saveSettings(settings), [settings]);
@@ -106,10 +113,15 @@ export default function App() {
   }, []);
 
   const openDay = useCallback((date: string) => setSheetDate(date), []);
+  const openReport = useCallback(() => setShowReport(true), []);
 
   const props: AppProps = {
-    entries, settings, stats, facts, upsert, remove, replaceAll, updateSettings, eraseAll, openDay,
+    entries, settings, stats, facts, upsert, remove, replaceAll, updateSettings, eraseAll, openDay, openReport,
   };
+
+  if (settings.pinHash && settings.pinSalt && !unlocked) {
+    return <PinGate pinHash={settings.pinHash} pinSalt={settings.pinSalt} onUnlocked={() => setUnlocked(true)} />;
+  }
 
   return (
     <>
@@ -124,6 +136,10 @@ export default function App() {
 
         {!settings.onboarded ? (
           <Onboarding updateSettings={updateSettings} />
+        ) : showReport ? (
+          <main className="screen">
+            <Report {...props} closeReport={() => setShowReport(false)} />
+          </main>
         ) : (
           <>
             <main className="screen" key={tab}>
@@ -131,6 +147,7 @@ export default function App() {
                 (settings.mode === 'pregnant' ? <PregnancyScreen {...props} /> : <Dashboard {...props} />)}
               {tab === 'calendar' && <CalendarView {...props} />}
               {tab === 'insights' && <Insights {...props} />}
+              {tab === 'learn' && <Learn {...props} />}
               {tab === 'settings' && <SettingsView {...props} />}
             </main>
             <div className="footer">
@@ -140,12 +157,13 @@ export default function App() {
         )}
       </div>
 
-      {settings.onboarded && (
+      {settings.onboarded && !showReport && (
         <nav className="bottomnav" aria-label="Main navigation">
           <div className="inner">
             <NavBtn on={tab === 'home'} label="Home" icon={<IconHome />} go={() => setTab('home')} />
             <NavBtn on={tab === 'calendar'} label="Calendar" icon={<IconCalendar />} go={() => setTab('calendar')} />
             <NavBtn on={tab === 'insights'} label="Insights" icon={<IconChart />} go={() => setTab('insights')} />
+            <NavBtn on={tab === 'learn'} label="Learn" icon={<IconBook />} go={() => setTab('learn')} />
             <NavBtn on={tab === 'settings'} label="Settings" icon={<IconGear />} go={() => setTab('settings')} />
           </div>
         </nav>
@@ -157,8 +175,7 @@ export default function App() {
           entry={entries[sheetDate] ?? null}
           facts={facts.get(sheetDate)}
           phase={phaseFor(sheetDate, stats, facts)}
-          tempUnit={settings.tempUnit}
-          weightUnit={settings.weightUnit}
+          settings={settings}
           onClose={() => setSheetDate(null)}
           onSave={(e) => {
             upsert(e);
