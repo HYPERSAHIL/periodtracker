@@ -16,10 +16,12 @@ const J = { 'content-type': 'application/json; charset=utf-8' };
 const te = new TextEncoder();
 
 let env_github_token = null;
+let env_d1 = null;
 
 export default {
   async fetch(request, env) {
     env_github_token = env.GH_TOKEN || null;
+    env_d1 = env.DB || null;
     const url = new URL(request.url);
     if (url.pathname === '/admin' || url.pathname === '/admin/') return adminPage();
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
@@ -322,8 +324,27 @@ async function latestGhRelease(force = false) {
       /* both sources unavailable — keep cache */
     }
   }
-  if (data) ghCache = { at: Date.now(), data };
-  return data || ghCache.data || null;
+  if (data) {
+    ghCache = { at: Date.now(), data };
+    try {
+      await env_d1.prepare('CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)').run();
+      await env_d1.prepare('INSERT INTO app_meta (key, value) VALUES (\'release_cache\', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+        .bind(JSON.stringify({ at: Date.now(), data })).run();
+    } catch {
+      /* durable cache is best-effort */
+    }
+  }
+  if (data || ghCache.data) return data || ghCache.data;
+  try {
+    const row = await env_d1.prepare('SELECT value FROM app_meta WHERE key = ?').bind('release_cache').first();
+    if (row) {
+      const saved = JSON.parse(row.value);
+      return saved.data || null;
+    }
+  } catch {
+    /* no durable cache yet */
+  }
+  return null;
 }
 
 async function loadSessionFromAuth(env, request) {
