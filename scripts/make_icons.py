@@ -28,8 +28,12 @@ def gradient(size):
     return img
 
 
-def droplet_points(size, cx, cy, r):
-    """Teardrop = bottom circle union tangent lines to an apex above it."""
+def droplet_points(cx, cy, r):
+    """Teardrop = bottom circle union tangent lines to an apex above it.
+
+    Total height is apex-to-circle-bottom = (2.05r - r) + 2r = 3.05r, so callers
+    must pick r such that 3.05r fits the intended safe area.
+    """
     apex_y = cy - r * 2.05
     d = cy - apex_y
     gamma = math.acos(r / d)
@@ -49,8 +53,6 @@ def render(size, maskable):
     ss = 4
     S = size * ss
     img = gradient(S).convert("RGBA")
-    overlay = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
 
     if not maskable:
         # rounded-rect transparent background: mask the gradient itself
@@ -60,16 +62,20 @@ def render(size, maskable):
         img.putalpha(mask)
 
     if maskable:
-        cx, cy, r = S / 2, S * 0.56, S * 0.30  # keep mark inside 60% safe zone
+        # keep the whole 3.05r-tall mark inside the central 80% safe circle
+        cx, cy, r = S / 2, S * 0.62, S * 0.21
     else:
-        cx, cy, r = S / 2, S * 0.55, S * 0.36
+        cx, cy, r = S / 2, S * 0.60, S * 0.19
 
-    draw.polygon(droplet_points(S, cx, cy, r), fill=WHITE + (255,))
-    # small soft highlight inside the droplet
+    mark = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    mark_draw = ImageDraw.Draw(mark)
+    mark_draw.polygon(droplet_points(cx, cy, r), fill=WHITE + (255,))
+    # soft shine: composite pink over the white droplet instead of punching through it
+    shine = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     hx, hy, hr = cx - r * 0.42, cy - r * 0.18, r * 0.22
-    draw.ellipse([hx - hr, hy - hr, hx + hr, hy + hr], fill=(253, 164, 175, 150))
-
-    img = Image.alpha_composite(img, overlay)
+    ImageDraw.Draw(shine).ellipse([hx - hr, hy - hr, hx + hr, hy + hr], fill=(253, 164, 175, 165))
+    mark = Image.alpha_composite(mark, shine)
+    img = Image.alpha_composite(img, mark)
     return img.resize((size, size), Image.LANCZOS)
 
 
