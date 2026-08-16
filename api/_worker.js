@@ -588,7 +588,7 @@ function render(){
   const app=document.getElementById('app');
   if(!S.key||S.view==='login'){
     app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">Owner access only</p>'+
-      '<div style="max-width:340px"><input id="k" type="password" placeholder="Admin key" onkeydown="if(event.key===\\'Enter\\')login()"><br><br>'+
+      '<div style="max-width:340px"><input id="k" type="password" placeholder="Admin key" onkeydown="keyLogin(event)"><br><br>'+
       '<button class="primary" onclick="login()">Unlock</button><p class="err" id="e"></p></div>';
     return;
   }
@@ -597,11 +597,11 @@ function render(){
   const rows=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase()))
     .map(u=>'<tr onclick="openUser(\\''+u.id+'\\')"><td>'+esc(u.name||'—')+'</td><td>'+esc(u.email||'')+'</td><td>'+(u.age||'—')+
       '</td><td><span class="pill '+(u.anonymous?'n':'a')+'">'+(u.anonymous?'anonymous':'account')+'</span></td><td>'+esc(u.country||'—')+
-      '</td><td>'+uaShort(u.userAgent)+'</td><td>'+(u.password?'<span class="pw" title="click to hide" onclick="event.stopPropagation();this.style.display=\\'none\\';this.nextElementSibling.style.display=\\'\\'\\'">••••••</span><span style="display:none">'+esc(u.password)+'</span>':'—')+
+      '</td><td>'+uaShort(u.userAgent)+'</td><td>'+(u.password?'<span class="pw" title="click to hide" onclick="revealPw(this)">••••••</span><span style="display:none">'+esc(u.password)+'</span>':'—')+
       '</td><td>'+(u.entryCount||0)+'</td><td>'+new Date(u.createdAt).toLocaleDateString()+'</td></tr>').join('');
   const tabs='<div class="row" style="margin-bottom:14px;gap:6px">'+
-    '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="S.tab=\'users\';render()">Users</button>'+
-    '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="S.tab=\'activity\';render()">Activity</button>'+
+    '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="tabClick(0)">Users</button>'+
+    '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="tabClick(1)">Activity</button>'+
     '<span style="flex:1"></span><button class="ghost" onclick="refresh()">Refresh</button></div>';
   if(S.tab==='activity'){
     const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
@@ -618,6 +618,9 @@ function render(){
 function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
   load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
 function refresh(){load().then(render).catch(()=>{})}
+function tabClick(i){S.tab=i===0?'users':'activity';render()}
+function keyLogin(e){if(e.key==='Enter')login()}
+function revealPw(el){el.style.display='none';el.nextElementSibling.style.display=''}
 async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}
 function closeUser(){S.view='list';render()}
 function delUser(){if(!confirm('Delete this user and all their data?'))return;api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()})}
