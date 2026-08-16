@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { parseBackup, toBackup } from '../lib/storage';
-import { encryptBackup, decryptBackup, hashPin, randomSaltB64 } from '../lib/crypto';
+import { hashPin, randomSaltB64 } from '../lib/crypto';
 import { CRISIS_NOTE } from '../lib/safety';
 import { Stepper } from './Onboarding';
 import { todayISO, prettyDate } from '../lib/date';
@@ -16,11 +16,8 @@ export default function SettingsView(p: AppProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmErase, setConfirmErase] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
-  const [passModal, setPassModal] = useState<'none' | 'encrypt' | 'decrypt'>('none');
-  const [pass, setPass] = useState('');
   const [pinModal, setPinModal] = useState(false);
   const [pin, setPin] = useState('');
-  const pendingEncrypted = useRef<string | null>(null);
 
   const reg = settings.contraception;
 
@@ -34,67 +31,19 @@ export default function SettingsView(p: AppProps) {
     URL.revokeObjectURL(url);
   };
 
-  const exportData = (encrypted: boolean) => {
-    const backup = toBackup(p.entries, settings);
-    if (!encrypted) {
-      download(backup, `period-tracker-backup-${todayISO()}.json`);
-      return;
-    }
-    encryptBackup(JSON.stringify(backup), pass).then((enc) => {
-      download(enc, `period-tracker-backup-${todayISO()}.enc.json`);
-      setPassModal('none');
-      setPass('');
-    });
+  const exportData = () => {
+    download(toBackup(p.entries, settings), `period-tracker-backup-${todayISO()}.json`);
   };
 
   const importData = async (file: File) => {
     const text = await file.text();
-    let parsed = parseBackup(text);
+    const parsed = parseBackup(text);
     if (!parsed) {
-      // maybe encrypted — ask for passphrase
-      try {
-        const maybe = JSON.parse(text);
-        if (maybe?.app === 'period-tracker' && maybe?.format === 'encrypted') {
-          pendingEncrypted.current = text;
-          setPassModal('decrypt');
-          return;
-        }
-      } catch {
-        /* fallthrough */
-      }
       setImportMsg('That file is not a valid Period Tracker backup.');
       return;
     }
     p.replaceAll(parsed.settings, parsed.entries);
     setImportMsg('Backup restored ✓');
-  };
-
-  const finishDecrypt = () => {
-    const text = pendingEncrypted.current;
-    if (!text) return;
-    let file: unknown;
-    try {
-      file = JSON.parse(text);
-    } catch {
-      setImportMsg('Corrupt backup file.');
-      return;
-    }
-    decryptBackup(file, pass).then((plain) => {
-      if (!plain) {
-        setImportMsg('Wrong passphrase — could not decrypt.');
-        return;
-      }
-      const parsed = parseBackup(plain);
-      if (!parsed) {
-        setImportMsg('Decrypted, but the contents are not a valid backup.');
-        return;
-      }
-      p.replaceAll(parsed.settings, parsed.entries);
-      setImportMsg('Encrypted backup restored ✓');
-      setPassModal('none');
-      setPass('');
-      pendingEncrypted.current = null;
-    });
   };
 
   const savePin = async () => {
@@ -400,31 +349,16 @@ export default function SettingsView(p: AppProps) {
             <button className="btn ghost sm" onClick={clearPin}>Remove</button>
           </div>
         )}
-        <div className="set-row">
-          <div>
-            <div className="t">Consent</div>
-            <div className="d">Local health-data storage agreed {settings.consentAt ? prettyDate(settings.consentAt.slice(0, 10), { withYear: true }) : 'during setup'}</div>
-          </div>
-        </div>
-        <div className="set-row">
-          <div>
-            <div className="t">Age confirmation</div>
-            <div className="d">{settings.birthYear ? `Birth year ${settings.birthYear}` : 'Not provided'}</div>
-          </div>
-          <input type="number" style={{ width: 100 }} className="num-in" min="1930" max="2013" placeholder="Year"
-            value={settings.birthYear ?? ''} onChange={(e) => updateSettings({ birthYear: e.target.value ? Number(e.target.value) : null })} />
-        </div>
       </div>
 
       <div className="card">
         <h3>Your data</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
           Everything lives in this browser only. Export a backup before switching phones or clearing
-          browser data — there is no copy anywhere else. Encrypted exports use AES-GCM with your passphrase; the passphrase is never stored.
+          browser data — there is no copy anywhere else.
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn ghost" onClick={() => setPassModal('encrypt')}>🔒 Encrypted export</button>
-          <button className="btn ghost" onClick={() => exportData(false)}>Plain JSON</button>
+          <button className="btn ghost" onClick={() => exportData()}>Export JSON</button>
           <button className="btn ghost" onClick={() => fileRef.current?.click()}>Import</button>
         </div>
         <input
@@ -474,31 +408,6 @@ export default function SettingsView(p: AppProps) {
           </a>
         </p>
       </div>
-
-      {passModal !== 'none' && (
-        <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && setPassModal('none')}>
-          <div className="sheet" role="dialog" aria-modal="true">
-            <div className="grab" />
-            <h2>{passModal === 'encrypt' ? '🔒 Encrypted export' : '🔑 Passphrase'}</h2>
-            <p className="hint" style={{ marginBottom: 14 }}>
-              {passModal === 'encrypt'
-                ? 'Choose a passphrase. If you forget it, the backup cannot be recovered — there is no reset.'
-                : 'Enter the passphrase this backup was encrypted with.'}
-            </p>
-            <input
-              className="num-in"
-              type="password"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              placeholder="Passphrase"
-              aria-label="Passphrase"
-            />
-            <button className="btn primary" style={{ marginTop: 12 }} disabled={pass.length < 4} onClick={() => (passModal === 'encrypt' ? exportData(true) : finishDecrypt())}>
-              {passModal === 'encrypt' ? 'Encrypt & download' : 'Decrypt & restore'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {pinModal && (
         <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && setPinModal(false)}>

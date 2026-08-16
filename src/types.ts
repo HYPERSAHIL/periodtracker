@@ -74,8 +74,6 @@ export interface Settings {
   trackerHidden: string[];
   pinHash: string | null; // salted SHA-256, gate only (not encryption)
   pinSalt: string | null;
-  birthYear: number | null;
-  consentAt: string | null; // when local-health-storage consent was given
   bookmarks: string[]; // content slugs
 }
 
@@ -97,8 +95,6 @@ export const DEFAULT_SETTINGS: Settings = {
   trackerHidden: [],
   pinHash: null,
   pinSalt: null,
-  birthYear: null,
-  consentAt: null,
   bookmarks: [],
 };
 

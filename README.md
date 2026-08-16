@@ -8,7 +8,7 @@ own device — no account, no cloud, no tracking.
 
 ## Features
 
-- **Four modes** — cycle tracking, trying to conceive, pregnancy, and perimenopause, switchable anytime, with age gate + local-storage consent
+- **Four modes** — cycle tracking, trying to conceive, pregnancy, and perimenopause, switchable anytime
 - **80+ loggable signals** — flow + clots, 32 symptoms with per-day severity and routine impact, 14 moods, discharge quality, BBT, weight, LH/OPK and pregnancy tests (incl. faint-line), intimacy + drive, sleep hours/quality, exercise/steps/water, alcohol/caffeine/smoking, contraception + supplements, notes — plus explicit **daily check-ins** that separate "no symptoms" from "forgot to log"
 - **Personalizable tracker** — reorder and hide any logging section
 - **Transparent forecasts** — median-based prediction with uncertainty windows derived from your own variation, a "why this estimate" explainer, late-period and stale-history states, and a policy layer: hormonal contraception suppresses fertility estimates, pregnancy pauses cycle forecasts
@@ -19,7 +19,7 @@ own device — no account, no cloud, no tracking.
 - **Learn hub** — 8 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
 - **Clinician report** — printable summary with opt-in sensitive sections
 - **Reminders** — optional "period is coming" notifications
-- **Your data, yours** — plain or **AES-GCM passphrase-encrypted** JSON export/import, optional app PIN, one-tap erase, and *nothing* ever leaves the device
+- **Your data, yours** — JSON export/import, optional app PIN, one-tap erase, and *nothing* ever leaves the device
 - **PWA** — install to your home screen, works fully offline, light/dark/system theme, °C/°F and kg/lb units
 
 Predictions use the calendar method (ovulation ≈ 14 days before the next period) with median-based
@@ -31,7 +31,7 @@ estimation support — not medical advice, diagnosis, or contraception guidance.
 | Layer | Choice | Why |
 | --- | --- | --- |
 | UI | React 18 + TypeScript + Vite | fast, standard, trivially portable |
-| App delivery | PWA (vite-plugin-pwa / Workbox) | installable, offline-capable, no store gatekeeping |
+| App delivery | PWA (vite-plugin-pwa / Workbox) + Capacitor-ready | installable today; same `dist/` builds into native iOS/Android shells |
 | Data | `localStorage` on-device | privacy-first, zero backend, zero cost |
 | Hosting | Cloudflare Pages | free, global CDN, scales to any traffic on the free tier |
 
@@ -47,6 +47,27 @@ npm run preview    # serve the production build locally
 ```
 
 Regenerate app icons (requires Python + Pillow): `python3 scripts/make_icons.py`
+
+## Native apps (iOS + Android)
+
+The app is Capacitor-ready: `capacitor.config.ts`, platform packages, and `native:*` scripts are
+already wired, and the code avoids browser-only APIs without guards (notifications are
+capability-checked, storage is isolated behind `src/lib/storage.ts` for a future SQLite migration).
+
+First run — Android (any OS with Android Studio):
+
+```sh
+npm install && npm run native:add:android && npm run native:android
+```
+
+First run — iOS (requires a Mac with Xcode):
+
+```sh
+npm install && npm run native:add:ios && npm run native:ios
+```
+
+After any code change: `npm run native:sync`. Publishing needs developer accounts
+(Google Play: $25 once; Apple: $99/yr).
 
 ## Deploy
 
