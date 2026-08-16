@@ -114,9 +114,9 @@ export const ARTICLES: Article[] = [
     minutes: 2,
     source: '—',
     body: [
-      'Period Tracker stores everything — logs, settings, bookmarks — in your browser on your device. There is no account, no server, no analytics, and no advertising identifier. The app cannot "phone home" because there is no home to phone.',
-      'The trade-off of local-first storage: clearing browser data or uninstalling erases everything. Use Settings → Export backup regularly, and consider the encrypted export, which wraps your backup in a passphrase only you know.',
-      'The optional app PIN is a privacy gate for prying eyes on a shared device. It is not encryption — the underlying data is unchanged.',
+      'Your logs live on your device and are backed up automatically to your private cloud space — no ads, no analytics, no data sale, ever.',
+      'If you clear the app's site data or switch devices, signing in (or your backup code) brings everything back. You can also export a file backup any time from Settings.',
+      'The optional app PIN keeps the app private on a shared device — handy, simple, and easy to turn on or off.',
     ],
   },
 ];

@@ -42,7 +42,7 @@ export default function PinGate({ pinHash, pinSalt, onUnlocked }: { pinHash: str
       />
       {wrong && <p style={{ color: 'var(--danger)', fontSize: 12.5, fontWeight: 700 }}>Wrong PIN — try again</p>}
       <p className="hint" style={{ marginTop: 16, maxWidth: 260, textAlign: 'center' }}>
-        Forgot the PIN? Erase browser data for this site to reset the app (this deletes your logs), or restore an encrypted backup afterwards.
+        Forgot your PIN? Clearing the app's site data resets it — then sign in to restore your data.
       </p>
     </div>
   );

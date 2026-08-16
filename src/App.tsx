@@ -22,7 +22,7 @@ import Report from './components/Report';
 import PregnancyScreen from './components/PregnancyScreen';
 import DaySheet from './components/DaySheet';
 import PinGate from './components/PinGate';
-import AccountSheet from './components/AccountSheet';
+import AccountScreen from './components/AccountScreen';
 import {
   CloudUser, SyncStatus, ensureAnonymousSession, loadSession, signOut, syncCycle,
 } from './lib/cloud';
@@ -39,7 +39,6 @@ export interface AppProps {
   eraseAll: () => void;
   openDay: (date: string) => void;
   openReport: () => void;
-  syncStatus: SyncStatus;
   cloudUser: CloudUser | null;
   openAccount: () => void;
   signOutCloud: () => void;
@@ -52,7 +51,7 @@ export default function App() {
   const [sheetDate, setSheetDate] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('pt.unlocked') === '1');
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [, setSyncStatus] = useState<SyncStatus>('idle');
   const [cloudUser, setCloudUser] = useState<CloudUser | null>(() => loadSession()?.user ?? null);
   const [accountSheet, setAccountSheet] = useState(false);
   const cloudRef = useRef<{ token: string | null }>({ token: loadSession()?.token ?? null });
@@ -163,14 +162,6 @@ export default function App() {
     syncTimer.current = window.setTimeout(() => runSync(entriesRef.current, settingsRef.current), 2500);
   }, [entries, settings, runSync, settings.onboarded]);
 
-  // one-time skippable account offer after onboarding
-  useEffect(() => {
-    if (settings.onboarded && cloudUser?.anonymous && !localStorage.getItem('pt.accountPrompt')) {
-      localStorage.setItem('pt.accountPrompt', '1');
-      setAccountSheet(true);
-    }
-  }, [settings.onboarded, cloudUser]);
-
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));
   }, []);
@@ -219,7 +210,7 @@ export default function App() {
 
   const props: AppProps = {
     entries, settings, stats, facts, upsert, remove, replaceAll, updateSettings, eraseAll, openDay, openReport,
-    syncStatus, cloudUser, openAccount, signOutCloud,
+    cloudUser, openAccount, signOutCloud,
   };
 
   if (settings.pinHash && settings.pinSalt && !unlocked) {
@@ -231,11 +222,10 @@ export default function App() {
       <div className="app">
         <header className="topbar">
           <Logo />
-          <div style={{ flex: 1 }}>
+          <div>
             <h1>Period Tracker</h1>
-            <div className="sub">Private cycle tracking · synced</div>
+            <div className="sub">Private cycle tracking</div>
           </div>
-          {settings.onboarded && <SyncChip status={syncStatus} onClick={openAccount} />}
         </header>
 
         {!settings.onboarded ? (
@@ -274,13 +264,14 @@ export default function App() {
       )}
 
       {accountSheet && (
-        <AccountSheet
+        <AccountScreen
           user={cloudUser}
-          onUserChanged={() => {
+          onDone={() => {
             const s = loadSession();
             cloudRef.current.token = s?.token ?? null;
             setCloudUser(s?.user ?? null);
             if (s?.token) runSync(entriesRef.current, settingsRef.current);
+            setAccountSheet(false);
           }}
           onClose={() => setAccountSheet(false)}
         />
@@ -305,23 +296,6 @@ export default function App() {
         />
       )}
     </>
-  );
-}
-
-function SyncChip({ status, onClick }: { status: SyncStatus; onClick: () => void }) {
-  const map: Record<SyncStatus, { icon: string; label: string; cls: string }> = {
-    idle: { icon: '☁', label: 'Sync', cls: '' },
-    connecting: { icon: '◌', label: 'Connecting…', cls: 'busy' },
-    syncing: { icon: '↻', label: 'Syncing…', cls: 'busy spin' },
-    synced: { icon: '✓', label: 'Synced', cls: 'ok' },
-    offline: { icon: '⚠', label: 'Offline — will sync', cls: 'warn' },
-    error: { icon: '⚠', label: 'Sync issue — tap', cls: 'warn' },
-  };
-  const m = map[status];
-  return (
-    <button className={`sync-chip ${m.cls}`} onClick={onClick} aria-label={`Cloud sync: ${m.label}`} title={m.label}>
-      <span aria-hidden>{m.icon}</span> {m.label}
-    </button>
   );
 }
 

@@ -1,30 +1,24 @@
 /**
- * Period Tracker sync API — Cloudflare Pages Function (advanced mode).
- * Same-origin at /api/*; everything else falls through to static assets.
+ * Period Tracker sync + admin API — Cloudflare Pages Function (advanced mode).
+ * /api/* is JSON API; /admin serves the owner's admin panel; everything else
+ * falls through to static assets.
  *
- * Auth model:
- *  - anonymous accounts keyed by a server-generated sync code (restorable)
- *  - optional email accounts (name + age collected; location never asked —
- *    country comes from Cloudflare's IP geolocation header, device from UA)
- *  - passwords are hashed client-side (PBKDF2, 200k iters) before transport;
- *    the server re-hashes the derived value with its own salt (10k iters, fits
- *    the Workers free-tier CPU budget)
- * Data model: one blob per user {settings, entries} with a revision counter;
- * writes use optimistic concurrency (baseRev mismatch → 409 + current state),
- * and per-field last-write-wins merging happens on the client.
+ * Passwords are stored encrypted-at-rest with a key held only by this Worker
+ * (env.PT_ENC_KEY), so the admin panel can recover them while a raw database
+ * export alone cannot. Admin access requires env.PT_ADMIN_KEY.
  */
 
-const ITER_SERVER = 10000;
 const SESSION_DAYS = 90;
 const MAX_BODY = 6_000_000;
-const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 const J = { 'content-type': 'application/json; charset=utf-8' };
 const te = new TextEncoder();
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/admin' || url.pathname === '/admin/') return adminPage();
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     try {
       return await route(request, env, url);
@@ -62,6 +56,18 @@ async function readBody(request) {
 function hex(buf) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+function b64(buf) {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+function unb64(s) {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
 async function sha256(s) {
   return crypto.subtle.digest('SHA-256', te.encode(s));
 }
@@ -78,51 +84,59 @@ function makeSyncKey() {
   return `${k.slice(0, 5)}-${k.slice(5)}`;
 }
 
-async function serverHash(authHash, saltB64) {
-  const salt = Uint8Array.from(atob(saltB64), (c) => c.charCodeAt(0));
-  const base = await crypto.subtle.importKey('raw', te.encode(authHash), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: ITER_SERVER, hash: 'SHA-256' },
-    base,
-    256
-  );
-  return hex(bits);
+// ---------- password storage: AES-GCM with the worker-held key ----------
+
+function encSecretMissing(env) {
+  return !env.PT_ENC_KEY;
 }
-function saltB64() {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return btoa(String.fromCharCode(...b));
+
+async function passwordKey(env) {
+  const raw = await sha256('pt-enc:' + env.PT_ENC_KEY);
+  return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
+async function encryptPassword(env, password) {
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await passwordKey(env), te.encode(password));
+  return `${b64(iv)}.${b64(ct)}`;
+}
+
+async function decryptPassword(env, stored) {
+  try {
+    const [ivB64, ctB64] = String(stored).split('.');
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(ivB64) }, await passwordKey(env), unb64(ctB64));
+    return new TextDecoder().decode(pt);
+  } catch {
+    return '(unreadable)';
+  }
+}
+
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function meta(request) {
   return {
-    country: (request.headers.get('cf-ipcountry') || request.headers.get('cf-country') || null),
+    country: request.headers.get('cf-ipcountry') || request.headers.get('cf-country') || null,
     user_agent: (request.headers.get('user-agent') || '').slice(0, 250) || null,
   };
 }
 
-async function createUser(env, request, { email = null, passwordAuth = null, name = null, age = null, anonymous = true }) {
+async function createUser(env, request, { email = null, passwordEnc = null, name = null, age = null, anonymous = true }) {
   const id = randomHex(16);
   const now = new Date().toISOString();
-  let password_hash = null;
-  let password_salt = null;
-  if (passwordAuth) {
-    password_salt = saltB64();
-    password_hash = await serverHash(passwordAuth, password_salt);
-  }
   const m = meta(request);
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, password_salt, name, age, anonymous, sync_key, country, user_agent, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, email, password_enc, name, age, anonymous, sync_key, country, user_agent, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(
-      id, email, password_hash, password_salt, name,
-      Number.isInteger(age) ? age : null,
-      anonymous ? 1 : 0,
-      makeSyncKey(), m.country, m.user_agent, now, now
-    )
+    .bind(id, email, passwordEnc, name, Number.isInteger(age) ? age : null, anonymous ? 1 : 0, makeSyncKey(), m.country, m.user_agent, now, now)
     .run();
-  return { id, created_at: now };
+  return id;
 }
 
 async function newSession(env, userId) {
@@ -175,74 +189,82 @@ async function getData(env, userId) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+function requireAdmin(env, request) {
+  const key = request.headers.get('x-admin-key') || '';
+  if (!env.PT_ADMIN_KEY || !safeEqual(key, env.PT_ADMIN_KEY)) {
+    throw new HttpError(401, { error: 'unauthorized' });
+  }
+}
+
 async function route(request, env, url) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = request.method;
 
   if (method === 'GET' && path === '/api/health') return json({ ok: true, service: 'period-tracker-sync' });
 
-  // --- anonymous bootstrap -------------------------------------------------
+  // --- anonymous bootstrap ---------------------------------------------------
   if (method === 'POST' && path === '/api/anon') {
-    const u = await createUser(env, request, {});
-    const token = await newSession(env, u.id);
-    return json({ token, user: { ...publicUser(await rawUser(env, u.id)) } }, 201);
+    const id = await createUser(env, request, {});
+    const token = await newSession(env, id);
+    const u = await rawUser(env, id);
+    return json({ token, user: publicUser(u) }, 201);
   }
 
-  // --- sign up --------------------------------------------------------------
+  // --- sign up ------------------------------------------------------------------
   if (method === 'POST' && path === '/api/signup') {
     const b = await readBody(request);
     const email = String(b.email || '').trim().toLowerCase();
     const name = String(b.name || '').trim().slice(0, 80);
     const age = Number(b.age);
-    const authHash = String(b.authHash || '');
+    const password = String(b.password || '');
     if (!EMAIL_RE.test(email)) throw new HttpError(400, { error: 'invalid_email' });
     if (!name) throw new HttpError(400, { error: 'name_required' });
     if (!Number.isInteger(age) || age < 13 || age > 120) throw new HttpError(400, { error: 'invalid_age' });
-    if (!/^[a-f0-9]{64}$/.test(authHash)) throw new HttpError(400, { error: 'invalid_auth_hash' });
+    if (password.length < 6) throw new HttpError(400, { error: 'weak_password' });
+    if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
 
     const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existing) throw new HttpError(409, { error: 'email_taken' });
 
-    const u = await createUser(env, request, { email, passwordAuth: authHash, name, age, anonymous: false });
+    const id = await createUser(env, request, { email, passwordEnc: await encryptPassword(env, password), name, age, anonymous: false });
 
     // adopt anonymous data if the device was syncing anonymously first
     if (b.anonKey && /^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(String(b.anonKey))) {
       const anon = await env.DB.prepare('SELECT id FROM users WHERE sync_key = ? AND anonymous = 1')
         .bind(String(b.anonKey)).first();
       if (anon) {
-        const mine = await env.DB.prepare('SELECT user_id FROM data WHERE user_id = ?').bind(u.id).first();
+        const mine = await env.DB.prepare('SELECT user_id FROM data WHERE user_id = ?').bind(id).first();
         if (!mine) {
-          await env.DB.prepare('UPDATE data SET user_id = ? WHERE user_id = ?').bind(u.id, anon.id).run();
+          await env.DB.prepare('UPDATE data SET user_id = ? WHERE user_id = ?').bind(id, anon.id).run();
         }
         await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(anon.id).run();
         await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(anon.id).run();
       }
     }
 
-    const token = await newSession(env, u.id);
-    return json({ token, user: { ...publicUser(await rawUser(env, u.id)) } }, 201);
+    const token = await newSession(env, id);
+    const u = await rawUser(env, id);
+    return json({ token, user: publicUser(u) }, 201);
   }
 
-  // --- sign in ---------------------------------------------------------------
+  // --- sign in ---------------------------------------------------------------------
   if (method === 'POST' && path === '/api/signin') {
     const b = await readBody(request);
     const email = String(b.email || '').trim().toLowerCase();
-    const authHash = String(b.authHash || '');
+    const password = String(b.password || '');
     const u = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
-    if (!u) throw new HttpError(401, { error: 'invalid_credentials' });
-    const candidate = await serverHash(authHash, u.password_salt);
-    // constant-ish compare
-    if (candidate.length !== u.password_hash.length || candidate !== u.password_hash) {
-      throw new HttpError(401, { error: 'invalid_credentials' });
-    }
+    if (!u || !u.password_enc) throw new HttpError(401, { error: 'invalid_credentials' });
+    if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
+    const stored = await decryptPassword(env, u.password_enc);
+    if (!safeEqual(stored, password)) throw new HttpError(401, { error: 'invalid_credentials' });
     const m = meta(request);
     await env.DB.prepare('UPDATE users SET country = COALESCE(?, country), user_agent = ?, updated_at = ? WHERE id = ?')
       .bind(m.country, m.user_agent, new Date().toISOString(), u.id).run();
     const token = await newSession(env, u.id);
-    return json({ token, user: { ...publicUser(await rawUser(env, u.id)) } });
+    return json({ token, user: publicUser(await rawUser(env, u.id)) });
   }
 
-  // --- restore by sync code ----------------------------------------------------
+  // --- restore by backup code --------------------------------------------------------
   if (method === 'POST' && path === '/api/restore') {
     const b = await readBody(request);
     const key = String(b.key || '').trim().toUpperCase();
@@ -250,10 +272,10 @@ async function route(request, env, url) {
     const u = await env.DB.prepare('SELECT * FROM users WHERE sync_key = ?').bind(key).first();
     if (!u) throw new HttpError(404, { error: 'key_not_found' });
     const token = await newSession(env, u.id);
-    return json({ token, user: { ...publicUser(u) } });
+    return json({ token, user: publicUser(u) });
   }
 
-  // --- session scoped ------------------------------------------------------------
+  // --- session scoped -----------------------------------------------------------------------
   if (method === 'POST' && path === '/api/signout') {
     const auth = request.headers.get('authorization') || '';
     const m = auth.match(/^Bearer ([a-f0-9]{64})$/);
@@ -290,19 +312,97 @@ async function route(request, env, url) {
         const d = await getData(env, u.id);
         return json({ conflict: true, rev: 0, ...d }, 409);
       }
-      await env.DB.prepare(
-        'INSERT INTO data (user_id, rev, settings, entries, updated_at) VALUES (?, 1, ?, ?, ?)'
-      ).bind(u.id, settings, entries, new Date().toISOString()).run();
+      await env.DB.prepare('INSERT INTO data (user_id, rev, settings, entries, updated_at) VALUES (?, 1, ?, ?, ?)')
+        .bind(u.id, settings, entries, new Date().toISOString()).run();
       return json({ rev: 1 });
     }
     if (current.rev !== baseRev) {
       const d = await getData(env, u.id);
       return json({ conflict: true, ...d }, 409);
     }
-    await env.DB.prepare(
-      'UPDATE data SET rev = rev + 1, settings = ?, entries = ?, updated_at = ? WHERE user_id = ?'
-    ).bind(settings, entries, new Date().toISOString(), u.id).run();
+    await env.DB.prepare('UPDATE data SET rev = rev + 1, settings = ?, entries = ?, updated_at = ? WHERE user_id = ?')
+      .bind(settings, entries, new Date().toISOString(), u.id).run();
     return json({ rev: current.rev + 1 });
+  }
+
+  // --- admin (owner only) -----------------------------------------------------------------------
+  if (path.startsWith('/api/admin')) {
+    requireAdmin(env, request);
+
+    if (method === 'GET' && path === '/api/admin/overview') {
+      const r = await env.DB.prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM users) AS users,
+           (SELECT COUNT(*) FROM users WHERE anonymous = 0) AS accounts,
+           (SELECT COUNT(*) FROM users WHERE anonymous = 1) AS anonymous,
+           (SELECT COUNT(*) FROM data WHERE entries IS NOT NULL) AS syncing,
+           (SELECT COALESCE(SUM(json_array_length(json_each.value)), 0) FROM data, json_each(data.entries)) AS entryDays`
+      ).first();
+      const latest = await env.DB.prepare('SELECT name, email, created_at FROM users ORDER BY created_at DESC LIMIT 5').all();
+      return json({ stats: r, latest: latest.results });
+    }
+
+    if (method === 'GET' && path === '/api/admin/users') {
+      const rows = await env.DB.prepare(
+        `SELECT u.*, d.updated_at AS data_updated, d.entries
+         FROM users u LEFT JOIN data d ON d.user_id = u.id
+         ORDER BY u.created_at DESC LIMIT 500`
+      ).all();
+      const users = [];
+      for (const u of rows.results) {
+        let entryCount = 0;
+        if (u.entries) {
+          try {
+            entryCount = Object.keys(JSON.parse(u.entries)).length;
+          } catch {
+            entryCount = 0;
+          }
+        }
+        users.push({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          age: u.age,
+          anonymous: !!u.anonymous,
+          syncKey: u.sync_key,
+          country: u.country,
+          userAgent: u.user_agent,
+          createdAt: u.created_at,
+          lastSync: u.data_updated,
+          entryCount,
+          password: u.password_enc && !u.anonymous ? await decryptPassword(env, u.password_enc) : null,
+        });
+      }
+      return json({ users });
+    }
+
+    const userMatch = path.match(/^\/api\/admin\/users\/([a-f0-9]{32})$/);
+    if (userMatch) {
+      const id = userMatch[1];
+      if (method === 'GET') {
+        const u = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+        if (!u) throw new HttpError(404, { error: 'not_found' });
+        const d = await getData(env, id);
+        return json({
+          user: {
+            ...publicUser(u),
+            country: u.country,
+            userAgent: u.user_agent,
+            password: u.password_enc && !u.anonymous ? await decryptPassword(env, u.password_enc) : null,
+            updatedAt: u.updated_at,
+          },
+          data: d,
+        });
+      }
+      if (method === 'DELETE') {
+        await env.DB.prepare('DELETE FROM data WHERE user_id = ?').bind(id).run();
+        await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
+        await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+        return json({ ok: true });
+      }
+    }
+
+    throw new HttpError(404, { error: 'not_found' });
   }
 
   throw new HttpError(404, { error: 'not_found' });
@@ -312,4 +412,104 @@ async function rawUser(env, id) {
   const u = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
   if (!u) throw new HttpError(500, { error: 'user_missing' });
   return u;
+}
+
+// ---------- admin panel (served directly by the worker, not part of the app bundle) ----------
+
+function adminPage() {
+  const html = `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Period Tracker — Admin</title>
+<style>
+:root{--rose:#e11d63;--bg:#fdf5f7;--surface:#fff;--text:#3d1a26;--muted:#8a5c6b;--border:#f6dce3}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 18px 60px}
+h1{font-size:20px;margin:0 0 2px}h2{font-size:15px;margin:26px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.sub{color:var(--muted);font-size:13px;margin:0 0 22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:8px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px}
+.card .v{font-size:22px;font-weight:800;color:var(--rose)}.card .l{font-size:11.5px;color:var(--muted);font-weight:600}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;font-size:13px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+th{background:#fff1f4;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+tr:hover td{background:#fffafb;cursor:pointer}
+input{border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;width:100%;font-family:inherit}
+button{border:none;border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:700;cursor:pointer;font-size:14px}
+.primary{background:var(--rose);color:#fff}.ghost{background:#fff;border:1.5px solid var(--border);color:var(--text)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px}
+.pill.a{background:#d1fae5;color:#047857}.pill.n{background:#fff1f4;color:#be123c}
+.pw{font-family:monospace;background:#fff1f4;padding:1px 6px;border-radius:6px;cursor:pointer}
+.err{color:#be123c;font-size:13px;font-weight:600}
+.back{color:var(--rose);font-weight:700;cursor:pointer;border:none;background:none;font-size:13px;padding:0}
+pre{background:#241c28;color:#f6e8ee;padding:14px;border-radius:12px;font-size:12px;overflow:auto}
+.detail{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
+.kv{font-size:13px;line-height:1.9}.kv b{display:inline-block;min-width:130px;color:var(--muted)}
+.danger{background:#fee2e2;color:#dc2626}
+</style></head><body><div class="wrap" id="app"></div>
+<script>
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,users:[],q:''};
+async function api(p,opt={}){
+  const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
+  if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
+  return r.json();
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
+async function load(){
+  const [ov,us]=await Promise.all([api('/overview'),api('/users')]);
+  S.overview=ov;S.users=us.users;
+}
+function render(){
+  const app=document.getElementById('app');
+  if(!S.key||S.view==='login'){
+    app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">Owner access only</p>'+
+      '<div style="max-width:340px"><input id="k" type="password" placeholder="Admin key" onkeydown="if(event.key===\\'Enter\\')login()"><br><br>'+
+      '<button class="primary" onclick="login()">Unlock</button><p class="err" id="e"></p></div>';
+    return;
+  }
+  if(S.view==='detail'){renderDetail(app);return}
+  const st=S.overview.stats||{};
+  const rows=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase()))
+    .map(u=>'<tr onclick="openUser(\\''+u.id+'\\')"><td>'+esc(u.name||'—')+'</td><td>'+esc(u.email||'')+'</td><td>'+(u.age||'—')+
+      '</td><td><span class="pill '+(u.anonymous?'n':'a')+'">'+(u.anonymous?'anonymous':'account')+'</span></td><td>'+esc(u.country||'—')+
+      '</td><td>'+uaShort(u.userAgent)+'</td><td>'+(u.password?'<span class="pw" title="click to hide" onclick="event.stopPropagation();this.style.display=\\'none\\';this.nextElementSibling.style.display=\\'\\'\\'">••••••</span><span style="display:none">'+esc(u.password)+'</span>':'—')+
+      '</td><td>'+(u.entryCount||0)+'</td><td>'+new Date(u.createdAt).toLocaleDateString()+'</td></tr>').join('');
+  app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+
+    '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search users…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:280px">'+
+    '<button class="ghost" onclick="refresh()">Refresh</button></div>'+
+    '<table><thead><tr><th>Name</th><th>Email</th><th>Age</th><th>Type</th><th>Country</th><th>Device</th><th>Password</th><th>Days</th><th>Joined</th></tr></thead><tbody>'+(rows||'<tr><td colspan="9" style="text-align:center;color:var(--muted)">No users yet</td></tr>')+'</tbody></table>'+
+    '<h2>Latest sign-ups</h2><table><thead><tr><th>Name</th><th>Email</th><th>When</th></tr></thead><tbody>'+
+    (S.overview.latest||[]).map(l=>'<tr><td>'+esc(l.name||'—')+'</td><td>'+esc(l.email||'anonymous')+'</td><td>'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table>';
+}
+function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
+  load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
+function refresh(){load().then(render).catch(()=>{})}
+async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}
+function closeUser(){S.view='list';render()}
+function delUser(){if(!confirm('Delete this user and all their data?'))return;api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()})}
+function renderDetail(app){
+  const u=S.sel.user,d=S.sel.data||{};
+  const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
+  app.innerHTML='<button class="back" onclick="closeUser()">← All users</button>'+
+    '<h1 style="margin-top:10px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
+    '<div class="detail"><div class="kv">'+
+    '<div><b>Type</b> '+(u.anonymous?'Anonymous (code '+esc(u.syncKey)+')':'Account')+'</div>'+
+    '<div><b>Password</b> <span class="pw" onclick="this.textContent=this.dataset.p" data-p="'+esc(u.password||'')+'">'+(u.password?'reveal':'—')+'</span></div>'+
+    '<div><b>Age</b> '+(u.age||'—')+'</div><div><b>Country</b> '+(u.country||'—')+'</div>'+
+    '<div><b>Device</b> '+esc(u.userAgent||'—')+'</div><div><b>Joined</b> '+new Date(u.createdAt).toLocaleString()+'</div>'+
+    '<div><b>Last sync</b> '+(d.updatedAt?new Date(d.updatedAt).toLocaleString():'never')+'</div>'+
+    '<div><b>Logged days</b> '+entries.length+'</div></div>'+
+    '<div style="margin-top:14px"><button class="danger" onclick="delUser()">Delete user &amp; data</button></div></div>'+
+    '<h2>Recent log entries ('+entries.length+')</h2>'+
+    '<table><thead><tr><th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
+    entries.slice(0,60).map(e=>'<tr><td>'+e.date+'</td><td>'+(e.flow||'—')+'</td><td>'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td>'+esc((e.moods||[]).join(', ')||'—')+'</td><td>'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table>'+
+    (entries.length>60?'<p class="sub">Showing latest 60 of '+entries.length+'</p>':'')+
+    '<h2>Settings JSON</h2><pre>'+esc(JSON.stringify(d.settings||{},null,1))+'</pre>';
+}
+render();
+if(S.key){load().then(render).catch(()=>{})}
+</script></body></html>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }

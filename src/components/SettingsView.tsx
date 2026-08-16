@@ -254,20 +254,19 @@ export default function SettingsView(p: AppProps) {
             <div className="t">
               {p.cloudUser && !p.cloudUser.anonymous
                 ? `Signed in as ${p.cloudUser.name ?? p.cloudUser.email}`
-                : 'Anonymous sync active'}
+                : 'Not signed in'}
             </div>
             <div className="d">
               {p.cloudUser && !p.cloudUser.anonymous
                 ? p.cloudUser.email ?? ''
-                : 'Your logs sync privately — no email needed. Create an account to sign in on other devices.'}
+                : 'Your data is backed up automatically.'}
             </div>
           </div>
-          <span style={{ fontSize: 20 }} aria-hidden>{p.syncStatus === 'synced' ? '✓' : p.syncStatus === 'error' ? '⚠️' : '↻'}</span>
         </div>
         {p.cloudUser && (
           <div className="set-row">
             <div>
-              <div className="t">Sync code</div>
+              <div className="t">Backup code</div>
               <div className="d" style={{ fontFamily: 'monospace', fontSize: 13 }}>{p.cloudUser.syncKey}</div>
             </div>
             <button
@@ -283,13 +282,9 @@ export default function SettingsView(p: AppProps) {
             <button className="btn ghost" onClick={p.signOutCloud}>Sign out</button>
           ) : null}
           <button className="btn ghost" onClick={p.openAccount}>
-            {p.cloudUser && !p.cloudUser.anonymous ? 'Switch account' : 'Create account / sign in'}
+            {p.cloudUser && !p.cloudUser.anonymous ? 'Switch account' : 'Sign in'}
           </button>
         </div>
-        <p className="hint" style={{ marginTop: 10 }}>
-          Synced data lives in our Cloudflare database tied to this account or code. We store your
-          name, age, and email (if provided) plus standard request info (country, device type) — never your location, never sold.
-        </p>
       </div>
 
       <div className="card">
@@ -381,7 +376,7 @@ export default function SettingsView(p: AppProps) {
         <div className="set-row">
           <div>
             <div className="t">App PIN</div>
-            <div className="d">{settings.pinHash ? 'Enabled — asked when the app opens' : 'Optional gate for prying eyes (not encryption)'}</div>
+            <div className="d">{settings.pinHash ? 'Asked when the app opens' : 'Protect the app with a PIN'}</div>
           </div>
           <button className="btn ghost sm" onClick={() => setPinModal(true)}>{settings.pinHash ? 'Change' : 'Set PIN'}</button>
         </div>

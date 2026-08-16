@@ -3,6 +3,7 @@ import { Mode, MODE_INFO, Settings } from '../types';
 import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Logo } from './Icons';
+import AccountScreen from './AccountScreen';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
 
@@ -20,7 +21,8 @@ export default function Onboarding({
   const [dueFromScan, setDueFromScan] = useState(true); // true: due date known; false: compute from LMP
 
   const isPregnant = mode === 'pregnant';
-  const totalSteps = isPregnant ? 2 : 3;
+  const accountStep = isPregnant ? 2 : 3;
+  const totalSteps = accountStep + 1;
 
   const finish = () => {
     updateSettings({
@@ -157,8 +159,8 @@ export default function Onboarding({
           <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
             Back
           </button>
-          <button className="btn primary" disabled={!dateOk(dueDate)} onClick={finish}>
-            Start tracking
+          <button className="btn primary" disabled={!dateOk(dueDate)} onClick={() => setStep(accountStep)}>
+            Continue
           </button>
         </>
       )}
@@ -184,11 +186,13 @@ export default function Onboarding({
           <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(1)}>
             Back
           </button>
-          <button className="btn primary" onClick={finish}>
-            {mode === 'ttc' ? 'Start tracking my fertility' : 'Start tracking'}
+          <button className="btn primary" onClick={() => setStep(accountStep)}>
+            Continue
           </button>
         </>
       )}
+
+      {step === accountStep && <AccountScreen user={null} onDone={finish} onSkip={finish} />}
     </div>
   );
 }

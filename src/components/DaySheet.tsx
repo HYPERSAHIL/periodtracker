@@ -461,11 +461,6 @@ export default function DaySheet({
             Delete this log
           </button>
         )}
-        {settings.trackerHidden.length > 0 && (
-          <p className="hint" style={{ textAlign: 'center', marginTop: 10 }}>
-            {settings.trackerHidden.length} section(s) hidden — manage in Settings → Trackers.
-          </p>
-        )}
       </div>
     </div>
   );

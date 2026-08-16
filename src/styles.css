@@ -1319,52 +1319,44 @@ label.mini {
 }
 
 
-/* ---------- cloud sync chip ---------- */
+/* ---------- full-screen account step ---------- */
 
-.sync-chip {
-  flex: none;
-  display: inline-flex;
+.acct-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--bg);
+  overflow-y: auto;
+  animation: fadein 0.18s ease;
+}
+
+.acct-inner {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: calc(40px + env(safe-area-inset-top)) 24px calc(40px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
+  text-align: center;
+}
+
+.acct-inner h2 {
+  font-size: 24px;
+  margin: 16px 0 6px;
+  letter-spacing: -0.02em;
+}
+
+.acct-inner .lead {
+  font-size: 14px;
   color: var(--text-2);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 99px;
-  padding: 5px 10px;
-  cursor: pointer;
-  max-width: 118px;
-  white-space: nowrap;
-  overflow: hidden;
+  margin: 0 0 22px;
 }
 
-.sync-chip.ok {
-  color: var(--leaf-700);
-  border-color: var(--leaf-600);
-  background: var(--leaf-100);
+.acct-inner .field {
+  width: 100%;
+  text-align: left;
 }
 
-.sync-chip.warn {
-  color: #9a3412;
-  border-color: #f59e0b;
-  background: #fff7ed;
-}
-
-.sync-chip.busy {
-  color: var(--rose-700);
-}
-
-.sync-chip span {
-  display: inline-block;
-}
-
-.sync-chip.spin span {
-  animation: chipspin 1s linear infinite;
-}
-
-@keyframes chipspin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.acct-inner .btn {
+  width: 100%;
 }

@@ -57,23 +57,6 @@ async function api(path: string, body?: unknown, token?: string): Promise<{ ok: 
   return { ok: res.ok, status: res.status, data };
 }
 
-/** Client-side password hardening — the raw password never leaves the device. */
-async function authHash(email: string, password: string): Promise<string> {
-  const base = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: new TextEncoder().encode(`pt:${email.toLowerCase()}`), iterations: 200000, hash: 'SHA-256' },
-    base,
-    256
-  );
-  return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 export async function ensureAnonymousSession(): Promise<CloudSession> {
   const existing = loadSession();
   if (existing) return existing;
@@ -91,17 +74,11 @@ export async function signUp(input: {
   password: string;
   anonKey?: string;
 }): Promise<CloudSession> {
-  const ah = await authHash(input.email, input.password);
-  const r = await api('signup', {
-    name: input.name,
-    age: input.age,
-    email: input.email,
-    authHash: ah,
-    anonKey: input.anonKey,
-  });
+  const r = await api('signup', input);
   if (!r.ok) {
     if (r.data?.error === 'email_taken') throw new Error('That email already has an account. Try signing in.');
     if (r.data?.error === 'invalid_age') throw new Error('Please enter a valid age.');
+    if (r.data?.error === 'weak_password') throw new Error('Please use at least 6 characters for your password.');
     throw new Error('Sign-up failed — please try again.');
   }
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
@@ -110,8 +87,7 @@ export async function signUp(input: {
 }
 
 export async function signIn(email: string, password: string): Promise<CloudSession> {
-  const ah = await authHash(email, password);
-  const r = await api('signin', { email, authHash: ah });
+  const r = await api('signin', { email, password });
   if (!r.ok) throw new Error('Wrong email or password.');
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
   saveSession(s);
@@ -121,7 +97,7 @@ export async function signIn(email: string, password: string): Promise<CloudSess
 export async function restoreWithKey(key: string): Promise<CloudSession> {
   const r = await api('restore', { key });
   if (!r.ok) {
-    if (r.data?.error === 'key_not_found') throw new Error('That sync code was not found — check it and try again.');
+    if (r.data?.error === 'key_not_found') throw new Error('That backup code was not found — check it and try again.');
     throw new Error('Restore failed.');
   }
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
@@ -178,13 +154,12 @@ export async function syncCycle(
   const localChanged =
     JSON.stringify(mergedEntries) !== JSON.stringify(remoteEntries ?? {}) ||
     JSON.stringify({ ...mergedSettings }) !== JSON.stringify(remoteSettings ?? null);
-  if (localChanged || mergedEntries !== remoteEntries || mergedSettings !== remoteSettings) {
+  if (localChanged) {
     applyMerged({ entries: mergedEntries, settings: mergedSettings, changed: true });
   }
 
   const push = await api('data', { baseRev: pulled.data.rev, settings: mergedSettings, entries: mergedEntries }, token);
-  if (push.status === 409 && push.data && !push.ok) {
-    // someone else wrote first — re-run the cycle with the fresher server state
+  if (push.status === 409 && !push.ok) {
     const retry = await api('data', undefined, token);
     if (!retry.ok) throw new Error('conflict_retry_failed');
     const m2e = mergeEntries(entries, retry.data.entries);

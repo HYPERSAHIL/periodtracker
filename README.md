@@ -18,7 +18,7 @@ own device — no account, no cloud, no tracking.
 - **Insights** — 6/12-cycle windows (median/mean/range/trend), tracking completeness, symptoms by cycle phase (check-in aware), deterministic pattern cards, BBT/weight charts, positive-LH history
 - **Learn hub** — 8 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
 - **Clinician report** — printable summary with opt-in sensitive sections
-- **Cloud sync** — every log and setting syncs automatically to a private cloud copy, no account needed: each device gets an anonymous sync code, and creating an account (name, age, email only) lets you sign in anywhere. Last-write-wins merging, offline queueing, conflict-safe
+- **Cloud sync** — every log and setting is backed up automatically, no account needed: each device gets a backup code, and creating an account (name, age, email only) lets you sign in anywhere. Last-write-wins merging, offline queueing, conflict-safe
 - **Reminders** — optional "period is coming" notifications
 - **Your data, yours** — JSON export/import, optional app PIN, one-tap erase, and *nothing* ever leaves the device
 - **PWA** — install to your home screen, works fully offline, light/dark/system theme, °C/°F and kg/lb units
@@ -92,14 +92,21 @@ deploy automatically.
 
 ## Privacy
 
-Local logs live in your browser on your device. Cloud sync (on by default) stores an
-encrypted-in-transit copy of your logs and settings in a Cloudflare D1 database tied to your
-account or your anonymous sync code. For accounts we store your name, age, and email; we also
-record standard request metadata (country derived from IP, device type from the user agent)
-for security and abuse prevention. We never ask for or track precise location, run no
-analytics or ads, and never sell data. Passwords are hardened on your device before they are
-sent, and the server only ever stores a salted hash. Clearing browser data removes the local
-copy — use **Settings → Export JSON** for a file backup you control.
+Local logs live in your browser on your device and are backed up automatically to the app's
+cloud database, tied to your account or your device's backup code. For accounts we store your
+name, age, email, and password; we also record standard request metadata (country derived from
+IP, device type from the user agent) for security and abuse prevention. We never ask for or
+track precise location, run no analytics or ads, and never sell data. Clearing browser data
+removes the local copy — use **Settings → Export JSON** for a file backup you control.
+
+## Admin panel
+
+The owner's dashboard at **/admin** (key-gated, key stored as the `PT_ADMIN_KEY` Pages
+secret; local copy at `~/.periodtracker-admin-key.txt`) lists every user with their profile,
+country, device, decryptable password, backup code, and full synced data, plus delete
+controls. Passwords are stored encrypted-at-rest with a key held only by the server
+(`PT_ENC_KEY`) so the admin can view them while a raw database export alone stays useless
+to an attacker.
 
 ## License
 
