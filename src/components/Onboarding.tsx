@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Settings } from '../types';
-import { todayISO, addDays, fromISO } from '../lib/date';
+import { Mode, MODE_INFO, Settings } from '../types';
+import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
+import { dueFromLmp } from '../lib/pregnancy';
 import { Logo } from './Icons';
+
+const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
 
 export default function Onboarding({
   updateSettings,
@@ -9,31 +12,34 @@ export default function Onboarding({
   updateSettings: (patch: Partial<Settings>) => void;
 }) {
   const [step, setStep] = useState(0);
+  const [mode, setMode] = useState<Mode>('cycle');
   const [lastStart, setLastStart] = useState(addDays(todayISO(), -5));
   const [periodLength, setPeriodLength] = useState(5);
   const [cycleLength, setCycleLength] = useState(28);
+  const [dueDate, setDueDate] = useState(addDays(todayISO(), 200));
+  const [dueFromScan, setDueFromScan] = useState(true); // true: due date known; false: compute from LMP
+
+  const isPregnant = mode === 'pregnant';
+  const totalSteps = isPregnant ? 2 : 3;
 
   const finish = () => {
     updateSettings({
       onboarded: true,
-      lastPeriodStart: lastStart || todayISO(),
+      mode,
+      lastPeriodStart: isPregnant ? null : lastStart || todayISO(),
       avgPeriodLength: periodLength,
       avgCycleLength: cycleLength,
+      dueDate: isPregnant ? dueDate || addDays(todayISO(), 200) : null,
+      predictionsPaused: isPregnant,
     });
   };
 
-  const dateOk = (() => {
-    try {
-      return !isNaN(fromISO(lastStart).getTime());
-    } catch {
-      return false;
-    }
-  })();
+  const dateOk = (iso: string) => !isNaN(fromISO(iso).getTime());
 
   return (
     <div className="onboard">
       <div className="progress" aria-hidden>
-        <div className="fill" style={{ width: `${((step + 1) / 3) * 100}%` }} />
+        <div className="fill" style={{ width: `${((step + 1) / totalSteps) * 100}%` }} />
       </div>
 
       {step === 0 && (
@@ -45,38 +51,43 @@ export default function Onboarding({
             </div>
           </div>
           <p className="lead">
-            Track your cycle, predict your next period and fertile window, and see your patterns —
+            Track your cycle, predict your period and fertile window, and see your patterns —
             with all of your data staying on your device.
           </p>
-          <ul className="privacy-list">
-            <li>
-              <span className="ic">✓</span>
-              <span><strong>No account, no cloud, no tracking.</strong> Everything is stored locally in your browser.</span>
-            </li>
-            <li>
-              <span className="ic">✓</span>
-              <span><strong>Predictions you can understand.</strong> Based on your own logged cycles, not a black box.</span>
-            </li>
-            <li>
-              <span className="ic">✓</span>
-              <span><strong>Free forever</strong> — and open source, so anyone can verify the claims above.</span>
-            </li>
-          </ul>
+          <h2 style={{ fontSize: 19, marginBottom: 6 }}>What brings you here?</h2>
+          <div className="mode-grid">
+            {MODES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`mode-card${mode === m ? ' on' : ''}`}
+                onClick={() => setMode(m)}
+              >
+                <span className="mc-emoji" aria-hidden>{MODE_INFO[m].emoji}</span>
+                <span className="mc-label">{MODE_INFO[m].label}</span>
+                <span className="mc-blurb">{MODE_INFO[m].blurb}</span>
+              </button>
+            ))}
+          </div>
           <div className="grow" />
           <button className="btn primary" onClick={() => setStep(1)}>
-            Get started
+            Continue
           </button>
           <p className="hint" style={{ textAlign: 'center' }}>
-            Takes less than a minute — you can edit everything later.
+            You can switch modes anytime in Settings — nothing is locked in.
           </p>
         </>
       )}
 
-      {step === 1 && (
+      {step === 1 && !isPregnant && (
         <>
           <div className="steps">Step 2 of 3 · Your last period</div>
           <h2>When did your last period start?</h2>
-          <p className="lead">This anchors your first predictions. An approximate date is fine.</p>
+          <p className="lead">
+            {mode === 'perimenopause'
+              ? 'Cycles getting harder to pin down? A rough date is fine — irregularity is exactly what we’ll track.'
+              : 'This anchors your first predictions. An approximate date is fine.'}
+          </p>
           <div className="field">
             <label htmlFor="ob-start">First day of bleeding</label>
             <input
@@ -97,13 +108,64 @@ export default function Onboarding({
           <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
             Back
           </button>
-          <button className="btn primary" disabled={!dateOk} onClick={() => setStep(2)}>
+          <button className="btn primary" disabled={!dateOk(lastStart)} onClick={() => setStep(2)}>
             Continue
           </button>
         </>
       )}
 
-      {step === 2 && (
+      {step === 1 && isPregnant && (
+        <>
+          <div className="steps">Step 2 of 2 · Your pregnancy</div>
+          <h2>When is the baby due?</h2>
+          <p className="lead">
+            Period predictions pause automatically during pregnancy — this app switches to
+            week-by-week tracking.
+          </p>
+          <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 18 }}>
+            <button className={dueFromScan ? 'on' : ''} onClick={() => setDueFromScan(true)}>
+              I know the date
+            </button>
+            <button className={!dueFromScan ? 'on' : ''} onClick={() => setDueFromScan(false)}>
+              From last period
+            </button>
+          </div>
+          {dueFromScan ? (
+            <div className="field">
+              <label htmlFor="ob-due">Due date (from a clinician or scan)</label>
+              <input
+                id="ob-due"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="field">
+              <label htmlFor="ob-lmp">First day of your last period</label>
+              <input
+                id="ob-lmp"
+                type="date"
+                value={dueDate ? addDays(dueDate, -280) : ''}
+                max={todayISO()}
+                onChange={(e) => setDueDate(dueFromLmp(e.target.value))}
+              />
+              {dateOk(dueDate) && (
+                <p className="hint">Estimated due date: {prettyDate(dueDate, { withYear: true })}</p>
+              )}
+            </div>
+          )}
+          <div className="grow" />
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
+            Back
+          </button>
+          <button className="btn primary" disabled={!dateOk(dueDate)} onClick={finish}>
+            Start tracking
+          </button>
+        </>
+      )}
+
+      {step === 2 && !isPregnant && (
         <>
           <div className="steps">Step 3 of 3 · Your typical cycle</div>
           <h2>How long is your cycle?</h2>
@@ -125,7 +187,7 @@ export default function Onboarding({
             Back
           </button>
           <button className="btn primary" onClick={finish}>
-            Start tracking
+            {mode === 'ttc' ? 'Start tracking my fertility' : 'Start tracking'}
           </button>
         </>
       )}

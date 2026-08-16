@@ -6,10 +6,28 @@ const NOTIFY_KEY = 'pt.notified.v1';
 
 export interface BackupFile {
   app: 'period-tracker';
-  version: 1;
+  version: 1 | 2;
   exportedAt: string;
   settings: Settings;
   entries: DayEntry[];
+}
+
+function normalizeEntry(e: Partial<DayEntry> & { date: string }): DayEntry {
+  return {
+    date: e.date,
+    flow: (e.flow ?? null) as DayEntry['flow'],
+    symptoms: Array.isArray(e.symptoms) ? e.symptoms.filter((s) => typeof s === 'string') : [],
+    moods: Array.isArray(e.moods) ? e.moods.filter((s) => typeof s === 'string') : [],
+    note: typeof e.note === 'string' ? e.note : '',
+    mucus: (e.mucus ?? null) as DayEntry['mucus'],
+    bbt: typeof e.bbt === 'number' && Number.isFinite(e.bbt) ? e.bbt : null,
+    weight: typeof e.weight === 'number' && Number.isFinite(e.weight) ? e.weight : null,
+    lhTest: e.lhTest === 'positive' || e.lhTest === 'negative' ? e.lhTest : null,
+    pregnancyTest:
+      e.pregnancyTest === 'positive' || e.pregnancyTest === 'negative' ? e.pregnancyTest : null,
+    intercourse: !!e.intercourse,
+    contraception: !!e.contraception,
+  };
 }
 
 export function loadEntries(): Record<string, DayEntry> {
@@ -20,13 +38,7 @@ export function loadEntries(): Record<string, DayEntry> {
     const out: Record<string, DayEntry> = {};
     for (const e of parsed) {
       if (e && typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) {
-        out[e.date] = {
-          date: e.date,
-          flow: e.flow ?? null,
-          symptoms: Array.isArray(e.symptoms) ? e.symptoms : [],
-          moods: Array.isArray(e.moods) ? e.moods : [],
-          note: typeof e.note === 'string' ? e.note : '',
-        };
+        out[e.date] = normalizeEntry(e);
       }
     }
     return out;
@@ -65,7 +77,7 @@ export function markNotifiedDay(day: string): void {
 export function toBackup(entries: Record<string, DayEntry>, settings: Settings): BackupFile {
   return {
     app: 'period-tracker',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     settings,
     entries: Object.values(entries).sort((a, b) => a.date.localeCompare(b.date)),
@@ -74,18 +86,12 @@ export function toBackup(entries: Record<string, DayEntry>, settings: Settings):
 
 export function parseBackup(text: string): { settings: Settings; entries: Record<string, DayEntry> } | null {
   try {
-    const data = JSON.parse(text) as BackupFile;
+    const data = JSON.parse(text) as Partial<BackupFile>;
     if (!data || data.app !== 'period-tracker' || !Array.isArray(data.entries)) return null;
     const entries: Record<string, DayEntry> = {};
     for (const e of data.entries) {
       if (e && typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) {
-        entries[e.date] = {
-          date: e.date,
-          flow: e.flow ?? null,
-          symptoms: Array.isArray(e.symptoms) ? e.symptoms : [],
-          moods: Array.isArray(e.moods) ? e.moods : [],
-          note: typeof e.note === 'string' ? e.note : '',
-        };
+        entries[e.date] = normalizeEntry(e as DayEntry);
       }
     }
     const settings = { ...DEFAULT_SETTINGS, ...(data.settings ?? {}), onboarded: true };

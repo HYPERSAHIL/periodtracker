@@ -2,9 +2,11 @@ import { useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { parseBackup, toBackup } from '../lib/storage';
 import { Stepper } from './Onboarding';
-import { todayISO } from '../lib/date';
+import { todayISO, prettyDate } from '../lib/date';
+import { Mode, MODE_INFO } from '../types';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
+const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
 
 export default function SettingsView(p: AppProps) {
   const { settings, updateSettings } = p;
@@ -46,8 +48,55 @@ export default function SettingsView(p: AppProps) {
     updateSettings({ reminders: perm === 'granted' });
   };
 
+  const setMode = (m: Mode) => {
+    // entering pregnancy pauses forecasts; leaving it resumes them (re-pausable via the toggle)
+    updateSettings({
+      mode: m,
+      predictionsPaused: m === 'pregnant',
+      dueDate: m === 'pregnant' ? settings.dueDate : null,
+    });
+  };
+
   return (
     <>
+      <div className="card">
+        <h3>Mode</h3>
+        <div className="mode-grid">
+          {MODES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`mode-card${settings.mode === m ? ' on' : ''}`}
+              onClick={() => setMode(m)}
+            >
+              <span className="mc-emoji" aria-hidden>{MODE_INFO[m].emoji}</span>
+              <span className="mc-label">{MODE_INFO[m].label}</span>
+              <span className="mc-blurb">{MODE_INFO[m].blurb}</span>
+            </button>
+          ))}
+        </div>
+        {settings.mode === 'pregnant' && (
+          <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
+            <label htmlFor="st-due">Due date</label>
+            <input
+              id="st-due"
+              type="date"
+              value={settings.dueDate ?? ''}
+              onChange={(e) => updateSettings({ dueDate: e.target.value || null })}
+            />
+            {settings.dueDate && (
+              <p className="hint">Week-by-week tracking runs from this date ({prettyDate(settings.dueDate, { withYear: true })}).</p>
+            )}
+          </div>
+        )}
+        {settings.mode !== 'cycle' && (
+          <p className="hint" style={{ marginTop: 10 }}>
+            {settings.mode === 'ttc' && 'TTC mode highlights fertile days and LH tests.'}
+            {settings.mode === 'perimenopause' && 'Perimenopause mode emphasizes gaps between periods and changing symptoms.'}
+          </p>
+        )}
+      </div>
+
       <div className="card">
         <h3>Your cycle</h3>
         <div className="set-row">
@@ -84,13 +133,14 @@ export default function SettingsView(p: AppProps) {
         <div className="set-row">
           <div>
             <div className="t">Pause predictions</div>
-            <div className="d">For pregnancy, menopause, or whenever you want forecasts off</div>
+            <div className="d">{settings.mode === 'pregnant' ? 'On automatically while in pregnancy mode' : 'For pregnancy, menopause, or whenever you want forecasts off'}</div>
           </div>
           <button
-            className={`switch${settings.predictionsPaused ? ' on' : ''}`}
+            className={`switch${p.stats.predictionsPaused ? ' on' : ''}`}
             role="switch"
-            aria-checked={settings.predictionsPaused}
+            aria-checked={p.stats.predictionsPaused}
             aria-label="Pause predictions"
+            disabled={settings.mode === 'pregnant'}
             onClick={() => updateSettings({ predictionsPaused: !settings.predictionsPaused })}
           />
         </div>
@@ -131,19 +181,44 @@ export default function SettingsView(p: AppProps) {
       </div>
 
       <div className="card">
-        <h3>Appearance</h3>
-        <div className="seg" role="radiogroup" aria-label="Theme">
-          {(['system', 'light', 'dark'] as const).map((t) => (
-            <button
-              key={t}
-              className={settings.theme === t ? 'on' : ''}
-              role="radio"
-              aria-checked={settings.theme === t}
-              onClick={() => updateSettings({ theme: t })}
-            >
-              {t[0].toUpperCase() + t.slice(1)}
-            </button>
-          ))}
+        <h3>Appearance &amp; units</h3>
+        <div className="field" style={{ marginBottom: 14 }}>
+          <label>Theme</label>
+          <div className="seg" role="radiogroup" aria-label="Theme">
+            {(['system', 'light', 'dark'] as const).map((t) => (
+              <button
+                key={t}
+                className={settings.theme === t ? 'on' : ''}
+                role="radio"
+                aria-checked={settings.theme === t}
+                onClick={() => updateSettings({ theme: t })}
+              >
+                {t[0].toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="two-col">
+          <div className="field" style={{ margin: 0 }}>
+            <label>Temperature</label>
+            <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              {(['C', 'F'] as const).map((u) => (
+                <button key={u} className={settings.tempUnit === u ? 'on' : ''} onClick={() => updateSettings({ tempUnit: u })}>
+                  °{u}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Weight</label>
+            <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              {(['kg', 'lb'] as const).map((u) => (
+                <button key={u} className={settings.weightUnit === u ? 'on' : ''} onClick={() => updateSettings({ weightUnit: u })}>
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -190,8 +265,8 @@ export default function SettingsView(p: AppProps) {
         <h3>About</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 8px' }}>
           Period Tracker v{APP_VERSION} — free, open-source, and local-first. Predictions use the
-          calendar method (ovulation ≈ 14 days before your next period) and are estimates, not
-          medical advice.
+          calendar method (ovulation ≈ 14 days before your next period); temperature and discharge
+          signs add fertility awareness clues. All of it is estimation support, not medical advice.
         </p>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
           <a href="https://github.com/HYPERSAHIL/periodtracker" target="_blank" rel="noreferrer" style={{ color: 'var(--rose-600)', fontWeight: 700 }}>

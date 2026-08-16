@@ -75,7 +75,7 @@ export function computeStats(
 
   const today = todayISO();
   const lastStart = starts.length ? starts[starts.length - 1] : settings.lastPeriodStart;
-  const paused = settings.predictionsPaused;
+  const paused = settings.predictionsPaused || settings.mode === 'pregnant';
   const nextStart = lastStart && !paused ? addDays(lastStart, avgCycle) : null;
 
 

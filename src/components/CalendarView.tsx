@@ -51,6 +51,7 @@ export default function CalendarView(p: AppProps) {
               f?.predicted ? 'predicted period' : null,
               f?.fertile ? 'fertile' : null,
               f?.ovulation ? 'ovulation' : null,
+              p.entries[iso]?.lhTest === 'positive' ? 'LH test positive' : null,
             ]
               .filter(Boolean)
               .join(', ');
@@ -58,6 +59,7 @@ export default function CalendarView(p: AppProps) {
               <button key={iso} className={cls} onClick={() => p.openDay(iso)} aria-label={`${iso}${label ? ` — ${label}` : ''}`}>
                 {fromISO(iso).getDate()}
                 {f?.ovulation && <span className="ovu" />}
+                {p.entries[iso]?.lhTest === 'positive' && <span className="lh" title="LH test positive" />}
               </button>
             );
           })}
@@ -67,6 +69,7 @@ export default function CalendarView(p: AppProps) {
           <span className="li"><span className="sw pd" /> Predicted</span>
           <span className="li"><span className="sw f" /> Fertile</span>
           <span className="li"><span className="sw o" /> Ovulation</span>
+          <span className="li"><span className="sw lhsw" /> LH+</span>
         </div>
       </div>
       <p className="hint" style={{ textAlign: 'center', padding: '0 12px' }}>

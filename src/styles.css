@@ -1024,6 +1024,118 @@ input[type='date']:focus-visible {
   color: #fff;
 }
 
+/* mode cards (onboarding + settings) */
+.mode-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  background: var(--surface-2);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 13px 13px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.mode-card.on {
+  border-color: var(--rose-600);
+  background: var(--rose-100);
+}
+
+.mode-card .mc-emoji {
+  font-size: 21px;
+}
+
+.mode-card .mc-label {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.mode-card.on .mc-label {
+  color: var(--rose-700);
+}
+
+.mode-card .mc-blurb {
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.35;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.num-in {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 15px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.num-in:focus-visible {
+  outline: var(--focus);
+  outline-offset: 1px;
+}
+
+.day .lh {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a855f7;
+}
+
+.day.period .lh {
+  background: #fff;
+}
+
+.legend .lhsw {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #a855f7;
+  border: none;
+}
+
+.switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.preg-bar {
+  margin-top: 14px;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.preg-bar .preg-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: #fff;
+  transition: width 0.3s ease;
+}
+
 .flow-pill.light {
   background: var(--rose-100);
   color: var(--rose-700);

@@ -8,17 +8,21 @@ own device — no account, no cloud, no tracking.
 
 ## Features
 
-- **Cycle logging** — flow intensity (spotting → heavy), 14 symptoms, 10 moods, and freeform notes for any day
+- **Four modes** — cycle tracking, trying to conceive, pregnancy, and perimenopause, switchable anytime
+- **Cycle logging** — flow intensity (spotting → heavy), 18 symptoms, 10 moods, and freeform notes for any day
+- **Fertility signs** — cervical mucus/discharge quality, basal body temperature, weight, LH ovulation tests, and pregnancy tests
 - **Predictions** — next period, fertile window, and ovulation estimates based on your own logged cycles (rolling average of your last 6)
-- **Calendar** — month view with logged periods, predicted days, fertile window, and ovulation markers
-- **Insights** — cycle length chart, regularity read, and your most-logged symptoms & moods
+- **Pregnancy mode** — week + day tracking, trimester info, progress bar, and due date from a clinician or computed from your last period
+- **Calendar** — month view with logged periods, predicted days, fertile window, ovulation and positive-LH markers
+- **Insights** — cycle length chart, regularity read, BBT and weight line charts, positive-LH history, and your most-logged symptoms & moods
+- **Life events** — intercourse and contraception logging
 - **Reminders** — optional "period is coming" notifications
 - **Your data, yours** — JSON export/import, one-tap erase, and *nothing* ever leaves the device
-- **PWA** — install to your home screen, works fully offline, light/dark/system theme
-- **Pregnancy / pause mode** — pause forecasts whenever predictions aren't relevant
+- **PWA** — install to your home screen, works fully offline, light/dark/system theme, °C/°F and kg/lb units
 
-Predictions use the calendar method (ovulation ≈ 14 days before the next period). They are
-estimates, not medical advice or contraception guidance.
+Predictions use the calendar method (ovulation ≈ 14 days before the next period), with temperature
+and discharge signs as supporting fertility clues. They are estimates, not medical advice or
+contraception guidance.
 
 ## Stack
 

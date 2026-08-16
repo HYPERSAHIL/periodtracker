@@ -16,6 +16,7 @@ import Dashboard from './components/Dashboard';
 import CalendarView from './components/CalendarView';
 import Insights from './components/Insights';
 import SettingsView from './components/SettingsView';
+import PregnancyScreen from './components/PregnancyScreen';
 import DaySheet from './components/DaySheet';
 
 export interface AppProps {
@@ -126,7 +127,8 @@ export default function App() {
         ) : (
           <>
             <main className="screen" key={tab}>
-              {tab === 'home' && <Dashboard {...props} />}
+              {tab === 'home' &&
+                (settings.mode === 'pregnant' ? <PregnancyScreen {...props} /> : <Dashboard {...props} />)}
               {tab === 'calendar' && <CalendarView {...props} />}
               {tab === 'insights' && <Insights {...props} />}
               {tab === 'settings' && <SettingsView {...props} />}
@@ -155,6 +157,8 @@ export default function App() {
           entry={entries[sheetDate] ?? null}
           facts={facts.get(sheetDate)}
           phase={phaseFor(sheetDate, stats, facts)}
+          tempUnit={settings.tempUnit}
+          weightUnit={settings.weightUnit}
           onClose={() => setSheetDate(null)}
           onSave={(e) => {
             upsert(e);
