@@ -542,31 +542,41 @@ function adminPage() {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Period Tracker — Admin</title>
 <style>
-:root{--rose:#e11d63;--bg:#fdf5f7;--surface:#fff;--text:#3d1a26;--muted:#8a5c6b;--border:#f6dce3}
-*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text)}
-.wrap{max-width:1080px;margin:0 auto;padding:24px 18px 60px}
-h1{font-size:20px;margin:0 0 2px}h2{font-size:15px;margin:26px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.sub{color:var(--muted);font-size:13px;margin:0 0 22px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:8px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px}
-.card .v{font-size:22px;font-weight:800;color:var(--rose)}.card .l{font-size:11.5px;color:var(--muted);font-weight:600}
-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;font-size:13px}
-th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-th{background:#fff1f4;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-tr:hover td{background:#fffafb;cursor:pointer}
-input{border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;width:100%;font-family:inherit}
-button{border:none;border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:700;cursor:pointer;font-size:14px}
-.primary{background:var(--rose);color:#fff}.ghost{background:#fff;border:1.5px solid var(--border);color:var(--text)}
+:root{--rose:#fb7185;--rose2:#e11d63;--ink:#0d0a0d;--surf:rgba(255,255,255,.045);--surf2:rgba(255,255,255,.08);--line:rgba(255,255,255,.1);--txt:#f4ecef;--mut:#a08a92}
+*{box-sizing:border-box}body{margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--txt);
+background:radial-gradient(1100px 500px at 85% -10%,rgba(225,29,99,.22),transparent 60%),radial-gradient(900px 500px at -10% 25%,rgba(190,18,60,.12),transparent 55%),#120d11;
+min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 70px}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.brand .dot{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#fb7185,#9f1239);box-shadow:0 8px 24px rgba(225,29,99,.45),inset 0 1.5px 0 rgba(255,255,255,.5)}
+h1{font-size:19px;margin:0;letter-spacing:-.01em}h1 span{color:var(--rose);font-weight:400}
+.sub{color:var(--mut);font-size:13px;margin:2px 0 22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:16px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.card .v{font-size:24px;font-weight:800;color:var(--rose)}.card .l{font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.pill{font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px}
-.pill.a{background:#d1fae5;color:#047857}.pill.n{background:#fff1f4;color:#be123c}
-.pw{font-family:monospace;background:#fff1f4;padding:1px 6px;border-radius:6px;cursor:pointer}
-.err{color:#be123c;font-size:13px;font-weight:600}
+.pill{font-size:11px;font-weight:700;border-radius:99px;padding:2px 10px}
+.pill.a{background:rgba(4,120,87,.18);color:#34d399}.pill.n{background:rgba(225,29,99,.16);color:var(--rose)}
+table{width:100%;border-collapse:separate;border-spacing:0;background:var(--surf);border:1px solid var(--line);border-radius:18px;overflow:hidden;font-size:13px;backdrop-filter:blur(14px)}
+thead th{position:sticky;top:0;background:#1c1419;color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);z-index:2}
+th,td{padding:9px 12px;text-align:left;white-space:nowrap}
+tbody td{border-bottom:1px solid rgba(255,255,255,.05)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surf2);cursor:pointer}
+input{border:1px solid var(--line);background:var(--surf2);color:var(--txt);border-radius:12px;padding:11px 14px;font-size:14px;width:100%;font-family:inherit;outline:none}
+input:focus{border-color:var(--rose)}
+button{border:none;border-radius:12px;padding:10px 18px;font-family:inherit;font-weight:700;cursor:pointer;font-size:13.5px}
+.primary{background:linear-gradient(135deg,#fb7185,#be123c);color:#fff;box-shadow:0 8px 20px rgba(225,29,99,.35)}
+.ghost{background:var(--surf2);border:1px solid var(--line);color:var(--txt)}
+.pw{font-family:ui-monospace,monospace;background:rgba(225,29,99,.14);color:#fda4af;padding:2px 8px;border-radius:8px;cursor:pointer}
+.err{color:#fda4af;font-size:13px;font-weight:600}
 .back{color:var(--rose);font-weight:700;cursor:pointer;border:none;background:none;font-size:13px;padding:0}
-pre{background:#241c28;color:#f6e8ee;padding:14px;border-radius:12px;font-size:12px;overflow:auto}
-.detail{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px}
-.kv{font-size:13px;line-height:1.9}.kv b{display:inline-block;min-width:130px;color:var(--muted)}
-.danger{background:#fee2e2;color:#dc2626}
+pre{background:#0a070a;border:1px solid var(--line);color:#f4ecef;padding:16px;border-radius:14px;font-size:12px;overflow:auto}
+.detail{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:20px;backdrop-filter:blur(14px)}
+.kv{font-size:13.5px;line-height:2}.kv b{display:inline-block;min-width:130px;color:var(--mut);font-weight:600}
+.danger{background:rgba(220,38,38,.14);color:#fca5a5;border:1px solid rgba(220,38,38,.3)}
+h2{font-size:13px;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+@media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:7px 8px;font-size:12px}}
 </style></head><body><div class="wrap" id="app"></div>
 <script>
 const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],q:''};
@@ -587,7 +597,7 @@ async function load(){
 function render(){
   const app=document.getElementById('app');
   if(!S.key||S.view==='login'){
-    app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">Owner access only</p>'+
+    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">Owner access only</p>'+
       '<div style="max-width:340px"><input id="k" type="password" placeholder="Admin key" onkeydown="keyLogin(event)"><br><br>'+
       '<button class="primary" onclick="login()">Unlock</button><p class="err" id="e"></p></div>';
     return;
@@ -605,11 +615,11 @@ function render(){
     '<span style="flex:1"></span><button class="ghost" onclick="refresh()">Refresh</button></div>';
   if(S.tab==='activity'){
     const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
-    app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
+    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
       '<table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" style="text-align:center;color:var(--muted)">No activity yet</td></tr>')+'</tbody></table>';
     return;
   }
-  app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
+  app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
     '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search users…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:280px"></div>'+
     '<table><thead><tr><th>Name</th><th>Email</th><th>Age</th><th>Type</th><th>Country</th><th>IP</th><th>Device</th><th>Install</th><th>Password</th><th>Days</th><th>Joined</th></tr></thead><tbody>'+(rows||'<tr><td colspan="11" style="text-align:center;color:var(--muted)">No users yet</td></tr>')+'</tbody></table>'+
     '<h2>Latest sign-ups</h2><table><thead><tr><th>Name</th><th>Email</th><th>When</th></tr></thead><tbody>'+
@@ -628,7 +638,7 @@ function renderDetail(app){
   const u=S.sel.user,d=S.sel.data||{};
   const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
   app.innerHTML='<button class="back" onclick="closeUser()">← All users</button>'+
-    '<h1 style="margin-top:10px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
+    '<h1 style="margin-top:10px;font-size:22px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
     '<div class="detail"><div class="kv">'+
     '<div><b>Type</b> '+(u.anonymous?'Anonymous (code '+esc(u.syncKey)+')':'Account')+'</div>'+
     '<div><b>Password</b> <span class="pw" onclick="this.textContent=this.dataset.p" data-p="'+esc(u.password||'')+'">'+(u.password?'reveal':'—')+'</span></div>'+

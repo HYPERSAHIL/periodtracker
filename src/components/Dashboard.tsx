@@ -175,8 +175,9 @@ export default function Dashboard(p: AppProps) {
           ) : (
             <div style={{ fontSize: 13.5, color: 'var(--text-2)' }}>
               <p style={{ margin: '0 0 6px' }}>
-                Median of your last {stats.includedLengths.length} cycle length(s):{' '}
-                <strong>{stats.includedLengths.join(', ') || '—'} → {stats.avgCycle} days</strong>.
+                Forecast from your last {stats.includedLengths.length} cycle length(s) ({stats.includedLengths.join(', ') || '—'} →{' '}
+                <strong>{stats.avgCycle} days</strong>), weighting recent cycles more and easing toward the
+                population average while your history is short.
                 {stats.excludedLengths.length > 0 && ' Intervals outside 15–90 days were excluded as logging gaps.'}
               </p>
               <p style={{ margin: '0 0 6px' }}>
@@ -187,7 +188,9 @@ export default function Dashboard(p: AppProps) {
               <p style={{ margin: 0 }}>
                 {stats.fertileSuppressed
                   ? 'Fertile-window and ovulation estimates are hidden because a hormonal contraception method is active.'
-                  : 'Ovulation is assumed at ~14 days before the next period (calendar method) — an average, not a measurement.'}
+                  : stats.ovuEvidenceCount > 0
+                    ? `Ovulation is placed ${stats.lutealLength} days before the next period — learned from your own ${stats.ovuEvidenceCount} positive LH test(s), not a fixed average.`
+                    : 'Ovulation is assumed ~14 days before the next period (calendar method) — log LH tests to personalize this.'}
               </p>
             </div>
           )}

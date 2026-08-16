@@ -24,6 +24,8 @@ export interface CycleStats {
   fertileEnd: string | null;
   cycleDay: number | null;
   predictionsPaused: boolean;
+  lutealLength: number; // personal luteal phase estimate from ovulation evidence (default 14)
+  ovuEvidenceCount: number; // ovulation signs (LH+) that fed the luteal estimate
   stale: boolean; // last period too old to extrapolate from
   uncertaintyDays: number; // ± around nextStart
   periodWindow: { start: string; end: string } | null;
@@ -61,6 +63,23 @@ function median(values: number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+/**
+ * Weighted median — the value where cumulative weight crosses half the total.
+ * Used with exponential recency weights so recent cycles steer the forecast
+ * (finding from Bayesian cycle-length models, Urteaga et al. 2021).
+ */
+function weightedMedian(values: number[], weights: number[]): number {
+  if (!values.length) return 0;
+  const pairs = values.map((v, i) => [v, weights[i] ?? 1] as const).sort((a, b) => a[0] - b[0]);
+  const total = pairs.reduce((acc, [, w]) => acc + w, 0);
+  let cum = 0;
+  for (const [v, w] of pairs) {
+    cum += w;
+    if (cum >= total / 2) return v;
+  }
+  return pairs[pairs.length - 1][0];
+}
+
 function mean(nums: number[]): number {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
@@ -96,9 +115,34 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
   const included = allIntervals.slice(-6);
   const usingDefaults = starts.length < 2;
 
-  const avgCycle = usingDefaults
-    ? clamp(settings.avgCycleLength, 15, 90)
-    : clamp(Math.round(median(included)), 15, 90);
+  // Personalized luteal phase: LH-positive days followed by a period start give
+  // ovulation→period gaps (clinically 10–17 days; FAM literature). Falls back
+  // to the classic 14.
+  const lhDates = Object.values(entries)
+    .filter((e) => e.lhTest === 'positive')
+    .map((e) => e.date)
+    .sort();
+  const lutealObs: number[] = [];
+  for (const lh of lhDates) {
+    const nextStart = starts.find((st) => st > lh);
+    if (!nextStart) continue;
+    const gap = diffDays(lh, nextStart);
+    if (gap >= 9 && gap <= 18) lutealObs.push(gap);
+  }
+  const lutealLength = lutealObs.length ? clamp(Math.round(median(lutealObs)), 10, 17) : 14;
+
+  let avgCycle: number;
+  if (usingDefaults) {
+    avgCycle = clamp(settings.avgCycleLength, 15, 90);
+  } else {
+    // recency-weighted median (recent cycles matter more), then empirical-Bayes
+    // shrinkage toward the population mean while history is thin
+    const w = included.map((_, i) => Math.pow(0.75, included.length - 1 - i));
+    const wm = weightedMedian(included, w);
+    const n = included.length;
+    const prior = 28.5; // population mean cycle length, k = 3 pseudo-observations
+    avgCycle = clamp(Math.round(n >= 6 ? wm : (wm * n + prior * 3) / (n + 3)), 15, 90);
+  }
   const avgPeriod = usingDefaults
     ? clamp(settings.avgPeriodLength, 1, 14)
     : clamp(Math.round(mean(clusters.slice(-6).map((c) => c.length))), 1, 14);
@@ -130,7 +174,7 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
   }
 
   const fertileSuppressed = !paused && isHormonal(settings.contraception);
-  const ovulationDate = nextStart && !fertileSuppressed ? addDays(nextStart, -14) : null;
+  const ovulationDate = nextStart && !fertileSuppressed ? addDays(nextStart, -lutealLength) : null;
   const fertileStart = ovulationDate ? addDays(ovulationDate, -5) : null;
   const fertileEnd = ovulationDate ? addDays(ovulationDate, 1) : null;
   const cycleDay = lastStart ? diffDays(lastStart, today) + 1 : null;
@@ -150,6 +194,8 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
     fertileEnd,
     cycleDay: cycleDay && cycleDay > 0 ? cycleDay : null,
     predictionsPaused: paused,
+    lutealLength,
+    ovuEvidenceCount: lutealObs.length,
     stale,
     uncertaintyDays,
     periodWindow: nextStart
@@ -213,8 +259,8 @@ export function phaseFor(dateISO: string, stats: CycleStats, facts: Map<string, 
   if (f?.period || f?.predicted) return 'menstrual';
   if (stats.ovulationDate) {
     const d = diffDays(stats.ovulationDate, dateISO);
-    if (d >= -1 && d <= 1) return 'ovulation';
-    if (d > 1) return 'luteal';
+    if (d >= -2 && d <= 2) return 'ovulation';
+    if (d > 2) return 'luteal';
   }
   if (stats.nextStart && diffDays(dateISO, stats.nextStart) >= 0) return 'luteal';
   return 'follicular';
