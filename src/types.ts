@@ -18,6 +18,8 @@ export const HORMONAL_METHODS: ContraceptionMethod[] = ['pill', 'patch', 'ring',
 
 export interface DayEntry {
   date: string; // YYYY-MM-DD
+  /** epoch-ms of the last local edit — used for last-write-wins cloud sync */
+  updatedAt?: number;
   /** Explicit "I checked in today" marker — distinguishes no-symptom days from forgotten days. */
   checkedIn: boolean;
   flow: Flow | null;
@@ -57,6 +59,8 @@ export interface ContraceptionRegimen {
 }
 
 export interface Settings {
+  /** epoch-ms of the last local edit — used for last-write-wins cloud sync */
+  updatedAt?: number;
   avgCycleLength: number;
   avgPeriodLength: number;
   lastPeriodStart: string | null;

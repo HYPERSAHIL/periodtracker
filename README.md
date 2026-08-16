@@ -18,6 +18,7 @@ own device — no account, no cloud, no tracking.
 - **Insights** — 6/12-cycle windows (median/mean/range/trend), tracking completeness, symptoms by cycle phase (check-in aware), deterministic pattern cards, BBT/weight charts, positive-LH history
 - **Learn hub** — 8 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
 - **Clinician report** — printable summary with opt-in sensitive sections
+- **Cloud sync** — every log and setting syncs automatically to a private cloud copy, no account needed: each device gets an anonymous sync code, and creating an account (name, age, email only) lets you sign in anywhere. Last-write-wins merging, offline queueing, conflict-safe
 - **Reminders** — optional "period is coming" notifications
 - **Your data, yours** — JSON export/import, optional app PIN, one-tap erase, and *nothing* ever leaves the device
 - **PWA** — install to your home screen, works fully offline, light/dark/system theme, °C/°F and kg/lb units
@@ -32,7 +33,8 @@ estimation support — not medical advice, diagnosis, or contraception guidance.
 | --- | --- | --- |
 | UI | React 18 + TypeScript + Vite | fast, standard, trivially portable |
 | App delivery | PWA (vite-plugin-pwa / Workbox) + Capacitor-ready | installable today; same `dist/` builds into native iOS/Android shells |
-| Data | `localStorage` on-device | privacy-first, zero backend, zero cost |
+| Data | `localStorage` on-device + optional cloud sync (Cloudflare D1) | local-first with automatic backup and cross-device sync |
+| Sync API | Cloudflare Pages Function (`_worker.js`) + D1 SQLite | same domain, no servers to manage, free tier |
 | Hosting | Cloudflare Pages | free, global CDN, scales to any traffic on the free tier |
 
 No servers, no databases — the static bundle scales infinitely and costs nothing.
@@ -90,10 +92,14 @@ deploy automatically.
 
 ## Privacy
 
-Period Tracker collects nothing, sends nothing, and has no analytics. All logs and settings
-live in your browser's local storage on your device. Clearing browser data or uninstalling
-erases them — use **Settings → Export JSON** to keep a backup. This is the entire privacy
-policy.
+Local logs live in your browser on your device. Cloud sync (on by default) stores an
+encrypted-in-transit copy of your logs and settings in a Cloudflare D1 database tied to your
+account or your anonymous sync code. For accounts we store your name, age, and email; we also
+record standard request metadata (country derived from IP, device type from the user agent)
+for security and abuse prevention. We never ask for or track precise location, run no
+analytics or ads, and never sell data. Passwords are hardened on your device before they are
+sent, and the server only ever stores a salted hash. Clearing browser data removes the local
+copy — use **Settings → Export JSON** for a file backup you control.
 
 ## License
 

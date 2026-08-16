@@ -1317,3 +1317,54 @@ label.mini {
     display: none !important;
   }
 }
+
+
+/* ---------- cloud sync chip ---------- */
+
+.sync-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 5px 10px;
+  cursor: pointer;
+  max-width: 118px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sync-chip.ok {
+  color: var(--leaf-700);
+  border-color: var(--leaf-600);
+  background: var(--leaf-100);
+}
+
+.sync-chip.warn {
+  color: #9a3412;
+  border-color: #f59e0b;
+  background: #fff7ed;
+}
+
+.sync-chip.busy {
+  color: var(--rose-700);
+}
+
+.sync-chip span {
+  display: inline-block;
+}
+
+.sync-chip.spin span {
+  animation: chipspin 1s linear infinite;
+}
+
+@keyframes chipspin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -21,6 +21,7 @@ function normalizeEntry(e: Partial<DayEntry> & { date: string }): DayEntry {
     ['negative', 'positive', 'faint', 'unclear'].includes(v as string) ? (v as DayEntry['lhTest']) : null;
   return {
     date: e.date,
+    updatedAt: num(e.updatedAt) ?? undefined,
     checkedIn: !!e.checkedIn,
     flow: (e.flow ?? null) as DayEntry['flow'],
     clots: !!e.clots,

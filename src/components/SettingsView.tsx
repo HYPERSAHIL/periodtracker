@@ -248,6 +248,51 @@ export default function SettingsView(p: AppProps) {
       </div>
 
       <div className="card">
+        <h3>Account &amp; sync</h3>
+        <div className="set-row">
+          <div>
+            <div className="t">
+              {p.cloudUser && !p.cloudUser.anonymous
+                ? `Signed in as ${p.cloudUser.name ?? p.cloudUser.email}`
+                : 'Anonymous sync active'}
+            </div>
+            <div className="d">
+              {p.cloudUser && !p.cloudUser.anonymous
+                ? p.cloudUser.email ?? ''
+                : 'Your logs sync privately — no email needed. Create an account to sign in on other devices.'}
+            </div>
+          </div>
+          <span style={{ fontSize: 20 }} aria-hidden>{p.syncStatus === 'synced' ? '✓' : p.syncStatus === 'error' ? '⚠️' : '↻'}</span>
+        </div>
+        {p.cloudUser && (
+          <div className="set-row">
+            <div>
+              <div className="t">Sync code</div>
+              <div className="d" style={{ fontFamily: 'monospace', fontSize: 13 }}>{p.cloudUser.syncKey}</div>
+            </div>
+            <button
+              className="btn ghost sm"
+              onClick={() => navigator.clipboard?.writeText(p.cloudUser!.syncKey)}
+            >
+              Copy
+            </button>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+          {p.cloudUser && !p.cloudUser.anonymous ? (
+            <button className="btn ghost" onClick={p.signOutCloud}>Sign out</button>
+          ) : null}
+          <button className="btn ghost" onClick={p.openAccount}>
+            {p.cloudUser && !p.cloudUser.anonymous ? 'Switch account' : 'Create account / sign in'}
+          </button>
+        </div>
+        <p className="hint" style={{ marginTop: 10 }}>
+          Synced data lives in our Cloudflare database tied to this account or code. We store your
+          name, age, and email (if provided) plus standard request info (country, device type) — never your location, never sold.
+        </p>
+      </div>
+
+      <div className="card">
         <h3>Contraception</h3>
         <div className="chips" style={{ marginBottom: 12 }}>
           {METHODS.map((m) => (

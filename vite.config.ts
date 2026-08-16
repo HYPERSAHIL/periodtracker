@@ -1,10 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { copyFileSync } from 'node:fs';
 
 export default defineConfig({
   plugins: [
     react(),
+    {
+      // ship the sync API as a Pages Function alongside the static build
+      name: 'copy-api-worker',
+      closeBundle() {
+        copyFileSync('api/_worker.js', 'dist/_worker.js');
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', '_redirects'],
@@ -39,6 +47,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globIgnores: ['**/_worker.js'],
         navigateFallback: '/index.html',
       },
     }),
