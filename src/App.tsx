@@ -22,12 +22,15 @@ import Report from './components/Report';
 import PregnancyScreen from './components/PregnancyScreen';
 import DaySheet from './components/DaySheet';
 import PinGate from './components/PinGate';
+import UpdateOverlay from './components/UpdateOverlay';
 import AccountScreen from './components/AccountScreen';
 import {
   CloudUser, SyncStatus, ensureAnonymousSession, loadSession, signOut, syncCycle,
 } from './lib/cloud';
 import { deviceInfo } from './lib/device';
 import { APP_VERSION } from './types';
+import { updater } from './lib/updater';
+import { isNative } from './lib/native';
 
 export interface AppProps {
   entries: Record<string, DayEntry>;
@@ -164,6 +167,45 @@ export default function App() {
     syncTimer.current = window.setTimeout(() => runSync(entriesRef.current, settingsRef.current), 2500);
   }, [entries, settings, runSync, settings.onboarded]);
 
+  // APK auto-updater: background check, non-closable install overlay
+  useEffect(() => {
+    updater.start();
+    if (!isNative() || !settings.onboarded || !settings.reminders) return;
+    // native reminders: (re)schedule the next period heads-up via Capacitor
+    (async () => {
+      try {
+        const LN = (await import('@capacitor/local-notifications')).LocalNotifications;
+        const perm = await LN.requestPermissions();
+        if (perm.display !== 'granted') return;
+        const existing = await LN.getPending();
+        const mine = existing.notifications.filter((n) => (n as any).extra?.pt);
+        if (mine.length) {
+          await LN.cancel({ notifications: mine.map((n) => ({ id: n.id })) });
+        }
+        const d = stats.daysUntilNext;
+        if (d === null || d < 0 || d > 60) return;
+        const when = new Date();
+        when.setDate(when.getDate() + Math.max(0, d - settings.remindDaysBefore));
+        when.setHours(9, 0, 0, 0);
+        if (when.getTime() < Date.now()) return;
+        await LN.schedule({
+          notifications: [
+            {
+              id: 4101,
+              title: 'Period Tracker',
+              body: d - settings.remindDaysBefore <= 0 ? 'Your period is expected today.' : 'Your period is expected soon.',
+              schedule: { at: when },
+              extra: { pt: true },
+            },
+          ],
+        });
+      } catch {
+        /* plugin unavailable or not permitted — web banner path still works */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.onboarded, settings.reminders, settings.remindDaysBefore, stats.daysUntilNext]);
+
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));
   }, []);
@@ -276,6 +318,8 @@ export default function App() {
           onClose={() => setAccountSheet(false)}
         />
       )}
+
+      <UpdateOverlay />
 
       {sheetDate && (
         <DaySheet

@@ -1,0 +1,12 @@
+{
+  "name": "pt-apk-installer",
+  "version": "1.0.0",
+  "description": "Period Tracker local Capacitor plugin: APK download + install intent with unknown-sources support",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  }
+}

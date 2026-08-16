@@ -6,6 +6,7 @@
 
 import { DayEntry, Settings } from '../types';
 import { DeviceInfo } from './device';
+import { apiUrl } from './native';
 
 const CLOUD_KEY = 'pt.cloud.v1';
 
@@ -41,7 +42,7 @@ export function saveSession(s: CloudSession | null): void {
 }
 
 async function api(path: string, body?: unknown, token?: string): Promise<{ ok: boolean; status: number; data: any }> {
-  const res = await fetch(`/api/${path}`, {
+  const res = await fetch(apiUrl(`/api/${path}`), {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),

@@ -261,6 +261,38 @@ async function getData(env, userId) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+const GH_REPO = 'HYPERSAHIL/periodtracker';
+let ghCache = { at: 0, data: null };
+
+/** Latest GitHub release carrying an .apk asset — APKs are hosted as release files (free, unlimited-ish). */
+async function latestGhRelease(force = false) {
+  if (!force && ghCache.data && Date.now() - ghCache.at < 300000) return ghCache.data;
+  const res = await fetch(`https://api.github.com/repos/${GH_REPO}/releases/latest`, {
+    headers: { 'User-Agent': 'period-tracker-sync', Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok) return ghCache.data;
+  const r = await res.json();
+  const asset = (r.assets || []).find((a) => String(a.name).toLowerCase().endsWith('.apk'));
+  if (!asset) return ghCache.data || null;
+  const data = {
+    version: String(r.tag_name || '').replace(/^v/, ''),
+    apkUrl: asset.browser_download_url,
+    size: asset.size,
+    notes: (r.body || '').split('\n')[0].slice(0, 200) || null,
+    uploadedAt: r.published_at,
+  };
+  ghCache = { at: Date.now(), data };
+  return data;
+}
+
+async function loadSessionFromAuth(env, request) {
+  try {
+    return await userFromToken(env, request);
+  } catch {
+    return null;
+  }
+}
+
 function requireAdmin(env, request) {
   const key = request.headers.get('x-admin-key') || '';
   if (!env.PT_ADMIN_KEY || !safeEqual(key, env.PT_ADMIN_KEY)) {
@@ -273,6 +305,29 @@ async function route(request, env, url) {
   const method = request.method;
 
   if (method === 'GET' && path === '/api/health') return json({ ok: true, service: 'period-tracker-sync' });
+
+  // --- app release + update events (no auth; the updater runs pre-login) ---
+  if (method === 'POST' && path === '/api/event') {
+    const b = await readBody(request);
+    const type = String(b.type || '').slice(0, 40);
+    if (!/^update_/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
+    const session = loadSessionFromAuth ? await loadSessionFromAuth(env, request) : null;
+    const uid = session ? session.id : null;
+    await logEvent(env, request, uid, type, b.meta || {});
+    return json({ ok: true });
+  }
+
+  if (method === 'GET' && path === '/api/app/latest') {
+    const rel = await latestGhRelease();
+    if (!rel) return json({ version: null });
+    return rel;
+  }
+
+  if (method === 'GET' && path === '/api/app/apk') {
+    const rel = await latestGhRelease();
+    if (!rel || !rel.apkUrl) throw new HttpError(404, { error: 'no_release' });
+    return Response.redirect(rel.apkUrl, 302);
+  }
 
   // --- anonymous bootstrap ---------------------------------------------------
   if (method === 'POST' && path === '/api/anon') {
@@ -513,7 +568,12 @@ async function route(request, env, url) {
       }
     }
 
-    if (method === 'GET' && path === '/api/admin/events') {
+    if (method === 'GET' && path === '/api/admin/release') {
+    const rel = await latestGhRelease(true);
+    return json({ release: rel, publish: 'gh release create vX.Y.Z ./periodtracker.apk --title vX.Y.Z --notes "What changed"' });
+  }
+
+  if (method === 'GET' && path === '/api/admin/events') {
       const rows = await env.DB.prepare(
         `SELECT e.*, u.name AS user_name, u.email AS user_email
          FROM events e LEFT JOIN users u ON u.id = e.user_id
@@ -579,7 +639,7 @@ h2{font-size:13px;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;l
 @media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:7px 8px;font-size:12px}}
 </style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],q:''};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],release:null,q:''};
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
@@ -593,6 +653,7 @@ function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲
 async function load(){
   const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events')]);
   S.overview=ov;S.users=us.users;S.events=ev.events||[];
+  api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
 }
 function render(){
   const app=document.getElementById('app');
@@ -612,7 +673,20 @@ function render(){
   const tabs='<div class="row" style="margin-bottom:14px;gap:6px">'+
     '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="tabClick(0)">Users</button>'+
     '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="tabClick(1)">Activity</button>'+
+    '<button class="'+(S.tab==='release'?'primary':'ghost')+'" onclick="tabClick(2)">Release</button>'+
     '<span style="flex:1"></span><button class="ghost" onclick="refresh()">Refresh</button></div>';
+  if(S.tab==='release'){
+    const r=S.release;
+    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">APK release channel — hosted on GitHub Releases</p>'+tabs+
+      '<div class="detail">'+(r
+        ? '<div class="kv"><div><b>Current version</b> v'+esc(r.version)+'</div><div><b>APK size</b> '+(r.size?(r.size/1048576).toFixed(1)+' MB':'—')+'</div><div><b>Published</b> '+(r.uploadedAt?new Date(r.uploadedAt).toLocaleString():'—')+'</div><div><b>Notes</b> '+esc(r.notes||'—')+'</div></div>'
+        : '<p class="sub" style="margin:0">No APK release published yet.</p>')+
+      '<h2 style="margin-top:18px">Publish a new release</h2>'+
+      '<p class="sub" style="margin:0 0 10px">On your computer, from the repo folder:</p>'+
+      '<pre>gh release create v2.6.0 ./periodtracker.apk --title v2.6.0 --notes "What changed"</pre>'+
+      '<p class="sub" style="margin:10px 0 0">Apps check on launch (and every 6h), auto-download, and show the install screen. Watch adoption under the Activity tab (update_* events).</p></div>';
+    return;
+  }
   if(S.tab==='activity'){
     const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
     app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
@@ -628,7 +702,7 @@ function render(){
 function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
   load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
 function refresh(){load().then(render).catch(()=>{})}
-function tabClick(i){S.tab=i===0?'users':'activity';render()}
+function tabClick(i){S.tab=['users','activity','release'][i]||'users';render()}
 function keyLogin(e){if(e.key==='Enter')login()}
 function revealPw(el){el.style.display='none';el.nextElementSibling.style.display=''}
 async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}
