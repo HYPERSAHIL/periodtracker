@@ -5,9 +5,8 @@ import { hashPin, randomSaltB64 } from '../lib/crypto';
 import { CRISIS_NOTE } from '../lib/safety';
 import { Stepper } from './Onboarding';
 import { todayISO, prettyDate } from '../lib/date';
-import { ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, TRACKER_SECTIONS } from '../types';
+import { APP_VERSION, ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, TRACKER_SECTIONS } from '../types';
 
-const APP_VERSION = '2.0.0';
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
 const METHODS: ContraceptionMethod[] = ['none', 'pill', 'patch', 'ring', 'injection', 'implant', 'iud', 'condom', 'other'];
 

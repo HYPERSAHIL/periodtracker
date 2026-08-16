@@ -26,6 +26,8 @@ import AccountScreen from './components/AccountScreen';
 import {
   CloudUser, SyncStatus, ensureAnonymousSession, loadSession, signOut, syncCycle,
 } from './lib/cloud';
+import { deviceInfo } from './lib/device';
+import { APP_VERSION } from './types';
 
 export interface AppProps {
   entries: Record<string, DayEntry>;
@@ -127,7 +129,7 @@ export default function App() {
       setSyncStatus('connecting');
       try {
         if (!cloudRef.current.token) {
-          const s = await ensureAnonymousSession();
+          const s = await ensureAnonymousSession(deviceInfo(APP_VERSION));
           if (cancelled) return;
           cloudRef.current.token = s.token;
           setCloudUser(s.user);

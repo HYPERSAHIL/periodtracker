@@ -5,6 +5,7 @@
  */
 
 import { DayEntry, Settings } from '../types';
+import { DeviceInfo } from './device';
 
 const CLOUD_KEY = 'pt.cloud.v1';
 
@@ -57,10 +58,10 @@ async function api(path: string, body?: unknown, token?: string): Promise<{ ok: 
   return { ok: res.ok, status: res.status, data };
 }
 
-export async function ensureAnonymousSession(): Promise<CloudSession> {
+export async function ensureAnonymousSession(device?: DeviceInfo): Promise<CloudSession> {
   const existing = loadSession();
   if (existing) return existing;
-  const r = await api('anon', {});
+  const r = await api('anon', { device });
   if (!r.ok) throw new Error('anon bootstrap failed');
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
   saveSession(s);
@@ -73,6 +74,7 @@ export async function signUp(input: {
   email: string;
   password: string;
   anonKey?: string;
+  device?: DeviceInfo;
 }): Promise<CloudSession> {
   const r = await api('signup', input);
   if (!r.ok) {

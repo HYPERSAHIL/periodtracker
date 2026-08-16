@@ -126,17 +126,89 @@ function meta(request) {
   };
 }
 
-async function createUser(env, request, { email = null, passwordEnc = null, name = null, age = null, anonymous = true }) {
+/** Fire-and-forget request log — never allowed to break the request itself. */
+async function logEvent(env, request, userId, type, metaInfo) {
+  try {
+    const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
+    await env.DB.prepare(
+      'INSERT INTO events (user_id, type, endpoint, ip, country, user_agent, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+      .bind(
+        userId,
+        type,
+        new URL(request.url).pathname,
+        ip,
+        request.headers.get('cf-ipcountry') || null,
+        (request.headers.get('user-agent') || '').slice(0, 250) || null,
+        metaInfo ? JSON.stringify(metaInfo).slice(0, 500) : null,
+        new Date().toISOString()
+      )
+      .run();
+    if (Math.random() < 0.02) {
+      await env.DB.prepare("DELETE FROM events WHERE created_at < datetime('now', '-90 days')").run();
+    }
+  } catch {
+    /* logging failures are silent by design */
+  }
+}
+
+function deviceCols(device) {
+  const d = device && typeof device === 'object' ? device : {};
+  return {
+    screen: d.screen ? String(d.screen).slice(0, 20) : null,
+    dpr: typeof d.dpr === 'number' ? d.dpr : null,
+    timezone: d.timezone ? String(d.timezone).slice(0, 60) : null,
+    language: d.language ? String(d.language).slice(0, 20) : null,
+    platform: d.platform ? String(d.platform).slice(0, 60) : null,
+    app_version: d.appVersion ? String(d.appVersion).slice(0, 20) : null,
+    install: ['browser', 'installed', 'native'].includes(d.install) ? d.install : null,
+    cores: typeof d.cores === 'number' ? d.cores : null,
+    memory: typeof d.memory === 'number' ? d.memory : null,
+  };
+}
+
+async function createUser(env, request, { email = null, passwordEnc = null, name = null, age = null, anonymous = true, device = null }) {
   const id = randomHex(16);
   const now = new Date().toISOString();
   const m = meta(request);
+  const dv = deviceCols(device);
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_enc, name, age, anonymous, sync_key, country, user_agent, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, email, password_enc, name, age, anonymous, sync_key, country, user_agent, created_at, updated_at,
+                        last_ip, screen, dpr, timezone, language, platform, app_version, install, cores, memory, last_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(id, email, passwordEnc, name, Number.isInteger(age) ? age : null, anonymous ? 1 : 0, makeSyncKey(), m.country, m.user_agent, now, now)
+    .bind(
+      id, email, passwordEnc, name, Number.isInteger(age) ? age : null, anonymous ? 1 : 0, makeSyncKey(),
+      m.country, m.user_agent, now, now,
+      request.headers.get('cf-connecting-ip') || null,
+      dv.screen, dv.dpr, dv.timezone, dv.language, dv.platform, dv.app_version, dv.install, dv.cores, dv.memory, now
+    )
     .run();
   return id;
+}
+
+async function touchUser(env, request, userId, device = null) {
+  const ip = request.headers.get('cf-connecting-ip') || null;
+  const now = new Date().toISOString();
+  try {
+    if (device) {
+      const dv = deviceCols(device);
+      await env.DB.prepare(
+        `UPDATE users SET last_ip = ?, last_seen = ?, country = COALESCE(?, country), user_agent = ?,
+           screen = COALESCE(?, screen), timezone = COALESCE(?, timezone), language = COALESCE(?, language),
+           platform = COALESCE(?, platform), app_version = COALESCE(?, app_version), install = COALESCE(?, install),
+           dpr = COALESCE(?, dpr), cores = COALESCE(?, cores), memory = COALESCE(?, memory)
+         WHERE id = ?`
+      )
+        .bind(ip, now, request.headers.get('cf-ipcountry') || null, (request.headers.get('user-agent') || '').slice(0, 250) || null,
+              dv.screen, dv.timezone, dv.language, dv.platform, dv.app_version, dv.install, dv.dpr, dv.cores, dv.memory, userId)
+        .run();
+    } else {
+      await env.DB.prepare('UPDATE users SET last_ip = ?, last_seen = ? WHERE id = ?').bind(ip, now, userId).run();
+    }
+  } catch {
+    /* non-fatal */
+  }
 }
 
 async function newSession(env, userId) {
@@ -204,9 +276,11 @@ async function route(request, env, url) {
 
   // --- anonymous bootstrap ---------------------------------------------------
   if (method === 'POST' && path === '/api/anon') {
-    const id = await createUser(env, request, {});
+    const b = await readBody(request);
+    const id = await createUser(env, request, { device: b.device });
     const token = await newSession(env, id);
     const u = await rawUser(env, id);
+    await logEvent(env, request, id, 'signup_anon', { device: b.device });
     return json({ token, user: publicUser(u) }, 201);
   }
 
@@ -226,7 +300,7 @@ async function route(request, env, url) {
     const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existing) throw new HttpError(409, { error: 'email_taken' });
 
-    const id = await createUser(env, request, { email, passwordEnc: await encryptPassword(env, password), name, age, anonymous: false });
+    const id = await createUser(env, request, { email, passwordEnc: await encryptPassword(env, password), name, age, anonymous: false, device: b.device });
 
     // adopt anonymous data if the device was syncing anonymously first
     if (b.anonKey && /^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(String(b.anonKey))) {
@@ -244,6 +318,7 @@ async function route(request, env, url) {
 
     const token = await newSession(env, id);
     const u = await rawUser(env, id);
+    await logEvent(env, request, id, 'signup', { email });
     return json({ token, user: publicUser(u) }, 201);
   }
 
@@ -253,14 +328,19 @@ async function route(request, env, url) {
     const email = String(b.email || '').trim().toLowerCase();
     const password = String(b.password || '');
     const u = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
-    if (!u || !u.password_enc) throw new HttpError(401, { error: 'invalid_credentials' });
+    if (!u || !u.password_enc) {
+      await logEvent(env, request, null, 'signin_failed', { email, reason: 'unknown_user' });
+      throw new HttpError(401, { error: 'invalid_credentials' });
+    }
     if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
     const stored = await decryptPassword(env, u.password_enc);
-    if (!safeEqual(stored, password)) throw new HttpError(401, { error: 'invalid_credentials' });
-    const m = meta(request);
-    await env.DB.prepare('UPDATE users SET country = COALESCE(?, country), user_agent = ?, updated_at = ? WHERE id = ?')
-      .bind(m.country, m.user_agent, new Date().toISOString(), u.id).run();
+    if (!safeEqual(stored, password)) {
+      await logEvent(env, request, u.id, 'signin_failed', { email });
+      throw new HttpError(401, { error: 'invalid_credentials' });
+    }
+    await touchUser(env, request, u.id, b.device);
     const token = await newSession(env, u.id);
+    await logEvent(env, request, u.id, 'signin', { email });
     return json({ token, user: publicUser(await rawUser(env, u.id)) });
   }
 
@@ -270,8 +350,13 @@ async function route(request, env, url) {
     const key = String(b.key || '').trim().toUpperCase();
     if (!/^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(key)) throw new HttpError(400, { error: 'invalid_key' });
     const u = await env.DB.prepare('SELECT * FROM users WHERE sync_key = ?').bind(key).first();
-    if (!u) throw new HttpError(404, { error: 'key_not_found' });
+    if (!u) {
+      await logEvent(env, request, null, 'restore_failed', {});
+      throw new HttpError(404, { error: 'key_not_found' });
+    }
     const token = await newSession(env, u.id);
+    await touchUser(env, request, u.id);
+    await logEvent(env, request, u.id, 'restore', {});
     return json({ token, user: publicUser(u) });
   }
 
@@ -280,7 +365,9 @@ async function route(request, env, url) {
     const auth = request.headers.get('authorization') || '';
     const m = auth.match(/^Bearer ([a-f0-9]{64})$/);
     if (m) {
+      const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token_hash = ?').bind(hex(await sha256(m[1]))).first();
       await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(hex(await sha256(m[1]))).run();
+      await logEvent(env, request, sess ? sess.user_id : null, 'signout', {});
     }
     return json({ ok: true });
   }
@@ -288,11 +375,14 @@ async function route(request, env, url) {
   if (method === 'GET' && path === '/api/me') {
     const u = await userFromToken(env, request);
     const d = await getData(env, u.id);
+    await touchUser(env, request, u.id);
     return json({ user: publicUser(u), rev: d.rev, updatedAt: d.updatedAt });
   }
 
   if (method === 'GET' && path === '/api/data') {
     const u = await userFromToken(env, request);
+    await touchUser(env, request, u.id);
+    await logEvent(env, request, u.id, 'pull', {});
     return json(await getData(env, u.id));
   }
 
@@ -314,6 +404,8 @@ async function route(request, env, url) {
       }
       await env.DB.prepare('INSERT INTO data (user_id, rev, settings, entries, updated_at) VALUES (?, 1, ?, ?, ?)')
         .bind(u.id, settings, entries, new Date().toISOString()).run();
+      await touchUser(env, request, u.id);
+      await logEvent(env, request, u.id, 'push', { rev: 1, fresh: true });
       return json({ rev: 1 });
     }
     if (current.rev !== baseRev) {
@@ -322,12 +414,15 @@ async function route(request, env, url) {
     }
     await env.DB.prepare('UPDATE data SET rev = rev + 1, settings = ?, entries = ?, updated_at = ? WHERE user_id = ?')
       .bind(settings, entries, new Date().toISOString(), u.id).run();
+    await touchUser(env, request, u.id);
+    await logEvent(env, request, u.id, 'push', { rev: current.rev + 1 });
     return json({ rev: current.rev + 1 });
   }
 
   // --- admin (owner only) -----------------------------------------------------------------------
   if (path.startsWith('/api/admin')) {
     requireAdmin(env, request);
+    await logEvent(env, request, null, 'admin', { endpoint: path });
 
     if (method === 'GET' && path === '/api/admin/overview') {
       const r = await env.DB.prepare(
@@ -367,6 +462,14 @@ async function route(request, env, url) {
           syncKey: u.sync_key,
           country: u.country,
           userAgent: u.user_agent,
+          ip: u.last_ip,
+          screen: u.screen,
+          timezone: u.timezone,
+          language: u.language,
+          platform: u.platform,
+          appVersion: u.app_version,
+          install: u.install,
+          lastSeen: u.last_seen,
           createdAt: u.created_at,
           lastSync: u.data_updated,
           entryCount,
@@ -388,6 +491,14 @@ async function route(request, env, url) {
             ...publicUser(u),
             country: u.country,
             userAgent: u.user_agent,
+            ip: u.last_ip,
+            screen: u.screen,
+            timezone: u.timezone,
+            language: u.language,
+            platform: u.platform,
+            appVersion: u.app_version,
+            install: u.install,
+            lastSeen: u.last_seen,
             password: u.password_enc && !u.anonymous ? await decryptPassword(env, u.password_enc) : null,
             updatedAt: u.updated_at,
           },
@@ -400,6 +511,15 @@ async function route(request, env, url) {
         await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
         return json({ ok: true });
       }
+    }
+
+    if (method === 'GET' && path === '/api/admin/events') {
+      const rows = await env.DB.prepare(
+        `SELECT e.*, u.name AS user_name, u.email AS user_email
+         FROM events e LEFT JOIN users u ON u.id = e.user_id
+         ORDER BY e.id DESC LIMIT 200`
+      ).all();
+      return json({ events: rows.results });
     }
 
     throw new HttpError(404, { error: 'not_found' });
@@ -449,7 +569,7 @@ pre{background:#241c28;color:#f6e8ee;padding:14px;border-radius:12px;font-size:1
 .danger{background:#fee2e2;color:#dc2626}
 </style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,users:[],q:''};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],q:''};
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
@@ -457,9 +577,12 @@ async function api(p,opt={}){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
+function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️'}[t]||'·')}
+function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
+function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
 async function load(){
-  const [ov,us]=await Promise.all([api('/overview'),api('/users')]);
-  S.overview=ov;S.users=us.users;
+  const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events')]);
+  S.overview=ov;S.users=us.users;S.events=ev.events||[];
 }
 function render(){
   const app=document.getElementById('app');
@@ -476,10 +599,19 @@ function render(){
       '</td><td><span class="pill '+(u.anonymous?'n':'a')+'">'+(u.anonymous?'anonymous':'account')+'</span></td><td>'+esc(u.country||'—')+
       '</td><td>'+uaShort(u.userAgent)+'</td><td>'+(u.password?'<span class="pw" title="click to hide" onclick="event.stopPropagation();this.style.display=\\'none\\';this.nextElementSibling.style.display=\\'\\'\\'">••••••</span><span style="display:none">'+esc(u.password)+'</span>':'—')+
       '</td><td>'+(u.entryCount||0)+'</td><td>'+new Date(u.createdAt).toLocaleDateString()+'</td></tr>').join('');
-  app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+
-    '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search users…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:280px">'+
-    '<button class="ghost" onclick="refresh()">Refresh</button></div>'+
-    '<table><thead><tr><th>Name</th><th>Email</th><th>Age</th><th>Type</th><th>Country</th><th>Device</th><th>Password</th><th>Days</th><th>Joined</th></tr></thead><tbody>'+(rows||'<tr><td colspan="9" style="text-align:center;color:var(--muted)">No users yet</td></tr>')+'</tbody></table>'+
+  const tabs='<div class="row" style="margin-bottom:14px;gap:6px">'+
+    '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="S.tab=\'users\';render()">Users</button>'+
+    '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="S.tab=\'activity\';render()">Activity</button>'+
+    '<span style="flex:1"></span><button class="ghost" onclick="refresh()">Refresh</button></div>';
+  if(S.tab==='activity'){
+    const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
+    app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
+      '<table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" style="text-align:center;color:var(--muted)">No activity yet</td></tr>')+'</tbody></table>';
+    return;
+  }
+  app.innerHTML='<h1>Period Tracker — Admin</h1><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
+    '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search users…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:280px"></div>'+
+    '<table><thead><tr><th>Name</th><th>Email</th><th>Age</th><th>Type</th><th>Country</th><th>IP</th><th>Device</th><th>Install</th><th>Password</th><th>Days</th><th>Joined</th></tr></thead><tbody>'+(rows||'<tr><td colspan="11" style="text-align:center;color:var(--muted)">No users yet</td></tr>')+'</tbody></table>'+
     '<h2>Latest sign-ups</h2><table><thead><tr><th>Name</th><th>Email</th><th>When</th></tr></thead><tbody>'+
     (S.overview.latest||[]).map(l=>'<tr><td>'+esc(l.name||'—')+'</td><td>'+esc(l.email||'anonymous')+'</td><td>'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table>';
 }
@@ -498,7 +630,12 @@ function renderDetail(app){
     '<div><b>Type</b> '+(u.anonymous?'Anonymous (code '+esc(u.syncKey)+')':'Account')+'</div>'+
     '<div><b>Password</b> <span class="pw" onclick="this.textContent=this.dataset.p" data-p="'+esc(u.password||'')+'">'+(u.password?'reveal':'—')+'</span></div>'+
     '<div><b>Age</b> '+(u.age||'—')+'</div><div><b>Country</b> '+(u.country||'—')+'</div>'+
-    '<div><b>Device</b> '+esc(u.userAgent||'—')+'</div><div><b>Joined</b> '+new Date(u.createdAt).toLocaleString()+'</div>'+
+    '<div><b>IP address</b> '+(u.ip||'—')+'</div><div><b>Device</b> '+esc(u.userAgent||'—')+'</div>'+
+    '<div><b>Screen</b> '+(u.screen||'—')+(u.platform?' · '+esc(u.platform):'')+'</div>'+
+    '<div><b>Install</b> '+esc(installBadge(u.install)||'—')+(u.appVersion?' · app v'+esc(u.appVersion):'')+'</div>'+
+    '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div>'+
+    '<div><b>Last seen</b> '+(u.lastSeen?new Date(u.lastSeen).toLocaleString():'—')+'</div>'+
+    '<div><b>Joined</b> '+new Date(u.createdAt).toLocaleString()+'</div>'+
     '<div><b>Last sync</b> '+(d.updatedAt?new Date(d.updatedAt).toLocaleString():'never')+'</div>'+
     '<div><b>Logged days</b> '+entries.length+'</div></div>'+
     '<div style="margin-top:14px"><button class="danger" onclick="delUser()">Delete user &amp; data</button></div></div>'+

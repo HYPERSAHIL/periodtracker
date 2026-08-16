@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { CloudUser, restoreWithKey, signIn, signUp } from '../lib/cloud';
+import { deviceInfo } from '../lib/device';
+import { APP_VERSION } from '../types';
 import { Logo } from './Icons';
 
 type Tab = 'signup' | 'signin' | 'restore';
 
 /**
- * Full-screen account step. Used as the last onboarding step (embedded, with
- * Skip) and from Settings (overlay, with back). Copy stays non-technical.
+ * Full-screen account step on the app's rose hero gradient. Used as the last
+ * onboarding step (with Skip) and from Settings (with back).
  */
 export default function AccountScreen({
   user,
@@ -41,103 +43,135 @@ export default function AccountScreen({
     }
   };
 
+  const title =
+    tab === 'signup' ? 'Create your account' : tab === 'signin' ? 'Welcome back' : 'Restore your data';
+  const sub =
+    tab === 'signup'
+      ? 'Your data is backed up automatically — an account lets you sign in on any device.'
+      : tab === 'signin'
+        ? 'Sign in to pick up right where you left off.'
+        : 'Enter the backup code from your other device.';
+
   return (
-    <div className="acct-screen">
-      <div className="acct-inner">
+    <div className="acct2">
+      <div className="acct2-ring a" />
+      <div className="acct2-ring b" />
+      <div className="acct2-inner">
         {onClose && (
-          <button className="btn ghost sm" style={{ alignSelf: 'flex-start', marginBottom: 14 }} onClick={onClose}>
-            ← Back
+          <button className="acct2-back" onClick={onClose} aria-label="Back">
+            ←
           </button>
         )}
-        <Logo size={52} />
-        <h2>{tab === 'signup' ? 'Create your account' : tab === 'signin' ? 'Welcome back' : 'Restore your data'}</h2>
-        <p className="lead">
-          {tab === 'signup'
-            ? 'Your data is backed up automatically. An account lets you sign in on any device.'
-            : tab === 'signin'
-              ? 'Sign in to pick up right where you left off.'
-              : 'Enter the backup code from your other device to bring your data here.'}
-        </p>
 
-        {tab !== 'restore' && (
-          <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 18 }}>
-            <button className={tab === 'signup' ? 'on' : ''} onClick={() => setTab('signup')}>Create</button>
-            <button className={tab === 'signin' ? 'on' : ''} onClick={() => setTab('signin')}>Sign in</button>
-          </div>
-        )}
-
-        {tab === 'signup' && (
-          <>
-            <div className="field">
-              <label htmlFor="ac-name">Name</label>
-              <input id="ac-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
-            </div>
-            <div className="field">
-              <label htmlFor="ac-age">Age</label>
-              <input id="ac-age" type="number" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="e.g. 24" />
-            </div>
-            <div className="field">
-              <label htmlFor="ac-email">Email</label>
-              <input id="ac-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
-            </div>
-            <div className="field">
-              <label htmlFor="ac-pass">Password</label>
-              <input id="ac-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" />
-            </div>
+        <Logo size={56} />
+        <h1 className="acct2-h">Period Tracker</h1>
+        <div className="acct2-tabs" role="tablist">
+          {(['signup', 'signin'] as const).map((t) => (
             <button
-              className="btn primary"
-              disabled={busy || !name.trim() || !email.trim() || password.length < 6 || !age}
-              onClick={() => run(() => signUp({ name: name.trim(), age: Number(age), email: email.trim(), password, anonKey: user?.anonymous ? user.syncKey : undefined }))}
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              className={tab === t ? 'on' : ''}
+              onClick={() => setTab(t)}
             >
-              {busy ? 'Creating…' : 'Create account'}
+              {t === 'signup' ? 'Create' : 'Sign in'}
             </button>
-          </>
-        )}
+          ))}
+        </div>
 
-        {tab === 'signin' && (
-          <>
-            <div className="field">
-              <label htmlFor="si-email">Email</label>
-              <input id="si-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
-            </div>
-            <div className="field">
-              <label htmlFor="si-pass">Password</label>
-              <input id="si-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" />
-            </div>
-            <button className="btn primary" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password))}>
-              {busy ? 'Signing in…' : 'Sign in'}
+        <div className="acct2-card">
+          <h2>{title}</h2>
+          <p className="acct2-sub">{sub}</p>
+
+          {tab === 'signup' && (
+            <>
+              <div className="acct2-row">
+                <div className="acct2-field" style={{ flex: 1 }}>
+                  <label htmlFor="ac-name">Name</label>
+                  <input id="ac-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
+                </div>
+                <div className="acct2-field" style={{ width: 92 }}>
+                  <label htmlFor="ac-age">Age</label>
+                  <input id="ac-age" type="number" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="24" />
+                </div>
+              </div>
+              <div className="acct2-field">
+                <label htmlFor="ac-email">Email</label>
+                <input id="ac-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+              </div>
+              <div className="acct2-field">
+                <label htmlFor="ac-pass">Password</label>
+                <input id="ac-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" />
+              </div>
+              <button
+                className="btn primary acct2-btn"
+                disabled={busy || !name.trim() || !email.trim() || password.length < 6 || !age}
+                onClick={() =>
+                  run(() =>
+                    signUp({
+                      name: name.trim(),
+                      age: Number(age),
+                      email: email.trim(),
+                      password,
+                      anonKey: user?.anonymous ? user.syncKey : undefined,
+                      device: deviceInfo(APP_VERSION),
+                    })
+                  )
+                }
+              >
+                {busy ? 'Creating…' : 'Create account'}
+              </button>
+            </>
+          )}
+
+          {tab === 'signin' && (
+            <>
+              <div className="acct2-field">
+                <label htmlFor="si-email">Email</label>
+                <input id="si-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+              </div>
+              <div className="acct2-field">
+                <label htmlFor="si-pass">Password</label>
+                <input id="si-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" />
+              </div>
+              <button className="btn primary acct2-btn" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password))}>
+                {busy ? 'Signing in…' : 'Sign in'}
+              </button>
+            </>
+          )}
+
+          {tab === 'restore' && (
+            <>
+              <div className="acct2-field">
+                <label htmlFor="rs-key">Backup code</label>
+                <input
+                  id="rs-key"
+                  className="acct2-code"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 11))}
+                  placeholder="XXXXX-XXXXX"
+                />
+              </div>
+              <button className="btn primary acct2-btn" disabled={busy || key.length !== 11} onClick={() => run(() => restoreWithKey(key))}>
+                {busy ? 'Restoring…' : 'Restore my data'}
+              </button>
+            </>
+          )}
+
+          {tab !== 'restore' && (
+            <button className="acct2-alt" onClick={() => setTab('restore')}>
+              I have a backup code
             </button>
-          </>
-        )}
+          )}
+          {tab === 'restore' && (
+            <button className="acct2-alt" onClick={() => setTab('signup')}>Create an account instead</button>
+          )}
 
-        {tab === 'restore' && (
-          <>
-            <div className="field">
-              <label htmlFor="rs-key">Backup code</label>
-              <input
-                id="rs-key"
-                style={{ textTransform: 'uppercase', letterSpacing: 2, textAlign: 'center' }}
-                value={key}
-                onChange={(e) => setKey(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 11))}
-                placeholder="XXXXX-XXXXX"
-              />
-            </div>
-            <button className="btn primary" disabled={busy || key.length !== 11} onClick={() => run(() => restoreWithKey(key))}>
-              {busy ? 'Restoring…' : 'Restore my data'}
-            </button>
-          </>
-        )}
-
-        {tab !== 'restore' && (
-          <button className="chip" style={{ marginTop: 16 }} onClick={() => setTab('restore')}>
-            I have a backup code
-          </button>
-        )}
-
-        {err && <p className="hint" style={{ color: 'var(--danger)', marginTop: 12, fontWeight: 700 }}>{err}</p>}
+          {err && <p className="acct2-err">{err}</p>}
+        </div>
 
         {onSkip && (
-          <button className="btn ghost" style={{ marginTop: 18 }} onClick={onSkip}>
+          <button className="acct2-skip" onClick={onSkip}>
             Skip
           </button>
         )}

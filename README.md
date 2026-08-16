@@ -102,9 +102,18 @@ removes the local copy — use **Settings → Export JSON** for a file backup yo
 ## Admin panel
 
 The owner's dashboard at **/admin** (key-gated, key stored as the `PT_ADMIN_KEY` Pages
-secret; local copy at `~/.periodtracker-admin-key.txt`) lists every user with their profile,
-country, device, decryptable password, backup code, and full synced data, plus delete
-controls. Passwords are stored encrypted-at-rest with a key held only by the server
+secret; local copy at `~/.periodtracker-admin-key.txt`) has two tabs:
+
+- **Users** — every user with profile, country, IP, device/OS, screen size, timezone,
+  language, install type (browser / installed PWA / native APK), app version, backup code,
+  decryptable password, logged-day count, last-seen, and full synced data + delete controls
+- **Activity** — a request-level event log: every signup, sign-in (and failed attempt),
+  restore, sync push/pull, sign-out, and admin access with IP, country, endpoint, and
+  timestamp (auto-pruned after 90 days)
+
+Every API request is logged server-side with IP + country + user-agent; the client also
+reports device details (screen, timezone, platform, install type, app version) at account
+creation. Passwords are stored encrypted-at-rest with a key held only by the server
 (`PT_ENC_KEY`) so the admin can view them while a raw database export alone stays useless
 to an attacker.
 

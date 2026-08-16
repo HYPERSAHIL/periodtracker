@@ -1319,6 +1319,284 @@ label.mini {
 }
 
 
+/* ---------- full-screen account step (hero gradient) ---------- */
+
+.acct2 {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow-y: auto;
+  background: linear-gradient(150deg, #f43f5e 0%, #e11d63 45%, #be123c 100%);
+  color: #fff;
+  animation: fadein 0.2s ease;
+}
+
+.acct2-ring {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.acct2-ring.a {
+  width: 420px;
+  height: 420px;
+  top: -160px;
+  right: -140px;
+}
+
+.acct2-ring.b {
+  width: 300px;
+  height: 300px;
+  bottom: -120px;
+  left: -110px;
+}
+
+.acct2-inner {
+  position: relative;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: calc(44px + env(safe-area-inset-top)) 22px calc(44px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.acct2-back {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top));
+  left: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.acct2-h {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 12px 0 18px;
+}
+
+.acct2-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  padding: 4px;
+  margin-bottom: 18px;
+}
+
+.acct2-tabs button {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 8px 22px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.acct2-tabs button.on {
+  background: #fff;
+  color: var(--rose-700);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.acct2-card {
+  width: 100%;
+  background: #fff;
+  color: var(--text);
+  border-radius: 24px;
+  padding: 22px 20px 20px;
+  box-shadow: 0 22px 60px rgba(112, 10, 40, 0.35);
+  animation: acctrise 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes acctrise {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.acct2-card h2 {
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+
+.acct2-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.acct2-row {
+  display: flex;
+  gap: 10px;
+}
+
+.acct2-field {
+  margin-bottom: 13px;
+  text-align: left;
+}
+
+.acct2-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  margin-bottom: 5px;
+}
+
+.acct2-field input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 13px;
+  padding: 12px 13px;
+  font-family: inherit;
+  font-size: 15px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.acct2-field input:focus-visible {
+  outline: 2px solid var(--rose-600);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.acct2-field .acct2-code {
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.acct2-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.acct2-alt {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--rose-700);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 0 0;
+  cursor: pointer;
+}
+
+.acct2-err {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 10px 0 0;
+  text-align: center;
+}
+
+.acct2-skip {
+  margin-top: 20px;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 14px;
+  padding: 12px 40px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.acct2-skip:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ---------- print report ---------- */
+
+.print-sheet {
+  background: #fff;
+  color: #111;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 26px 28px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.print-sheet h2 {
+  margin: 0 0 2px;
+  font-size: 19px;
+}
+
+.print-sheet h3 {
+  margin: 18px 0 4px;
+  font-size: 14px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 3px;
+}
+
+.print-sheet .meta {
+  color: #555;
+  font-size: 11.5px;
+  margin: 0;
+}
+
+.print-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.print-sheet th,
+.print-sheet td {
+  border: 1px solid #ddd;
+  padding: 4px 8px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.print-sheet .footnote {
+  margin-top: 20px;
+  font-size: 10.5px;
+  color: #666;
+  border-top: 1px solid #ddd;
+  padding-top: 8px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    position: absolute;
+    inset: 0;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+
 /* ---------- full-screen account step ---------- */
 
 .acct-screen {
