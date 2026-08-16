@@ -246,9 +246,7 @@ export default function App() {
               {tab === 'learn' && <Learn {...props} />}
               {tab === 'settings' && <SettingsView {...props} />}
             </main>
-            <div className="footer">
-              Your data stays on this device · <a href="https://github.com/HYPERSAHIL/periodtracker">source</a>
-            </div>
+            <div className="footer">Your data stays on this device · backed up automatically</div>
           </>
         )}
       </div>

@@ -436,15 +436,10 @@ export default function SettingsView(p: AppProps) {
 
       <div className="card">
         <h3>About</h3>
-        <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 8px' }}>
-          Period Tracker v{APP_VERSION} — free, open-source, and local-first. Predictions use the
-          calendar method (ovulation ≈ 14 days before your next period); temperature and discharge
-          signs add fertility awareness clues. All of it is estimation support, not medical advice.
-        </p>
-          <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          <a href="https://github.com/HYPERSAHIL/periodtracker" target="_blank" rel="noreferrer" style={{ color: 'var(--rose-600)', fontWeight: 700 }}>
-            View source on GitHub →
-          </a>
+        <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
+          Period Tracker v{APP_VERSION} — free and private. Predictions use the calendar method
+          (ovulation ≈ 14 days before your next period); temperature and discharge signs add
+          fertility awareness clues. All of it is estimation support, not medical advice.
         </p>
       </div>
 

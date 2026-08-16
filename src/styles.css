@@ -88,6 +88,55 @@
   color-scheme: dark;
 }
 
+/* dark-mode accent corrections: deep-rose text vanishes on plum surfaces */
+[data-theme='dark'] .btn.ghost {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .cal-nav {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .seg button.on {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .stat .v {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .tag.rose {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .flow-pill.light {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .flow-pill.spotting {
+  color: var(--text-2);
+}
+
+[data-theme='dark'] .mode-card.on .mc-label {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .stepper button {
+  color: var(--rose-300);
+}
+
+[data-theme='dark'] .topic-row .tr-title {
+  color: var(--text);
+}
+
+[data-theme='dark'] .footer a {
+  color: var(--text-2);
+}
+
+[data-theme='dark'] .acct2-field input:focus-visible {
+  outline-color: var(--rose-500);
+}
+
 /* ---------- base ---------- */
 
 * {
@@ -104,8 +153,7 @@ body {
 body {
   font-family: var(--font-body);
   background:
-    radial-gradient(900px 420px at 88% -8%, var(--surface-3), transparent 62%),
-    radial-gradient(700px 380px at -12% 30%, var(--surface-2), transparent 58%),
+    radial-gradient(720px 320px at 88% -10%, rgba(252, 234, 233, 0.55), transparent 60%),
     var(--bg);
   color: var(--text);
   line-height: 1.5;
@@ -137,7 +185,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: linear-gradient(var(--bg) 78%, transparent);
+  background: var(--bg);
 }
 
 .topbar .logo {
@@ -292,7 +340,7 @@ body {
 }
 
 .stat {
-  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 130%);
+  background: var(--surface);
   border: 1px solid var(--border-soft);
   border-radius: 20px;
   padding: 13px 8px 11px;
@@ -1475,7 +1523,7 @@ label.mini {
 .acct2-card {
   width: 100%;
   background: #fff;
-  color: var(--text);
+  color: #221919;
   border-radius: 28px;
   padding: 24px 20px 20px;
   box-shadow: 0 24px 60px rgba(63, 0, 21, 0.35);
@@ -1503,7 +1551,7 @@ label.mini {
 
 .acct2-sub {
   font-size: 13px;
-  color: var(--text-2);
+  color: #8f6f74;
   margin: 0 0 18px;
   line-height: 1.55;
 }
@@ -1522,7 +1570,7 @@ label.mini {
   display: block;
   font-size: 11px;
   font-weight: 800;
-  color: var(--muted);
+  color: #8f6f74;
   margin-bottom: 5px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1530,13 +1578,13 @@ label.mini {
 
 .acct2-field input {
   width: 100%;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid #eddfe2;
   border-radius: 15px;
   padding: 13px 14px;
   font-family: inherit;
   font-size: 15px;
-  background: var(--surface-2);
-  color: var(--text);
+  background: #fff0f0;
+  color: #221919;
 }
 
 .acct2-field input:focus-visible {
@@ -1562,7 +1610,7 @@ label.mini {
   width: 100%;
   border: none;
   background: none;
-  color: var(--rose-700);
+  color: #b9004d;
   font-family: inherit;
   font-size: 13px;
   font-weight: 800;
@@ -1571,7 +1619,7 @@ label.mini {
 }
 
 .acct2-err {
-  color: var(--danger);
+  color: #dc2626;
   font-size: 13px;
   font-weight: 700;
   margin: 10px 0 0;
