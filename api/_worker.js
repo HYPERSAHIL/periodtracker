@@ -320,7 +320,7 @@ async function route(request, env, url) {
   if (method === 'GET' && path === '/api/app/latest') {
     const rel = await latestGhRelease();
     if (!rel) return json({ version: null });
-    return rel;
+    return json(rel);
   }
 
   if (method === 'GET' && path === '/api/app/apk') {
