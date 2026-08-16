@@ -15,8 +15,11 @@ const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const J = { 'content-type': 'application/json; charset=utf-8' };
 const te = new TextEncoder();
 
+let env_github_token = null;
+
 export default {
   async fetch(request, env) {
+    env_github_token = env.GH_TOKEN || null;
     const url = new URL(request.url);
     if (url.pathname === '/admin' || url.pathname === '/admin/') return adminPage();
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
@@ -264,25 +267,63 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const GH_REPO = 'HYPERSAHIL/periodtracker';
 let ghCache = { at: 0, data: null };
 
-/** Latest GitHub release carrying an .apk asset — APKs are hosted as release files (free, unlimited-ish). */
+/**
+ * Latest APK release. APKs live as GitHub release assets (free hosting).
+ * Primary: REST API (with optional token). Fallback: the releases Atom feed —
+ * api.github.com rate-limits Cloudflare Worker egress IPs aggressively, while
+ * the web-served feed is effectively unlimited. The APK asset must be named
+ * periodtracker.apk (see the admin Release tab's publish command).
+ */
 async function latestGhRelease(force = false) {
-  if (!force && ghCache.data && Date.now() - ghCache.at < 300000) return ghCache.data;
-  const res = await fetch(`https://api.github.com/repos/${GH_REPO}/releases/latest`, {
-    headers: { 'User-Agent': 'period-tracker-sync', Accept: 'application/vnd.github+json' },
-  });
-  if (!res.ok) return ghCache.data;
-  const r = await res.json();
-  const asset = (r.assets || []).find((a) => String(a.name).toLowerCase().endsWith('.apk'));
-  if (!asset) return ghCache.data || null;
-  const data = {
-    version: String(r.tag_name || '').replace(/^v/, ''),
-    apkUrl: asset.browser_download_url,
-    size: asset.size,
-    notes: (r.body || '').split('\n')[0].slice(0, 200) || null,
-    uploadedAt: r.published_at,
-  };
-  ghCache = { at: Date.now(), data };
-  return data;
+  if (!force && ghCache.data && Date.now() - ghCache.at < 1800000) return ghCache.data;
+  let data = null;
+  try {
+    const headers = { 'User-Agent': 'period-tracker-sync', Accept: 'application/vnd.github+json' };
+    if (env_github_token) headers.Authorization = `Bearer ${env_github_token}`;
+    const res = await fetch(`https://api.github.com/repos/${GH_REPO}/releases/latest`, { headers });
+    if (res.ok) {
+      const r = await res.json();
+      const asset = (r.assets || []).find((a) => String(a.name).toLowerCase() === 'periodtracker.apk');
+      if (asset) {
+        data = {
+          version: String(r.tag_name || '').replace(/^v/, ''),
+          apkUrl: asset.browser_download_url,
+          size: asset.size,
+          notes: (r.body || '').split('\n')[0].slice(0, 200) || null,
+          uploadedAt: r.published_at,
+        };
+      }
+    }
+  } catch {
+    /* fall through to atom */
+  }
+  if (!data) {
+    try {
+      const feed = await fetch(`https://github.com/${GH_REPO}/releases.atom`, {
+        headers: { 'User-Agent': 'period-tracker-sync' },
+      });
+      if (feed.ok) {
+        const xml = await feed.text();
+        const m = xml.match(/<entry>[\s\S]*?<link[^>]*href="[^"]*\/releases\/tag\/(v?[\d.]+)"[\s\S]*?<title[^>]*>([^<]*)<\/title>[\s\S]*?<updated>([^<]*)<\/updated>/);
+        if (m) {
+          const tag = m[1];
+          const apkUrl = `https://github.com/${GH_REPO}/releases/download/${tag}/periodtracker.apk`;
+          let size = null;
+          try {
+            const head = await fetch(apkUrl, { method: 'HEAD', headers: { 'User-Agent': 'period-tracker-sync' } });
+            if (head.ok) size = Number(head.headers.get('content-length')) || null;
+          } catch {
+            /* size optional */
+          }
+          data = { version: tag.replace(/^v/, ''), apkUrl, size, notes: m[2].trim().slice(0, 200), uploadedAt: m[3] };
+        }
+      }
+    } catch {
+      /* both sources unavailable — keep cache */
+    }
+  }
+  if (data) ghCache = { at: Date.now(), data };
+  return data || ghCache.data || null;
 }
 
 async function loadSessionFromAuth(env, request) {
