@@ -16,6 +16,8 @@
     "native:ios": "npm run native:sync && cap open ios"
   },
   "dependencies": {
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
