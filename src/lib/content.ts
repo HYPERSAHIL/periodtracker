@@ -115,7 +115,7 @@ export const ARTICLES: Article[] = [
     source: '—',
     body: [
       'Your logs live on your device and are backed up automatically to your private cloud space — no ads, no analytics, no data sale, ever.',
-      'If you clear the app's site data or switch devices, signing in (or your backup code) brings everything back. You can also export a file backup any time from Settings.',
+      'If you clear the app data or switch devices, signing in (or your backup code) brings everything back. You can also export a file backup any time from Settings.',
       'The optional app PIN keeps the app private on a shared device — handy, simple, and easy to turn on or off.',
     ],
   },
