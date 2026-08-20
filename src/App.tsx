@@ -18,7 +18,6 @@ import { todayISO } from './lib/date';
 import { Logo, IconHome, IconCalendar, IconChart, IconGear } from './components/Icons';
 import { IconBook } from './components/Icons';
 import Onboarding from './components/Onboarding';
-import StoryPrototype from './prototypes/story/StoryPrototype';
 import Dashboard from './components/Dashboard';
 import CalendarView from './components/CalendarView';
 import Insights from './components/Insights';
@@ -56,9 +55,6 @@ export interface AppProps {
 }
 
 export default function App() {
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/prototypes/story')) {
-    return <StoryPrototype />;
-  }
   const [entries, setEntries] = useState<Record<string, DayEntry>>(() => loadEntries());
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [tab, setTab] = useState<Tab>('home');
