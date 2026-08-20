@@ -84,7 +84,7 @@ export default function Insights(p: AppProps) {
             <strong>No data yet</strong>
             <br />
             <br />
-            Log at least one period and your patterns will appear here — cycle lengths, regularity,
+            Log at least one period and your patterns will appear here - cycle lengths, regularity,
             temperatures, and your most frequent symptoms and moods.
           </div>
         </div>
@@ -121,11 +121,11 @@ export default function Insights(p: AppProps) {
       <div className="card">
         <h3>Window statistics</h3>
         <div className="kv-grid">
-          <span>Median</span><strong>{w.median ?? '—'} d</strong>
-          <span>Mean</span><strong>{w.mean ?? '—'} d</strong>
-          <span>Shortest / longest</span><strong>{w.shortest ?? '—'} / {w.longest ?? '—'} d</strong>
-          <span>Range</span><strong>{w.range ?? '—'} d</strong>
-          <span>Trend</span><strong>{w.slope === null ? '—' : `${w.slope < 0 ? '−' : '+'}${Math.abs(w.slope).toFixed(1)} d/cycle`}</strong>
+          <span>Median</span><strong>{w.median ?? '-'} d</strong>
+          <span>Mean</span><strong>{w.mean ?? '-'} d</strong>
+          <span>Shortest / longest</span><strong>{w.shortest ?? '-'} / {w.longest ?? '-'} d</strong>
+          <span>Range</span><strong>{w.range ?? '-'} d</strong>
+          <span>Trend</span><strong>{w.slope === null ? '-' : `${w.slope < 0 ? '-' : '+'}${Math.abs(w.slope).toFixed(1)} d/cycle`}</strong>
           <span>Completeness</span><strong>{comp.pct}% of days</strong>
         </div>
         {comp.total > 0 && (
@@ -142,7 +142,7 @@ export default function Insights(p: AppProps) {
               <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '4px 0 0' }}>{c.detail}</p>
             </div>
           ))}
-          <p className="hint">Deterministic observations from your logs — patterns, not diagnoses.</p>
+          <p className="hint">Deterministic observations from your logs - patterns, not diagnoses.</p>
         </div>
       )}
 
@@ -191,7 +191,7 @@ export default function Insights(p: AppProps) {
               );
             })}
           </svg>
-          <p className="hint" style={{ textAlign: 'center' }}>Days between period starts — your last {lens.length} cycle{lens.length === 1 ? '' : 's'}</p>
+          <p className="hint" style={{ textAlign: 'center' }}>Days between period starts - your last {lens.length} cycle{lens.length === 1 ? '' : 's'}</p>
         </div>
       )}
 
@@ -203,7 +203,7 @@ export default function Insights(p: AppProps) {
             format={(v) => (settings.tempUnit === 'F' ? round2((v * 9) / 5 + 32).toFixed(1) : v.toFixed(1))}
           />
           <p className="hint" style={{ textAlign: 'center' }}>
-            A sustained rise of ~0.2–0.5°C after ovulation is the classic post-ovulatory shift.
+            A sustained rise of ~0.2-0.5°C after ovulation is the classic post-ovulatory shift.
           </p>
         </div>
       )}

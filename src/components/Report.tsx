@@ -64,7 +64,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
       </div>
 
       <div className="print-sheet" id="report-sheet">
-        <h2>Period Tracker — cycle summary</h2>
+        <h2>Period Tracker - cycle summary</h2>
         <p className="meta">
           Generated {prettyDate(new Date().toISOString().slice(0, 10), { withYear: true, weekday: true })} · period: last {months} months ·
           patient-generated data, informational only
@@ -93,14 +93,14 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
                       <td>{prettyDate(c.start, { withYear: true })}</td>
                       <td>{prettyDate(c.end, { withYear: true })}</td>
                       <td>{c.length}</td>
-                      <td>{heaviest ? FLOWS.find((f) => f.id === heaviest)?.label : '—'}</td>
+                      <td>{heaviest ? FLOWS.find((f) => f.id === heaviest)?.label : '-'}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
             <p>
-              Cycle length stats (window): median {w.median ?? '—'}d · mean {w.mean ?? '—'}d · shortest {w.shortest ?? '—'}d · longest {w.longest ?? '—'}d · range {w.range ?? '—'}d
+              Cycle length stats (window): median {w.median ?? '-'}d · mean {w.mean ?? '-'}d · shortest {w.shortest ?? '-'}d · longest {w.longest ?? '-'}d · range {w.range ?? '-'}d
               {w.slope !== null && ` · trend ${w.slope < 0 ? 'shortening' : 'lengthening'} ~${Math.abs(w.slope).toFixed(1)}d/cycle`}
             </p>
           </>
@@ -120,7 +120,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
             <h3>Basal body temperature</h3>
             <p>
               {bbts.length
-                ? `${bbts.length} readings, ${Math.min(...bbts.map((e) => e.bbt!)).toFixed(1)}–${Math.max(...bbts.map((e) => e.bbt!)).toFixed(1)} °C (latest ${prettyDate(bbts[bbts.length - 1].date)})`
+                ? `${bbts.length} readings, ${Math.min(...bbts.map((e) => e.bbt!)).toFixed(1)}-${Math.max(...bbts.map((e) => e.bbt!)).toFixed(1)} °C (latest ${prettyDate(bbts[bbts.length - 1].date)})`
                 : 'None logged'}
             </p>
             <h3>Weight</h3>
@@ -141,7 +141,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
                 : 'No ovulation tests logged'}
             </p>
             <p>
-              Current estimate: next period {p.stats.nextStart ? prettyDate(p.stats.nextStart, { withYear: true }) : '—'} (±{p.stats.uncertaintyDays}d){p.stats.fertileSuppressed && ' · fertility forecasts suppressed (hormonal contraception)'}
+              Current estimate: next period {p.stats.nextStart ? prettyDate(p.stats.nextStart, { withYear: true }) : '-'} (±{p.stats.uncertaintyDays}d){p.stats.fertileSuppressed && ' · fertility forecasts suppressed (hormonal contraception)'}
             </p>
           </>
         )}

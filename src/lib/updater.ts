@@ -1,7 +1,7 @@
 /**
  * APK auto-updater (native only; the web/PWA updates via its service worker).
  *
- * Flow — check in background → auto-download → non-closable install overlay.
+ * Flow - check in background → auto-download → non-closable install overlay.
  * First install on a device walks the Android "install unknown apps" permission
  * trip; once the OS grants it (queryable via the plugin), future updates go
  * straight to the installer with no prompt. Every step is logged server-side
@@ -101,7 +101,7 @@ class UpdateManager {
       }
       this.set({ stage: 'available', version: rel.version, sizeBytes: rel.size ?? null, notes: rel.notes ?? null });
       await this.logEvent('update_available', { newVersion: rel.version, size: rel.size ?? null });
-      // auto-download as requested — the overlay appears once it's ready
+      // auto-download as requested - the overlay appears once it's ready
       await this.download(rel.version, rel.apkUrl);
     } catch {
       this.set({ stage: 'idle' });
@@ -115,7 +115,7 @@ class UpdateManager {
       this.set({ stage: 'ready', progress: 100, sizeBytes: r.size });
       await this.logEvent('update_downloaded', { version, size: r.size });
     } catch (e) {
-      // failed download falls back to idle — next background check retries
+      // failed download falls back to idle - next background check retries
       this.set({ stage: 'idle' });
       await this.logEvent('update_download_failed', { version, error: String(e).slice(0, 120) });
     }

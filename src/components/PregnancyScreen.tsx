@@ -39,7 +39,7 @@ export default function PregnancyScreen(p: AppProps) {
         </div>
         <div className="since" style={{ marginTop: 6 }}>
           {past
-            ? `Baby was due ${prettyDate(info.dueDate, { withYear: true })} — congratulations! Switch back to cycle tracking in Settings whenever you're ready.`
+            ? `Baby was due ${prettyDate(info.dueDate, { withYear: true })} - congratulations! Switch back to cycle tracking in Settings whenever you're ready.`
             : `${Math.round(info.progress * 100)}% · due ${prettyDate(info.dueDate, { withYear: true })} (in ${info.daysToDue} days)`}
         </div>
       </section>
@@ -54,7 +54,7 @@ export default function PregnancyScreen(p: AppProps) {
           <div className="l">Trimester</div>
         </div>
         <div className="stat">
-          <div className="v">{past ? '—' : `${info.daysToDue}d`}</div>
+          <div className="v">{past ? '-' : `${info.daysToDue}d`}</div>
           <div className="l">Until due date</div>
         </div>
       </div>
@@ -68,7 +68,7 @@ export default function PregnancyScreen(p: AppProps) {
           {todayEntry ? 'Edit today’s log' : 'Log today'}
         </button>
         <p className="hint" style={{ marginTop: 10 }}>
-          Keep logging symptoms, moods, and notes — they're just as useful now.
+          Keep logging symptoms, moods, and notes - they're just as useful now.
         </p>
       </div>
     </>

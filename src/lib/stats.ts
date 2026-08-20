@@ -108,7 +108,7 @@ export interface PatternCard {
 }
 
 /**
- * Deterministic pattern cards — only surfaced when an explicit threshold is
+ * Deterministic pattern cards - only surfaced when an explicit threshold is
  * met, always worded as an observation, never a diagnosis.
  */
 export function patternCards(
@@ -157,7 +157,7 @@ export function patternCards(
         cards.push({
           id: `luteal-${s}`,
           title: `${s} clusters before your period`,
-          detail: `${s} appeared in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. Recognizable PMS-style patterns like this are often manageable — and easier to discuss with a clinician when you can show the data.`,
+          detail: `${s} appeared in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. Recognizable PMS-style patterns like this are often manageable - and easier to discuss with a clinician when you can show the data.`,
         });
         break; // one card is enough signal
       }
@@ -191,7 +191,7 @@ export function patternCards(
         cards.push({
           id: `luteal-mood-${m}`,
           title: `${m} often appears before your period`,
-          detail: `${m} was logged in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. If luteal mood changes affect work or relationships, this dated log is exactly what clinicians use to tell PMS from PMDD — bring it to an appointment. Learn more in Learn → PMS vs PMDD.`,
+          detail: `${m} was logged in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. If luteal mood changes affect work or relationships, this dated log is exactly what clinicians use to tell PMS from PMDD - bring it to an appointment. Learn more in Learn → PMS vs PMDD.`,
         });
         break;
       }
@@ -210,7 +210,7 @@ export function patternCards(
       cards.push({
         id: 'peri-burden',
         title: 'High symptom burden this month',
-        detail: `${burden} of the last ${days30.length} logged days included perimenopause-typical symptoms. This is a burden snapshot, not a stage or diagnosis — but it is exactly the kind of summary worth bringing to an appointment.`,
+        detail: `${burden} of the last ${days30.length} logged days included perimenopause-typical symptoms. This is a burden snapshot, not a stage or diagnosis - but it is exactly the kind of summary worth bringing to an appointment.`,
       });
     }
   }

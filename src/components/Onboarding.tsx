@@ -53,11 +53,11 @@ export default function Onboarding({
             </div>
           </div>
           <p className="lead">
-            Track your cycle, predict your period and fertile window, and see your patterns —
+            Track your cycle, predict your period and fertile window, and see your patterns -
             with all of your data staying on your device.
           </p>
           <h2 style={{ fontSize: 19, marginBottom: 6 }}>What brings you here?</h2>
-          <p className="lead">You can switch modes anytime in Settings — nothing is locked in.</p>
+          <p className="lead">You can switch modes anytime in Settings - nothing is locked in.</p>
           <div className="mode-grid">
             {MODES.map((m) => (
               <button
@@ -85,7 +85,7 @@ export default function Onboarding({
           <h2>When did your last period start?</h2>
           <p className="lead">
             {mode === 'perimenopause'
-              ? 'Cycles getting harder to pin down? A rough date is fine — irregularity is exactly what we’ll track.'
+              ? 'Cycles getting harder to pin down? A rough date is fine - irregularity is exactly what we’ll track.'
               : 'This anchors your first predictions. An approximate date is fine.'}
           </p>
           <div className="field">
@@ -119,7 +119,7 @@ export default function Onboarding({
           <div className="steps">Step 2 of 2 · Your pregnancy</div>
           <h2>When is the baby due?</h2>
           <p className="lead">
-            Period predictions pause automatically during pregnancy — this app switches to
+            Period predictions pause automatically during pregnancy - this app switches to
             week-by-week tracking.
           </p>
           <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 18 }}>
@@ -171,7 +171,7 @@ export default function Onboarding({
           <h2>How long is your cycle?</h2>
           <p className="lead">
             From the first day of one period to the first day of the next. The average is around
-            28 days — anything from 21 to 35 is common.
+            28 days - anything from 21 to 35 is common.
           </p>
           <div className="field">
             <label>Cycle length</label>
@@ -179,7 +179,7 @@ export default function Onboarding({
               <Stepper value={cycleLength} min={15} max={60} onChange={setCycleLength} suffix="days" />
             </div>
             <p className="hint" style={{ textAlign: 'center' }}>
-              Not sure? Leave it at 28 — the app learns your real pattern as you log.
+              Not sure? Leave it at 28 - the app learns your real pattern as you log.
             </p>
           </div>
           <div className="grow" />
@@ -213,7 +213,7 @@ export function Stepper({
   return (
     <div className="stepper">
       <button type="button" aria-label="Decrease" onClick={() => onChange(Math.max(min, value - 1))}>
-        −
+        -
       </button>
       <div className="val">
         {value}

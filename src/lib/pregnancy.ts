@@ -70,7 +70,7 @@ export function babySize(week: number): string {
 }
 
 export const TRIMESTER_INFO: Record<1 | 2 | 3, string> = {
-  1: 'First trimester — foundations: organs form, and fatigue or nausea are common.',
-  2: 'Second trimester — many people feel their best now; first movements often happen weeks 18–22.',
-  3: 'Third trimester — rapid growth; watch for regular contractions and check in with your clinician.',
+  1: 'First trimester - foundations: organs form, and fatigue or nausea are common.',
+  2: 'Second trimester - many people feel their best now; first movements often happen weeks 18-22.',
+  3: 'Third trimester - rapid growth; watch for regular contractions and check in with your clinician.',
 };

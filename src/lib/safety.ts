@@ -16,7 +16,7 @@ const URGENCY_RANK: Record<Urgency, number> = { none: 0, routine: 1, 'same-day':
 
 /**
  * Deterministic triage over the most recent week of logs. Fixed rules, fixed
- * thresholds, no probability — and always framed as "contact a clinician",
+ * thresholds, no probability - and always framed as "contact a clinician",
  * never a diagnosis. Sources referenced: ACOG patient guidance, NIMH crisis line.
  */
 export function safetyTriage(entries: Record<string, DayEntry>, settings: Settings, clusters: PeriodCluster[]): SafetyNotice[] {
@@ -40,8 +40,8 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
       id: 'heavy-systemic',
       urgency: 'same-day',
       headline: 'Heavy bleeding with dizziness, fainting, or breathlessness',
-      detail: 'Soaking through protection repeatedly together with these symptoms is a pattern ACOG says should be assessed promptly — contact a clinician today.',
-      source: 'ACOG — abnormal uterine bleeding',
+      detail: 'Soaking through protection repeatedly together with these symptoms is a pattern ACOG says should be assessed promptly - contact a clinician today.',
+      source: 'ACOG - abnormal uterine bleeding',
     });
   } else if (heavyDays >= 3) {
     add({
@@ -49,7 +49,7 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
       urgency: 'routine',
       headline: 'Several days of heavy bleeding',
       detail: 'Repeatedly heavy days are worth mentioning at your next appointment even if you feel okay.',
-      source: 'ACOG — abnormal uterine bleeding',
+      source: 'ACOG - abnormal uterine bleeding',
     });
   }
 
@@ -61,7 +61,7 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
       urgency: 'routine',
       headline: `Bleeding has lasted ${currentCluster.length} days`,
       detail: 'Periods lasting more than a week are a standard reason to check in with a clinician.',
-      source: 'ACOG — abnormal uterine bleeding',
+      source: 'ACOG - abnormal uterine bleeding',
     });
   }
 
@@ -77,7 +77,7 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
       urgency: 'routine',
       headline: 'Bleeding between periods',
       detail: 'Bleeding on days outside your period is common and usually benign, but ACOG recommends reporting it if it repeats.',
-      source: 'ACOG — intermenstrual bleeding',
+      source: 'ACOG - intermenstrual bleeding',
     });
   }
 
@@ -90,7 +90,7 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
         urgency: 'routine',
         headline: 'Bleeding after a 3+ month gap',
         detail: 'Any bleeding after several months without a period should be evaluated by a clinician to rule out treatable causes.',
-        source: 'ACOG — postmenopausal bleeding guidance',
+        source: 'ACOG - postmenopausal bleeding guidance',
       });
     }
   }
@@ -105,8 +105,8 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
         id: 'preg-emergency',
         urgency: 'emergency',
         headline: 'Severe pain with bleeding or fainting during pregnancy',
-        detail: 'This combination needs emergency assessment now — it can signal an ectopic pregnancy, which is time-sensitive.',
-        source: 'ACOG — ectopic pregnancy',
+        detail: 'This combination needs emergency assessment now - it can signal an ectopic pregnancy, which is time-sensitive.',
+        source: 'ACOG - ectopic pregnancy',
       });
     } else if (severePain || (bleeding && shoulderOrFaint)) {
       add({
@@ -114,7 +114,7 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
         urgency: 'same-day',
         headline: 'One-sided or severe pain, or bleeding during pregnancy',
         detail: 'Contact your maternity team today. Many causes are benign, but this pattern should always be checked the same day.',
-        source: 'ACOG — bleeding and pain in pregnancy',
+        source: 'ACOG - bleeding and pain in pregnancy',
       });
     }
   }
@@ -125,8 +125,8 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
       id: 'discharge-unusual',
       urgency: 'routine',
       headline: 'Unusual discharge logged',
-      detail: 'Discharge with an unusual color or smell often means an easily-treated infection — a quick clinician visit can sort it out.',
-      source: 'CDC — vaginal infections',
+      detail: 'Discharge with an unusual color or smell often means an easily-treated infection - a quick clinician visit can sort it out.',
+      source: 'CDC - vaginal infections',
     });
   }
 

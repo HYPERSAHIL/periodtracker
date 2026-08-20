@@ -171,7 +171,7 @@ export default function SettingsView(p: AppProps) {
         <div className="set-row">
           <div>
             <div className="t">Reminders master</div>
-            <div className="d">Allow notifications — then choose what you get and when</div>
+            <div className="d">Allow notifications - then choose what you get and when</div>
           </div>
           <button
             className={`switch${settings.reminders ? ' on' : ''}`}
@@ -233,7 +233,7 @@ export default function SettingsView(p: AppProps) {
             <div className="set-row">
               <div>
                 <div className="t">Daily check-in nudge</div>
-                <div className="d">Evening reminder to log today — only if you haven't checked in</div>
+                <div className="d">Evening reminder to log today - only if you haven't checked in</div>
               </div>
               <button
                 className={`switch${settings.notifyDailyCheckin ? ' on' : ''}`}
@@ -256,7 +256,7 @@ export default function SettingsView(p: AppProps) {
                   style={{ width: 110 }}
                   aria-label="Quiet hours start"
                 />
-                <span style={{ color: 'var(--muted)' }}>—</span>
+                <span style={{ color: 'var(--muted)' }}>-</span>
                 <input
                   type="time"
                   value={settings.quietEnd ?? ''}
@@ -267,7 +267,7 @@ export default function SettingsView(p: AppProps) {
               </div>
             </div>
             <p className="hint" style={{ marginTop: 8 }}>
-              Leave quiet hours empty for no restriction. Example: 22:00 — 08:00 keeps nights silent. On the web, notifications appear only while the app is open; with the installed app they can appear in the background.
+              Leave quiet hours empty for no restriction. Example: 22:00 - 08:00 keeps nights silent. On the web, notifications appear only while the app is open; with the installed app they can appear in the background.
             </p>
           </>
         )}
@@ -483,7 +483,7 @@ export default function SettingsView(p: AppProps) {
         <h3>Your data</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
           Everything lives in this browser only. Export a backup before switching phones or clearing
-          browser data — there is no copy anywhere else.
+          browser data - there is no copy anywhere else.
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn ghost" onClick={() => exportData()}>Export JSON</button>
@@ -526,7 +526,7 @@ export default function SettingsView(p: AppProps) {
       <div className="card">
         <h3>About</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          Period Tracker v{APP_VERSION} — free and private. Predictions use the calendar method
+          Period Tracker v{APP_VERSION} - free and private. Predictions use the calendar method
           (ovulation ≈ 14 days before your next period); temperature and discharge signs add
           fertility awareness clues. All of it is estimation support, not medical advice.
         </p>
@@ -538,7 +538,7 @@ export default function SettingsView(p: AppProps) {
             <div className="grab" />
             <h2>🔐 App PIN</h2>
             <p className="hint" style={{ marginBottom: 14 }}>
-              4–8 digits. This is a convenience gate, not encryption — your data itself is unchanged on disk.
+              4-8 digits. This is a convenience gate, not encryption - your data itself is unchanged on disk.
             </p>
             <input
               className="num-in"

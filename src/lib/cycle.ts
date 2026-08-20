@@ -64,7 +64,7 @@ function median(values: number[]): number {
 }
 
 /**
- * Weighted median — the value where cumulative weight crosses half the total.
+ * Weighted median - the value where cumulative weight crosses half the total.
  * Used with exponential recency weights so recent cycles steer the forecast
  * (finding from Bayesian cycle-length models, Urteaga et al. 2021).
  */
@@ -116,7 +116,7 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
   const usingDefaults = starts.length < 2;
 
   // Personalized luteal phase: LH-positive days followed by a period start give
-  // ovulation→period gaps (clinically 10–17 days; FAM literature). Falls back
+  // ovulation→period gaps (clinically 10-17 days; FAM literature). Falls back
   // to the classic 14.
   const lhDates = Object.values(entries)
     .filter((e) => e.lhTest === 'positive')
@@ -163,9 +163,9 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
     const overdue = diffDays(today, anchor); // >0 means anchor already passed
     if (overdue > 0) {
       if (overdue <= uncertaintyDays + 7) {
-        lateBy = overdue; // plausible late period — surface it, don't silently re-anchor
+        lateBy = overdue; // plausible late period - surface it, don't silently re-anchor
       } else {
-        // far overdue: likely a real change (or pregnancy) — re-anchor forward
+        // far overdue: likely a real change (or pregnancy) - re-anchor forward
         while (diffDays(today, anchor) < 0) anchor = addDays(anchor, avgCycle);
       }
     }
@@ -268,8 +268,8 @@ export function phaseFor(dateISO: string, stats: CycleStats, facts: Map<string, 
 
 export const PHASE_INFO: Record<Phase, { label: string; blurb: string }> = {
   menstrual: { label: 'Menstrual phase', blurb: 'Bleeding days. Rest, hydrate, and be kind to yourself.' },
-  follicular: { label: 'Follicular phase', blurb: 'Estrogen is rising — many people feel their most energetic now.' },
-  ovulation: { label: 'Ovulation phase', blurb: 'Around ovulation — the most fertile days of your cycle.' },
+  follicular: { label: 'Follicular phase', blurb: 'Estrogen is rising - many people feel their most energetic now.' },
+  ovulation: { label: 'Ovulation phase', blurb: 'Around ovulation - the most fertile days of your cycle.' },
   luteal: { label: 'Luteal phase', blurb: 'After ovulation. PMS symptoms are most common in this phase.' },
   unknown: { label: 'Cycle phase', blurb: 'Log a period to unlock phase tracking and predictions.' },
 };
@@ -281,7 +281,7 @@ export function regularity(stats: CycleStats): { label: string; note: string; va
   const avg = mean(lens);
   const variation = Math.sqrt(mean(lens.map((l) => (l - avg) ** 2)));
   if (variation <= 2)
-    return { label: 'Very regular', note: 'Your cycles vary by a day or two — textbook regular.', variation };
+    return { label: 'Very regular', note: 'Your cycles vary by a day or two - textbook regular.', variation };
   if (variation <= 4)
     return { label: 'Regular', note: 'Small cycle-to-cycle variation is completely normal.', variation };
   if (variation <= 7)

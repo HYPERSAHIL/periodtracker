@@ -11,7 +11,7 @@ export function isNative(): boolean {
   return !!nav.Capacitor?.isNativePlatform?.();
 }
 
-/** Absolute API base for fetch calls — same-origin on the web, full URL in the APK. */
+/** Absolute API base for fetch calls - same-origin on the web, full URL in the APK. */
 export function apiUrl(path: string): string {
   if (isNative()) return `${API_ORIGIN}${path}`;
   if (location.origin === API_ORIGIN) return path;

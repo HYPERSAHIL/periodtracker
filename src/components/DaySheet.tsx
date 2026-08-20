@@ -157,7 +157,7 @@ export default function DaySheet({
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && set({ flow: null })}
               >
-                <div className="drops">—</div>
+                <div className="drops">-</div>
                 None
               </div>
               {FLOWS.map((f) => (
@@ -191,7 +191,7 @@ export default function DaySheet({
           <div className="field" key={id}>
             <label>Check-in</label>
             <button type="button" className={`chip${d.checkedIn ? ' on' : ''}`} onClick={() => set({ checkedIn: !d.checkedIn })}>
-              ✓ I checked in today — this reflects how I felt
+              ✓ I checked in today - this reflects how I felt
             </button>
             <p className="hint">Explicit check-ins make your insights trustworthy: a missing day means “forgot”, not “felt fine”.</p>
           </div>

@@ -18,9 +18,9 @@ export const HORMONAL_METHODS: ContraceptionMethod[] = ['pill', 'patch', 'ring',
 
 export interface DayEntry {
   date: string; // YYYY-MM-DD
-  /** epoch-ms of the last local edit — used for last-write-wins cloud sync */
+  /** epoch-ms of the last local edit - used for last-write-wins cloud sync */
   updatedAt?: number;
-  /** Explicit "I checked in today" marker — distinguishes no-symptom days from forgotten days. */
+  /** Explicit "I checked in today" marker - distinguishes no-symptom days from forgotten days. */
   checkedIn: boolean;
   flow: Flow | null;
   clots: boolean;
@@ -59,7 +59,7 @@ export interface ContraceptionRegimen {
 }
 
 export interface Settings {
-  /** epoch-ms of the last local edit — used for last-write-wins cloud sync */
+  /** epoch-ms of the last local edit - used for last-write-wins cloud sync */
   updatedAt?: number;
   avgCycleLength: number;
   avgPeriodLength: number;
@@ -213,9 +213,9 @@ export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal:
 
 export type Tab = 'home' | 'calendar' | 'insights' | 'learn' | 'settings';
 
-export const APP_VERSION = '2.7.0';
+export const APP_VERSION = '2.7.1';
 
-/** Logging sheet sections — ids are stable and persisted in trackerOrder/trackerHidden. */
+/** Logging sheet sections - ids are stable and persisted in trackerOrder/trackerHidden. */
 export interface TrackerSectionDef {
   id: string;
   label: string;

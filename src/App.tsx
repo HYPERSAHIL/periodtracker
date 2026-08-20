@@ -87,7 +87,7 @@ export default function App() {
   const stats = useMemo(() => computeStats(entries, settings), [entries, settings]);
   const facts = useMemo(() => buildFacts(entries, stats), [entries, stats]);
 
-  // Granular "while open" notifications — period / fertile / daily check-in, each once per day and respecting quiet hours.
+  // Granular "while open" notifications - period / fertile / daily check-in, each once per day and respecting quiet hours.
   useEffect(() => {
     if (!settings.onboarded || !settings.reminders) return;
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
@@ -131,7 +131,7 @@ export default function App() {
       }
     }
 
-    // daily check-in nudge — evening, only if not already checked in today
+    // daily check-in nudge - evening, only if not already checked in today
     if (settings.notifyDailyCheckin && lastNotifiedDaily() !== today) {
       const hr = new Date().getHours();
       if (hr >= 19) {
@@ -139,7 +139,7 @@ export default function App() {
         if (!e || !e.checkedIn) {
           try {
             new Notification('Period Tracker', {
-              body: 'Quick check-in? Log how today felt — 10 seconds.',
+              body: 'Quick check-in? Log how today felt - 10 seconds.',
               icon: '/icons/icon-192.png',
               badge: '/icons/icon-192.png',
               tag: 'pt-daily',
@@ -231,7 +231,7 @@ export default function App() {
   useEffect(() => {
     updater.start();
     if (!isNative() || !settings.onboarded || !settings.reminders) return;
-    // native reminders: (re)schedule heads-ups via Capacitor — respects granular toggles + quiet hours
+    // native reminders: (re)schedule heads-ups via Capacitor - respects granular toggles + quiet hours
     (async () => {
       try {
         const LN = (await import('@capacitor/local-notifications')).LocalNotifications;
@@ -287,7 +287,7 @@ export default function App() {
           }
         }
 
-        // daily check-in — repeating 20:00 if not quiet
+        // daily check-in - repeating 20:00 if not quiet
         if (settings.notifyDailyCheckin) {
           const probe = new Date();
           probe.setHours(20, 0, 0, 0);
@@ -304,7 +304,7 @@ export default function App() {
 
         if (toSchedule.length) await LN.schedule({ notifications: toSchedule as never });
       } catch {
-        /* plugin unavailable or not permitted — web banner path still works */
+        /* plugin unavailable or not permitted - web banner path still works */
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
