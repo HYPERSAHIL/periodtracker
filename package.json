@@ -1,7 +1,7 @@
 {
   "name": "period-tracker",
   "private": true,
-  "version": "2.8.0",
+  "version": "2.9.0",
   "type": "module",
   "description": "Period Tracker — free, private, local-first period & cycle tracking. Installable PWA.",
   "scripts": {
@@ -19,6 +19,7 @@
     "@capacitor/local-notifications": "6.1.3",
     "@fontsource/playfair-display": "^5.3.0",
     "@fontsource/plus-jakarta-sans": "^5.3.0",
+    "motion": "^13.1.1",
     "pt-apk-installer": "file:plugins/apk-installer",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
