@@ -64,7 +64,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
       </div>
 
       <div className="print-sheet" id="report-sheet">
-        <h2>Period Tracker - cycle summary</h2>
+        <h2>Period Tracker: cycle summary</h2>
         <p className="meta">
           Generated {prettyDate(new Date().toISOString().slice(0, 10), { withYear: true, weekday: true })} · period: last {months} months ·
           patient-generated data, informational only
@@ -120,13 +120,13 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
             <h3>Basal body temperature</h3>
             <p>
               {bbts.length
-                ? `${bbts.length} readings, ${Math.min(...bbts.map((e) => e.bbt!)).toFixed(1)}-${Math.max(...bbts.map((e) => e.bbt!)).toFixed(1)} °C (latest ${prettyDate(bbts[bbts.length - 1].date)})`
+                ? `${bbts.length} readings, ${Math.min(...bbts.map((e) => e.bbt!)).toFixed(1)}-${Math.max(...bbts.map((e) => e.bbt!)).toFixed(1)} °C (latest ${prettyDate(bbts[bbts.length, 1].date)})`
                 : 'None logged'}
             </p>
             <h3>Weight</h3>
             <p>
               {weights.length
-                ? `${weights.length} entries, latest ${weights[weights.length - 1].weight!.toFixed(1)} kg (${prettyDate(weights[weights.length - 1].date)})`
+                ? `${weights.length} entries, latest ${weights[weights.length, 1].weight!.toFixed(1)} kg (${prettyDate(weights[weights.length, 1].date)})`
                 : 'None logged'}
             </p>
           </>

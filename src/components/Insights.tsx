@@ -84,7 +84,7 @@ export default function Insights(p: AppProps) {
             <strong>No data yet</strong>
             <br />
             <br />
-            Log at least one period and your patterns will appear here - cycle lengths, regularity,
+            Log at least one period and your patterns will appear here. Cycle lengths, regularity,
             temperatures, and your most frequent symptoms and moods.
           </div>
         </div>

@@ -57,7 +57,7 @@ export default function CalendarView(p: AppProps) {
               .filter(Boolean)
               .join(', ');
             return (
-              <button key={iso} className={cls} onClick={() => p.openDay(iso)} aria-label={`${iso}${label ? ` - ${label}` : ''}`}>
+              <button key={iso} className={cls} onClick={() => p.openDay(iso)} aria-label={`${iso}${label ? `: ${label}` : ''}`}>
                 {fromISO(iso).getDate()}
                 {showFertile && f?.ovulation && <span className="ovu" />}
                 {p.entries[iso]?.lhTest === 'positive' && <span className="lh" title="LH test positive" />}

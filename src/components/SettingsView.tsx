@@ -171,7 +171,7 @@ export default function SettingsView(p: AppProps) {
         <div className="set-row">
           <div>
             <div className="t">Reminders master</div>
-            <div className="d">Allow notifications - then choose what you get and when</div>
+            <div className="d">Allow notifications. Then choose what you get and when</div>
           </div>
           <button
             className={`switch${settings.reminders ? ' on' : ''}`}
@@ -233,7 +233,7 @@ export default function SettingsView(p: AppProps) {
             <div className="set-row">
               <div>
                 <div className="t">Daily check-in nudge</div>
-                <div className="d">Evening reminder to log today - only if you haven't checked in</div>
+                <div className="d">Evening reminder to log today, only if you haven't checked in</div>
               </div>
               <button
                 className={`switch${settings.notifyDailyCheckin ? ' on' : ''}`}
@@ -538,7 +538,7 @@ export default function SettingsView(p: AppProps) {
             <div className="grab" />
             <h2>🔐 App PIN</h2>
             <p className="hint" style={{ marginBottom: 14 }}>
-              4-8 digits. This is a convenience gate, not encryption - your data itself is unchanged on disk.
+              4-8 digits. This is a convenience gate, not encryption. Your data itself is unchanged on disk.
             </p>
             <input
               className="num-in"

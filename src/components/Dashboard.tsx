@@ -92,7 +92,7 @@ export default function Dashboard(p: AppProps) {
             {stats.fertileEnd ? `-${prettyDate(stats.fertileEnd).replace(/,.*/, '')}` : ''}
           </div>
           <div className="l">
-            {stats.fertileSuppressed ? 'Suppressed (hormonal)' : inFertile ? 'Fertile - now!' : 'Fertile window'}
+            {stats.fertileSuppressed ? 'Suppressed (hormonal)' : inFertile ? 'Fertile now!' : 'Fertile window'}
           </div>
         </div>
         <div className="stat">
@@ -132,15 +132,15 @@ export default function Dashboard(p: AppProps) {
 
       {stats.stale && (
         <div className="banner">
-          🕰️ Your last logged period is {daysSinceLast} days ago - too far back to forecast from. Predictions resume when you log your next period.
+          🕰️ Your last logged period is {daysSinceLast} days ago. Too far back to forecast from. Predictions resume when you log your next period.
         </div>
       )}
       {settings.predictionsPaused && settings.mode !== 'pregnant' && (
-        <div className="banner">🌙 Predictions are paused. Log freely - nothing will be forecast until you resume them in Settings.</div>
+        <div className="banner">🌙 Predictions are paused. Log freely. Nothing will be forecast until you resume them in Settings.</div>
       )}
       {stats.lateBy && settings.mode !== 'perimenopause' && (
         <div className="banner">
-          🕊️ Your period is {stats.lateBy} day{stats.lateBy === 1 ? '' : 's'} past the estimate (±{stats.uncertaintyDays}d). Late periods are common - stress, illness, and sleep all shift cycles. If you might be pregnant, a test now is reliable.
+          🕊️ Your period is {stats.lateBy} day{stats.lateBy === 1 ? '' : 's'} past the estimate (±{stats.uncertaintyDays}d). Late periods are common. Stress, illness, and sleep all shift cycles. If you might be pregnant, a test now is reliable.
         </div>
       )}
       {settings.mode === 'ttc' && inFertile && settings.showFertileWindow && !stats.fertileSuppressed && (
@@ -149,7 +149,7 @@ export default function Dashboard(p: AppProps) {
         </div>
       )}
       {settings.mode === 'perimenopause' && daysSinceLast !== null && daysSinceLast > 60 && (
-        <div className="banner">🍂 {daysSinceLast} days since your last period. Gaps like this are common in perimenopause - worth a clinician chat if they persist.</div>
+        <div className="banner">🍂 {daysSinceLast} days since your last period. Gaps like this are common in perimenopause. Worth a clinician chat if they persist.</div>
       )}
       {!stats.predictionsPaused && !stats.stale && stats.daysUntilNext !== null && stats.daysUntilNext >= 0 && stats.daysUntilNext <= 3 && settings.mode !== 'perimenopause' && (
         <div className="banner">
@@ -163,7 +163,7 @@ export default function Dashboard(p: AppProps) {
       )}
       {lastLhPositive && diffDays(lastLhPositive.date, today) <= 3 && !stats.fertileSuppressed && (
         <div className="banner" style={{ background: '#f3e8ff', borderColor: '#c084fc', color: '#6b21a8' }}>
-          🟣 LH test was positive on {prettyDate(lastLhPositive.date, { weekday: true })} - ovulation likely within ~36 hours of that test.
+          🟣 LH test was positive on {prettyDate(lastLhPositive.date, { weekday: true })}. Ovulation likely within ~36 hours of that test.
         </div>
       )}
 
@@ -207,12 +207,12 @@ export default function Dashboard(p: AppProps) {
               </p>
               <p style={{ margin: 0 }}>
                 {!settings.showFertileWindow
-                  ? 'Fertile-window estimates are hidden - turn them on in Settings → Display if you want to see them.'
+                  ? 'Fertile-window estimates are hidden. Turn them on in Settings → Display if you want to see them.'
                   : stats.fertileSuppressed
                     ? 'Fertile-window and ovulation estimates are hidden because a hormonal contraception method is active.'
                     : stats.ovuEvidenceCount > 0
-                      ? `Ovulation is placed ${stats.lutealLength} days before the next period - learned from your own ${stats.ovuEvidenceCount} positive LH test(s), not a fixed average.`
-                      : 'Ovulation is assumed ~14 days before the next period (calendar method) - log LH tests to personalize this.'}
+                      ? `Ovulation is placed ${stats.lutealLength} days before the next period, learned from your own ${stats.ovuEvidenceCount} positive LH test(s), not a fixed average.`
+                      : 'Ovulation is assumed ~14 days before the next period (calendar method). Log LH tests to personalize this.'}
               </p>
             </div>
           )}
@@ -258,7 +258,7 @@ export default function Dashboard(p: AppProps) {
       {p.stats.cycleLengths.length >= 2 && (
         <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div className="t" style={{ fontWeight: 800 }}>Clinician report - ready</div>
+            <div className="t" style={{ fontWeight: 800 }}>Clinician report ready</div>
             <div className="d">Printable summary of your last 6 months (symptoms & cycle lengths). Free, no paywall.</div>
           </div>
           <button className="btn ghost sm" onClick={p.openReport} style={{ flexShrink: 0 }}>

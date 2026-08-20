@@ -47,7 +47,7 @@ export default function AccountScreen({
     tab === 'signup' ? 'Create your account' : tab === 'signin' ? 'Welcome back' : 'Restore your data';
   const sub =
     tab === 'signup'
-      ? 'Your data is backed up automatically - an account lets you sign in on any device.'
+      ? 'Your data is backed up automatically. An account lets you sign in on any device.'
       : tab === 'signin'
         ? 'Sign in to pick up right where you left off.'
         : 'Enter the backup code from your other device.';

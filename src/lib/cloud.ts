@@ -82,7 +82,7 @@ export async function signUp(input: {
     if (r.data?.error === 'email_taken') throw new Error('That email already has an account. Try signing in.');
     if (r.data?.error === 'invalid_age') throw new Error('Please enter a valid age.');
     if (r.data?.error === 'weak_password') throw new Error('Please use at least 6 characters for your password.');
-    throw new Error('Sign-up failed - please try again.');
+    throw new Error('Sign-up failed. Please try again.');
   }
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
   saveSession(s);
@@ -100,7 +100,7 @@ export async function signIn(email: string, password: string): Promise<CloudSess
 export async function restoreWithKey(key: string): Promise<CloudSession> {
   const r = await api('restore', { key });
   if (!r.ok) {
-    if (r.data?.error === 'key_not_found') throw new Error('That backup code was not found - check it and try again.');
+    if (r.data?.error === 'key_not_found') throw new Error('That backup code was not found. Check it and try again.');
     throw new Error('Restore failed.');
   }
   const s = { token: r.data.token, user: r.data.user } as CloudSession;

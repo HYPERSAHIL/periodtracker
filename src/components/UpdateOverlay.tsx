@@ -39,7 +39,7 @@ export default function UpdateOverlay() {
         <h2>Update ready to install</h2>
         <p className="upd-note">
           Version {state.version} is downloaded and verified. {state.notes ? state.notes + ' ' : ''}
-          Installing keeps your data - nothing is lost.
+          Installing keeps your data. Nothing is lost.
         </p>
 
         {needPerm ? (
@@ -59,7 +59,7 @@ export default function UpdateOverlay() {
                 updater.installPressed();
               }}
             >
-              I've enabled it - Install now
+              I've enabled it. Install now
             </button>
           </>
         ) : (
@@ -68,7 +68,7 @@ export default function UpdateOverlay() {
           </button>
         )}
 
-        <p className="upd-tiny">This screen stays until the update is installed - that's by design, so every device runs the latest version.</p>
+        <p className="upd-tiny">This screen stays until the update is installed. That is by design, so every device runs the latest version.</p>
       </div>
     </div>
   );

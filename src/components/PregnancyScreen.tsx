@@ -68,7 +68,7 @@ export default function PregnancyScreen(p: AppProps) {
           {todayEntry ? 'Edit today’s log' : 'Log today'}
         </button>
         <p className="hint" style={{ marginTop: 10 }}>
-          Keep logging symptoms, moods, and notes - they're just as useful now.
+          Keep logging symptoms, moods, and notes. They are just as useful now.
         </p>
       </div>
     </>

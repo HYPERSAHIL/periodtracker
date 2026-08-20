@@ -269,7 +269,7 @@ export function phaseFor(dateISO: string, stats: CycleStats, facts: Map<string, 
 export const PHASE_INFO: Record<Phase, { label: string; blurb: string }> = {
   menstrual: { label: 'Menstrual phase', blurb: 'Bleeding days. Rest, hydrate, and be kind to yourself.' },
   follicular: { label: 'Follicular phase', blurb: 'Estrogen is rising - many people feel their most energetic now.' },
-  ovulation: { label: 'Ovulation phase', blurb: 'Around ovulation - the most fertile days of your cycle.' },
+  ovulation: { label: 'Ovulation phase', blurb: 'Around ovulation, the most fertile days of your cycle.' },
   luteal: { label: 'Luteal phase', blurb: 'After ovulation. PMS symptoms are most common in this phase.' },
   unknown: { label: 'Cycle phase', blurb: 'Log a period to unlock phase tracking and predictions.' },
 };
@@ -281,7 +281,7 @@ export function regularity(stats: CycleStats): { label: string; note: string; va
   const avg = mean(lens);
   const variation = Math.sqrt(mean(lens.map((l) => (l - avg) ** 2)));
   if (variation <= 2)
-    return { label: 'Very regular', note: 'Your cycles vary by a day or two - textbook regular.', variation };
+    return { label: 'Very regular', note: 'Your cycles vary by a day or two. Textbook regular.', variation };
   if (variation <= 4)
     return { label: 'Regular', note: 'Small cycle-to-cycle variation is completely normal.', variation };
   if (variation <= 7)

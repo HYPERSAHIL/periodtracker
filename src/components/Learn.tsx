@@ -45,7 +45,7 @@ export default function Learn(p: AppProps) {
             {marked ? '★ Bookmarked' : '☆ Bookmark'}
           </button>
           <p className="hint" style={{ marginTop: 12 }}>
-            Educational only - not medical advice, diagnosis, or contraception guidance.
+            Educational only, not medical advice, diagnosis, or contraception guidance.
           </p>
         </div>
       </>
@@ -57,7 +57,7 @@ export default function Learn(p: AppProps) {
       <>
         <button className="btn ghost sm" style={{ marginBottom: 12 }} onClick={() => setView({ kind: 'home' })}>← All topics</button>
         <div className="card">
-          <h3>Trying to conceive - the essentials</h3>
+          <h3>Trying to conceive: the essentials</h3>
           {TTC_CARDS.map((c) => (
             <div key={c.slug} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
               <div style={{ fontWeight: 800, fontSize: 14.5 }}>{c.title}</div>
@@ -77,12 +77,12 @@ export default function Learn(p: AppProps) {
         <div className="card">
           <h3>Perimenopause relief guides</h3>
           <p className="hint" style={{ margin: '0 0 10px' }}>
-            Self-care ideas and questions to bring to a clinician - by symptom domain. This is a burden-and-relief view, never a stage or diagnosis.
+            Self-care ideas and questions to bring to a clinician, by symptom domain. This is a burden-and-relief view, never a stage or diagnosis.
           </p>
           {PERI_RELIEF.map((g) => (
             <details key={g.slug} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
               <summary style={{ fontWeight: 800, fontSize: 14.5, cursor: 'pointer' }}>
-                {g.domain} - {g.title}
+                {g.domain}, {g.title}
               </summary>
               <p style={{ fontSize: 13.5, margin: '8px 0 4px', fontWeight: 700 }}>Try now</p>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: 'var(--text-2)' }}>
@@ -197,7 +197,7 @@ export default function Learn(p: AppProps) {
         <button className="topic-row" onClick={() => setView({ kind: 'ttc' })}>
           <span className="tr-main">
             <span className="tr-title">🌱 Trying to conceive</span>
-            <span className="tr-sub">6 essentials - timing, tests, folic acid, when to seek help</span>
+            <span className="tr-sub">6 essentials: timing, tests, folic acid, when to seek help</span>
           </span>
           <span aria-hidden>›</span>
         </button>

@@ -25,8 +25,8 @@ export const ARTICLES: Article[] = [
       'A menstrual cycle runs from the first day of one period to the first day of the next. Although everyone talks about "28 days", normal cycles span roughly 21 to 35 days in adults, and small month-to-month changes are expected.',
       'The menstrual phase is the bleeding itself, typically 2 to 7 days, driven by the lining of the uterus shedding.',
       'The follicular phase overlaps your period and continues after it: the brain sends FSH to the ovaries, follicles mature, and rising estrogen rebuilds the uterine lining. Many people notice steadily rising energy through this phase.',
-      'Ovulation is the release of an egg, usually about 14 days before the next period - not 14 days after the previous one, which is why cycle-length changes mostly shift ovulation earlier or later while the second half stays steadier.',
-      'The luteal phase follows: progesterone rises then falls, and its withdrawal is what starts the next period. This is when PMS symptoms - tender breasts, cramps, mood shifts - are most common.',
+      'Ovulation is the release of an egg, usually about 14 days before the next period, not 14 days after the previous one, which is why cycle-length changes mostly shift ovulation earlier or later while the second half stays steadier.',
+      'The luteal phase follows: progesterone rises then falls, and its withdrawal is what starts the next period. This is when PMS symptoms, like tender breasts, cramps, mood shifts, are most common.',
     ],
   },
   {
@@ -38,7 +38,7 @@ export const ARTICLES: Article[] = [
     body: [
       'A cycle that arrives a few days early or late is usually just a normal cycle. Stress, illness, travel, big sleep changes, intense exercise, and weight shifts all nudge cycle length.',
       'Variation of up to about 7-9 days between cycles is common, especially in the first years after menarche and during the approach to menopause.',
-      'Cycles that consistently fall outside 21-35 days, stop for 3+ months without pregnancy, or come with very heavy or long bleeding are worth a clinician conversation - not as an emergency, but as a pattern worth naming.',
+      'Cycles that consistently fall outside 21-35 days, stop for 3+ months without pregnancy, or come with very heavy or long bleeding are worth a clinician conversation. Not as an emergency, but as a pattern worth naming.',
       'The Insights tab tracks your own variation (± days across your recent cycles), which is far more useful than any population average.',
     ],
   },
@@ -49,8 +49,8 @@ export const ARTICLES: Article[] = [
     minutes: 3,
     source: 'ASRM / ACOG',
     body: [
-      'The fertile window is the stretch of days in each cycle when intercourse can lead to pregnancy - roughly the 5 days before ovulation, ovulation day itself, and the day after. Sperm survive up to five days; the egg lives about a day.',
-      'Apps estimate this window with the calendar method: ovulation is assumed to happen about 14 days before the next period. That is an average, not a promise - which is why predictions here are labeled estimates.',
+      'The fertile window is the stretch of days in each cycle when intercourse can lead to pregnancy, roughly the 5 days before ovulation, ovulation day itself, and the day after. Sperm survive up to five days; the egg lives about a day.',
+      'Apps estimate this window with the calendar method: ovulation is assumed to happen about 14 days before the next period. That is an average, not a promise. This is why predictions here are labeled estimates.',
       'If you are trying to conceive, timing intercourse every 1-2 days within the window is the standard advice. Ovulation (LH) tests detect the hormone surge that precedes ovulation by about a day; cervical mucus that is clear and stretchy like egg white is another classic sign.',
       'None of these signs are contraception. Fertility awareness for avoiding pregnancy requires dedicated training and strict rules, and typical-use failure rates are high.',
     ],
@@ -75,10 +75,10 @@ export const ARTICLES: Article[] = [
     minutes: 3,
     source: 'NIA',
     body: [
-      'Perimenopause is the years-long transition before menopause, usually starting in the 40s. Hormone levels become uneven rather than simply low - which is why cycles often become unpredictable in new ways: shorter, longer, heavier, lighter, or skipped for months.',
+      'Perimenopause is the years-long transition before menopause, usually starting in the 40s. Hormone levels become uneven rather than simply low, which is why cycles often become unpredictable in new ways: shorter, longer, heavier, lighter, or skipped for months.',
       'Common companions include hot flashes, night sweats, sleep disruption, mood changes, and brain fog. Their intensity varies enormously between people.',
       'Menopause itself is defined retrospectively: 12 consecutive months without a period. Until then, pregnancy is still possible.',
-      'Bleeding after several months without a period, very heavy bleeding, or bleeding between periods should always be reported to a clinician - most causes are benign and treatable, but they deserve a check.',
+      'Bleeding after several months without a period, very heavy bleeding, or bleeding between periods should always be reported to a clinician. Most causes are benign and treatable, but they deserve a check.',
       'Perimenopause mode in this app emphasizes gaps between periods and symptom burden rather than predicting your next period, because "regular" no longer applies.',
     ],
   },
@@ -90,8 +90,8 @@ export const ARTICLES: Article[] = [
     source: 'FDA',
     body: [
       'Home pregnancy tests detect hCG, a hormone that rises quickly after implantation. Most tests claim accuracy from the day of your expected period; testing earlier risks a false negative because hCG has not risen enough.',
-      'A faint line is usually a positive - but retest in 48 hours; a healthy early pregnancy should produce a visibly darker line as hCG doubles roughly every two days.',
-      'Morning urine is most concentrated and slightly more reliable early on. Read the result within the window in the instructions, not hours later - evaporation lines can masquerade as faint positives.',
+      'A faint line is usually a positive, but retest in 48 hours; a healthy early pregnancy should produce a visibly darker line as hCG doubles roughly every two days.',
+      'Morning urine is most concentrated and slightly more reliable early on. Read the result within the window in the instructions, not hours later. Evaporation lines can masquerade as faint positives.',
       'If a test is negative but your period still does not arrive, retest after a few days. Persistent missed periods with negative tests deserve a clinician visit.',
     ],
   },
@@ -103,7 +103,7 @@ export const ARTICLES: Article[] = [
     source: 'ACOG',
     body: [
       'Primary menstrual cramps come from uterine contractions driven by prostaglandins. They typically peak in the first 1-2 days of a period.',
-      'Evidence-backed comfort measures: heat on the lower abdomen or back, regular exercise, adequate sleep, and NSAIDs like ibuprofen taken early - they work best started as cramps begin, because they block prostaglandin production.',
+      'Evidence-backed comfort measures: heat on the lower abdomen or back, regular exercise, adequate sleep, and NSAIDs like ibuprofen taken early. They work best started as cramps begin, because they block prostaglandin production.',
       'Cramps that stop you from normal activities, worsen over years, or come with pain at other times of the cycle deserve evaluation: endometriosis, fibroids, and adenomyosis are common and treatable causes that are often dismissed too long.',
     ],
   },
@@ -114,9 +114,9 @@ export const ARTICLES: Article[] = [
     minutes: 3,
     source: 'ACOG / NIA',
     body: [
-      'PMS affects many people in the luteal phase - tender breasts, cramps, mood shifts, and irritability that ease shortly after bleeding starts. PMDD is a rarer, more severe pattern affecting about 3-8% of people: markedly depressed mood, anxiety, irritability or anger in the week before menses, with clear relief after onset and real impact on work or relationships.',
+      'PMS affects many people in the luteal phase, with tender breasts, cramps, mood shifts, and irritability that ease shortly after bleeding starts. PMDD is a rarer, more severe pattern affecting about 3-8% of people: markedly depressed mood, anxiety, irritability or anger in the week before menses, with clear relief after onset and real impact on work or relationships.',
       'The distinction is not intensity alone but timing and function. Tracking daily for two cycles is the standard clinical starting point: log mood and physical symptoms each day, note impact on routine (none/some/a lot), and mark when bleeding starts. The app marks your luteal days and surfaces any symptom that clusters there.',
-      'If mood dips, anxiety, or weepiness reliably appear 7-10 days before bleeding and clear after day 2, bring the two-month log to a clinician. Effective options exist - from cycle-aware coping and CBT techniques to SSRI or hormonal approaches - but the log is what makes the conversation specific instead of vague.',
+      'If mood dips, anxiety, or weepiness reliably appear 7-10 days before bleeding and clear after day 2, bring the two-month log to a clinician. Effective options exist, from cycle-aware coping and CBT techniques to SSRI or hormonal approaches, but the log is what makes the conversation specific instead of vague.',
       'This information is educational and does not diagnose. If you ever feel unsafe with your thoughts, contact a crisis line in Settings → Need support now?',
     ],
   },
@@ -128,7 +128,7 @@ export const ARTICLES: Article[] = [
     source: 'ACOG',
     body: [
       'If your cycles run 21-35 days as an adult, small shifts are expected. Irregularity that matters clinically is persistent: intervals routinely outside 21-35 days, variation >7-9 days, or gaps of 3+ months without pregnancy.',
-      'For irregular cycles, predictions are estimates with a wider ± window - derived from your own variation - not promises. The most useful log is not just bleeding dates but what surrounded them: sleep shifts, stress, illness, travel, exercise, and medication changes.',
+      'For irregular cycles, predictions are estimates with a wider ± window, derived from your own variation, not promises. The most useful log is not just bleeding dates but what surrounded them: sleep shifts, stress, illness, travel, exercise, and medication changes.',
       'Perimenopause intentionally widens the focus: rather than "when is the next period," the app highlights gaps between bleeds and symptom burden over the last 30 days. Flo and Clue are repeatedly criticized for treating every variation as a failure; this app treats variation as data.',
       'Bring 3-6 months of logged bleeding + symptoms to any appointment about irregularity, PCOS evaluation, or perimenopause. Dates with heaviness and any intermenstrual spotting matter more than an average cycle number.',
     ],
@@ -140,9 +140,9 @@ export const ARTICLES: Article[] = [
     minutes: 2,
     source: '-',
     body: [
-      'Your logs live on your device and are backed up automatically to your private cloud space - no ads, no analytics, no data sale, ever.',
+      'Your logs live on your device and are backed up automatically to your private cloud space. No ads, no analytics, no data sale, ever.',
       'If you clear the app data or switch devices, signing in (or your backup code) brings everything back. You can also export a file backup any time from Settings.',
-      'The optional app PIN keeps the app private on a shared device - handy, simple, and easy to turn on or off.',
+      'The optional app PIN keeps the app private on a shared device. Handy, simple, and easy to turn on or off.',
     ],
   },
 ];
@@ -164,7 +164,7 @@ export const TTC_CARDS: TtcCard[] = [
   {
     slug: 'ttc-opk',
     title: 'OPKs detect the LH surge, not release',
-    body: 'A positive ovulation test means ovulation is likely within about 36 hours - it does not confirm the egg was released. Test mid-morning to early evening, and reduce fluids beforehand.',
+    body: 'A positive ovulation test means ovulation is likely within about 36 hours. It does not confirm the egg was released. Test mid-morning to early evening, and reduce fluids beforehand.',
     source: 'FDA',
   },
   {
@@ -176,13 +176,13 @@ export const TTC_CARDS: TtcCard[] = [
   {
     slug: 'ttc-negative',
     title: 'Early negatives are normal',
-    body: 'Testing before your missed period often shows negative even during pregnancy - hCG needs time to rise. Retest every 2 days; a faint line counts, and should darken.',
+    body: 'Testing before your missed period often shows negative even during pregnancy. hCG needs time to rise. Retest every 2 days; a faint line counts, and should darken.',
     source: 'FDA',
   },
   {
     slug: 'ttc-folic',
     title: 'Start folic acid before conceiving',
-    body: 'Public-health guidance recommends 400 mcg of folic acid daily starting at least a month before trying to conceive, because the neural tube closes very early - often before a positive test.',
+    body: 'Public-health guidance recommends 400 mcg of folic acid daily starting at least a month before trying to conceive, because the neural tube closes very early, often before a positive test.',
     source: 'CDC',
   },
   {
@@ -207,7 +207,7 @@ export const PERI_RELIEF: ReliefGuide[] = [
     slug: 'peri-hot-flashes',
     domain: 'Hot flashes',
     title: 'When heat waves hit',
-    tryNow: ['Dress in layers you can shed fast', 'Keep the bedroom cool and use breathable bedding', 'Note triggers - spicy food, alcohol, and stress are common ones'],
+    tryNow: ['Dress in layers you can shed fast', 'Keep the bedroom cool and use breathable bedding', 'Note triggers, like spicy food, alcohol, and stress are common ones'],
     askAbout: ['Whether non-hormonal prescription options make sense for you', 'Whether your hot-flash pattern or night versions are affecting sleep enough to treat'],
     source: 'NIA',
   },
@@ -223,32 +223,32 @@ export const PERI_RELIEF: ReliefGuide[] = [
     slug: 'peri-focus',
     domain: 'Thinking & focus',
     title: 'Brain fog is real (and usually temporary)',
-    tryNow: ['Offload memory: lists, calendars, one place for keys', 'Protect sleep and aerobic exercise - both measurably help cognition', 'Reduce multitasking; fog worsens with divided attention'],
-    askAbout: ['Whether thyroid or sleep issues could be contributing', 'Whether your fog correlates with the worst sleep weeks - tracking helps spot this'],
+    tryNow: ['Offload memory: lists, calendars, one place for keys', 'Protect sleep and aerobic exercise, both measurably help cognition', 'Reduce multitasking; fog worsens with divided attention'],
+    askAbout: ['Whether thyroid or sleep issues could be contributing', 'Whether your fog correlates with the worst sleep weeks, tracking helps spot this'],
     source: 'NIA',
   },
   {
     slug: 'peri-mood',
     domain: 'Mood',
     title: 'Mood swings and the transition',
-    tryNow: ['Track mood alongside cycle chaos - seeing patterns reduces the "random" feeling', 'Regular movement and daylight exposure blunt mood dips for many people', 'Name it to people close to you; support helps more than silence'],
-    askAbout: ['Whether mood changes warrant treatment in their own right', 'A history of depression reacting to hormonal shifts - it changes the options'],
+    tryNow: ['Track mood alongside cycle chaos, seeing patterns reduces the "random" feeling', 'Regular movement and daylight exposure blunt mood dips for many people', 'Name it to people close to you; support helps more than silence'],
+    askAbout: ['Whether mood changes warrant treatment in their own right', 'A history of depression reacting to hormonal shifts, it changes the options'],
     source: 'NIA / OWH',
   },
   {
     slug: 'peri-body',
     domain: 'Body & joints',
     title: 'Aches that showed up uninvited',
-    tryNow: ['Strength training twice a week - muscle guards joints and bone', 'Keep moving; long stillness usually stiffens joints more', 'Warm baths and heat for flare days'],
-    askAbout: ['Whether joint pain is hormone-related versus arthritis - the treatments differ', 'Bone-density screening if you have risk factors'],
+    tryNow: ['Strength training twice a week, muscle guards joints and bone', 'Keep moving; long stillness usually stiffens joints more', 'Warm baths and heat for flare days'],
+    askAbout: ['Whether joint pain is hormone-related versus arthritis, the treatments differ', 'Bone-density screening if you have risk factors'],
     source: 'NIA',
   },
   {
     slug: 'peri-bleeding',
     domain: 'Cycle & bleeding',
     title: 'When bleeding changes, report it',
-    tryNow: ['Log every bleed - dates, heaviness, clots; details make clinic visits far more useful', 'Keep iron-rich foods in rotation during heavy stretches'],
-    askAbout: ['Any bleeding after 3+ months without a period', 'Periods lasting past 7 days, flooding, or clots larger than a grape - all standard reasons to get checked'],
+    tryNow: ['Log every bleed, dates, heaviness, clots; details make clinic visits far more useful', 'Keep iron-rich foods in rotation during heavy stretches'],
+    askAbout: ['Any bleeding after 3+ months without a period', 'Periods lasting past 7 days, flooding, or clots larger than a grape, all standard reasons to get checked'],
     source: 'ACOG',
   },
 ];
@@ -267,7 +267,7 @@ export const PREG_CHECKLISTS: PregnancyChecklistGroup[] = [
       { id: 'start-vitamins', text: 'Prenatal vitamin with 400+ mcg folic acid, if not already taking one' },
       { id: 'start-book', text: 'Book your first prenatal appointment (typically weeks 8-10)' },
       { id: 'start-review', text: 'Review current medications and supplements with a clinician' },
-      { id: 'start-dates', text: 'Note the first day of your last period - dating starts there' },
+      { id: 'start-dates', text: 'Note the first day of your last period, dating starts there' },
     ],
   },
   {
@@ -277,7 +277,7 @@ export const PREG_CHECKLISTS: PregnancyChecklistGroup[] = [
       { id: 't1-water', text: 'Small, frequent meals and fluids for nausea' },
       { id: 't1-avoid', text: 'Alcohol, smoking, and high-mercury fish off the list' },
       { id: 't1-screen', text: 'Discuss screening options with your clinician' },
-      { id: 't1-rest', text: 'Rest without guilt - first-trimester fatigue is hormonal, not laziness' },
+      { id: 't1-rest', text: 'Rest without guilt, first-trimester fatigue is hormonal, not laziness' },
     ],
   },
   {
@@ -305,17 +305,17 @@ export const PREG_CHECKLISTS: PregnancyChecklistGroup[] = [
 export const PREG_FAQS: { q: string; a: string; source: string }[] = [
   {
     q: 'How is my due date calculated?',
-    a: 'From the first day of your last period, counting 40 weeks - not from conception, which is typically around week 2 of that count. A first-trimester ultrasound is more accurate and can shift the date.',
+    a: 'From the first day of your last period, counting 40 weeks, not from conception, which is typically around week 2 of that count. A first-trimester ultrasound is more accurate and can shift the date.',
     source: 'ACOG',
   },
   {
     q: 'Is spotting in early pregnancy normal?',
-    a: 'Light spotting affects many pregnancies and often resolves on its own - but report any bleeding to your maternity team so they can rule out causes that need action.',
+    a: 'Light spotting affects many pregnancies and often resolves on its own, but report any bleeding to your maternity team so they can rule out causes that need action.',
     source: 'ACOG',
   },
   {
     q: 'Can I keep exercising?',
-    a: 'For most pregnancies, yes - moderate activity is encouraged. Contact sports, heavy lifting, and anything with fall risk are the usual exclusions. When in doubt, ask.',
+    a: 'For most pregnancies, yes, moderate activity is encouraged. Contact sports, heavy lifting, and anything with fall risk are the usual exclusions. When in doubt, ask.',
     source: 'ACOG',
   },
   {
@@ -325,7 +325,7 @@ export const PREG_FAQS: { q: string; a: string; source: string }[] = [
   },
   {
     q: 'When should I call immediately?',
-    a: 'Heavy bleeding, severe or one-sided pain, fever, severe headache with vision changes, sudden swelling, or your water breaking - these warrant same-day contact.',
+    a: 'Heavy bleeding, severe or one-sided pain, fever, severe headache with vision changes, sudden swelling, or your water breaking, these warrant same-day contact.',
     source: 'ACOG',
   },
   {

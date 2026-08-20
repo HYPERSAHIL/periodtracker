@@ -40,9 +40,9 @@ export default function PinGate({ pinHash, pinSalt, onUnlocked }: { pinHash: str
         aria-label="PIN"
         style={wrong ? { borderColor: 'var(--danger)' } : undefined}
       />
-      {wrong && <p style={{ color: 'var(--danger)', fontSize: 12.5, fontWeight: 700 }}>Wrong PIN - try again</p>}
+      {wrong && <p style={{ color: 'var(--danger)', fontSize: 12.5, fontWeight: 700 }}>Wrong PIN. Try again</p>}
       <p className="hint" style={{ marginTop: 16, maxWidth: 260, textAlign: 'center' }}>
-        Forgot your PIN? Clearing the app's site data resets it - then sign in to restore your data.
+        Forgot your PIN? Clearing the app's site data resets it. Then sign in to restore your data.
       </p>
     </div>
   );
