@@ -77,7 +77,7 @@ export default function Learn(p: AppProps) {
         <div className="card">
           <h3>Perimenopause relief guides</h3>
           <p className="hint" style={{ margin: '0 0 10px' }}>
-            Self-care ideas and questions to bring to a clinician, by symptom domain. This is a burden-and-relief view, never a stage or diagnosis.
+            Self care ideas and questions to bring to a clinician, by symptom domain. This is a burden-and-relief view, never a stage or diagnosis.
           </p>
           {PERI_RELIEF.map((g) => (
             <details key={g.slug} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
@@ -211,7 +211,7 @@ export default function Learn(p: AppProps) {
         <button className="topic-row" onClick={() => setView({ kind: 'peri' })}>
           <span className="tr-main">
             <span className="tr-title">🍂 Perimenopause relief</span>
-            <span className="tr-sub">Self-care and clinician questions by symptom domain</span>
+            <span className="tr-sub">Self care and clinician questions by symptom domain</span>
           </span>
           <span aria-hidden>›</span>
         </button>

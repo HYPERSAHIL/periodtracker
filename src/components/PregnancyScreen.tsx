@@ -14,7 +14,7 @@ export default function PregnancyScreen(p: AppProps) {
           <strong>Pregnancy mode is on</strong>
           <br />
           <br />
-          Add your due date in <strong>Settings → Mode</strong> to start week-by-week tracking.
+          Add your due date in <strong>Settings → Mode</strong> to start week by week tracking.
         </div>
       </div>
     );

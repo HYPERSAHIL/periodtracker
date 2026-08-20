@@ -193,7 +193,7 @@ export default function DaySheet({
             <button type="button" className={`chip${d.checkedIn ? ' on' : ''}`} onClick={() => set({ checkedIn: !d.checkedIn })}>
               ✓ I checked in today. This reflects how I felt
             </button>
-            <p className="hint">Explicit check-ins make your insights trustworthy: a missing day means “forgot”, not “felt fine”.</p>
+            <p className="hint">Explicit check ins make your insights trustworthy: a missing day means “forgot”, not “felt fine”.</p>
           </div>
         );
       case 'symptoms':

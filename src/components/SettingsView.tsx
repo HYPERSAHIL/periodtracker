@@ -109,7 +109,7 @@ export default function SettingsView(p: AppProps) {
               onChange={(e) => updateSettings({ dueDate: e.target.value || null })}
             />
             {settings.dueDate && (
-              <p className="hint">Week-by-week tracking runs from this date ({prettyDate(settings.dueDate, { withYear: true })}).</p>
+              <p className="hint">Week by week tracking runs from this date ({prettyDate(settings.dueDate, { withYear: true })}).</p>
             )}
           </div>
         )}
@@ -232,14 +232,14 @@ export default function SettingsView(p: AppProps) {
             </div>
             <div className="set-row">
               <div>
-                <div className="t">Daily check-in nudge</div>
+                <div className="t">Daily check in nudge</div>
                 <div className="d">Evening reminder to log today, only if you haven't checked in</div>
               </div>
               <button
                 className={`switch${settings.notifyDailyCheckin ? ' on' : ''}`}
                 role="switch"
                 aria-checked={settings.notifyDailyCheckin}
-                aria-label="Daily check-in nudge"
+                aria-label="Daily check in nudge"
                 onClick={() => updateSettings({ notifyDailyCheckin: !settings.notifyDailyCheckin })}
               />
             </div>

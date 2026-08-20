@@ -195,7 +195,7 @@ export const MOODS: { id: string; emoji: string }[] = [
 export const MODE_INFO: Record<Mode, { label: string; blurb: string; emoji: string }> = {
   cycle: { label: 'Track my cycle', blurb: 'Periods, symptoms, and predictions', emoji: '🌸' },
   ttc: { label: 'Trying to conceive', blurb: 'Fertility signs, ovulation tests, fertile days', emoji: '🌱' },
-  pregnant: { label: "I'm pregnant", blurb: 'Week-by-week tracking until due date', emoji: '🤰' },
+  pregnant: { label: "I'm pregnant", blurb: 'Week by week tracking until due date', emoji: '🤰' },
   perimenopause: { label: 'Perimenopause', blurb: 'Irregular cycles and changing symptoms', emoji: '🍂' },
 };
 
@@ -213,7 +213,7 @@ export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal:
 
 export type Tab = 'home' | 'calendar' | 'insights' | 'learn' | 'settings';
 
-export const APP_VERSION = '2.7.3';
+export const APP_VERSION = '2.7.4';
 
 /** Logging sheet sections - ids are stable and persisted in trackerOrder/trackerHidden. */
 export interface TrackerSectionDef {

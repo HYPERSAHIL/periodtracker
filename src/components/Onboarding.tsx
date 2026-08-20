@@ -119,7 +119,7 @@ export default function Onboarding({
           <h2>When is the baby due?</h2>
           <p className="lead">
             Period predictions pause automatically during pregnancy. This app switches to
-            week-by-week tracking.
+            week by week tracking.
           </p>
           <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 18 }}>
             <button className={dueFromScan ? 'on' : ''} onClick={() => setDueFromScan(true)}>

@@ -118,12 +118,12 @@ export default function Dashboard(p: AppProps) {
           style={
             n.urgency === 'emergency'
               ? { background: 'var(--danger-bg)', borderColor: 'var(--danger)', color: 'var(--danger)' }
-              : n.urgency === 'same-day'
+              : n.urgency === 'same day'
                 ? { background: '#fff7ed', borderColor: '#f59e0b', color: '#9a3412' }
                 : undefined
           }
         >
-          <span aria-hidden>{n.urgency === 'emergency' ? '🚨' : n.urgency === 'same-day' ? '⚠️' : 'ℹ️'}</span>
+          <span aria-hidden>{n.urgency === 'emergency' ? '🚨' : n.urgency === 'same day' ? '⚠️' : 'ℹ️'}</span>
           <span>
             <strong>{n.headline}.</strong> {n.detail} <em>({n.source})</em>
           </span>
@@ -207,9 +207,9 @@ export default function Dashboard(p: AppProps) {
               </p>
               <p style={{ margin: 0 }}>
                 {!settings.showFertileWindow
-                  ? 'Fertile-window estimates are hidden. Turn them on in Settings → Display if you want to see them.'
+                  ? 'Fertile window estimates are hidden. Turn them on in Settings → Display if you want to see them.'
                   : stats.fertileSuppressed
-                    ? 'Fertile-window and ovulation estimates are hidden because a hormonal contraception method is active.'
+                    ? 'Fertile window and ovulation estimates are hidden because a hormonal contraception method is active.'
                     : stats.ovuEvidenceCount > 0
                       ? `Ovulation is placed ${stats.lutealLength} days before the next period, learned from your own ${stats.ovuEvidenceCount} positive LH test(s), not a fixed average.`
                       : 'Ovulation is assumed ~14 days before the next period (calendar method). Log LH tests to personalize this.'}

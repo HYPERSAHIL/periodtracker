@@ -53,7 +53,7 @@ export function windowStats(lengths: number[], windowSize: 6 | 12): WindowStats 
   };
 }
 
-/** Share of days since the first log that have any entry or explicit check-in. */
+/** Share of days since the first log that have any entry or explicit check in. */
 export function trackingCompleteness(entries: Record<string, DayEntry>): { pct: number; logged: number; total: number } {
   const dates = Object.keys(entries).sort();
   if (dates.length === 0) return { pct: 0, logged: 0, total: 0 };
@@ -157,14 +157,14 @@ export function patternCards(
         cards.push({
           id: `luteal-${s}`,
           title: `${s} clusters before your period`,
-          detail: `${s} appeared in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. Recognizable PMS-style patterns like this are often manageable - and easier to discuss with a clinician when you can show the data.`,
+          detail: `${s} appeared in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. Recognizable PMS style patterns like this are often manageable - and easier to discuss with a clinician when you can show the data.`,
         });
         break; // one card is enough signal
       }
     }
   }
 
-  // PMDD-adjacent mood clustering: luteal mood in ≥60% of recent cycles (non-diagnostic)
+  // PMDD adjacent mood clustering: luteal mood in ≥60% of recent cycles (non-diagnostic)
   if (recentStarts.length >= 3) {
     const pmddMoods = new Set(['Anxious', 'Irritable', 'Sad', 'Weepy', 'Angry', 'Numb', 'Stressed', 'Sensitive']);
     const tallyMood = new Map<string, { cycles: number; total: number }>();
@@ -210,7 +210,7 @@ export function patternCards(
       cards.push({
         id: 'peri-burden',
         title: 'High symptom burden this month',
-        detail: `${burden} of the last ${days30.length} logged days included perimenopause-typical symptoms. This is a burden snapshot, not a stage or diagnosis - but it is exactly the kind of summary worth bringing to an appointment.`,
+        detail: `${burden} of the last ${days30.length} logged days included perimenopause typical symptoms. This is a burden snapshot, not a stage or diagnosis - but it is exactly the kind of summary worth bringing to an appointment.`,
       });
     }
   }

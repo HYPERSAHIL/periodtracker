@@ -108,9 +108,9 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
 
         {sections.symptoms && (
           <>
-            <h3>Most-logged symptoms</h3>
+            <h3>Most logged symptoms</h3>
             <p>{symptoms.length ? symptoms.map((s) => `${s.name} (${s.count})`).join(', ') : 'None logged'}</p>
-            <h3>Most-logged moods</h3>
+            <h3>Most logged moods</h3>
             <p>{moods.length ? moods.map((s) => `${s.name} (${s.count})`).join(', ') : 'None logged'}</p>
           </>
         )}
@@ -158,7 +158,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
         )}
 
         <p className="footnote">
-          Patient-generated using a local-first tracking app. Estimates use the calendar method and are not clinical
+          Patient generated using a local first tracking app. Estimates use the calendar method and are not clinical
           measurements. Predictions are informational, not diagnostic.
         </p>
       </div>

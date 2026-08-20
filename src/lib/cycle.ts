@@ -66,7 +66,7 @@ function median(values: number[]): number {
 /**
  * Weighted median - the value where cumulative weight crosses half the total.
  * Used with exponential recency weights so recent cycles steer the forecast
- * (finding from Bayesian cycle-length models, Urteaga et al. 2021).
+ * (finding from Bayesian cycle length models, Urteaga et al. 2021).
  */
 function weightedMedian(values: number[], weights: number[]): number {
   if (!values.length) return 0;
@@ -283,7 +283,7 @@ export function regularity(stats: CycleStats): { label: string; note: string; va
   if (variation <= 2)
     return { label: 'Very regular', note: 'Your cycles vary by a day or two. Textbook regular.', variation };
   if (variation <= 4)
-    return { label: 'Regular', note: 'Small cycle-to-cycle variation is completely normal.', variation };
+    return { label: 'Regular', note: 'Small cycle to cycle variation is completely normal.', variation };
   if (variation <= 7)
     return { label: 'Slightly irregular', note: 'Some variation is normal. Stress, travel, sleep and illness all play a role.', variation };
   return {

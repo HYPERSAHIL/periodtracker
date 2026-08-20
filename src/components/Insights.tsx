@@ -129,7 +129,7 @@ export default function Insights(p: AppProps) {
           <span>Completeness</span><strong>{comp.pct}% of days</strong>
         </div>
         {comp.total > 0 && (
-          <p className="hint">{comp.logged} of {comp.total} days since your first log have an entry. Explicit daily check-ins improve phase analysis.</p>
+          <p className="hint">{comp.logged} of {comp.total} days since your first log have an entry. Explicit daily check ins improve phase analysis.</p>
         )}
       </div>
 
@@ -151,7 +151,7 @@ export default function Insights(p: AppProps) {
         <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--rose-600)' }}>{reg.label}</div>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '6px 0 0' }}>{reg.note}</p>
         {reg.variation !== null && (
-          <p className="hint">Cycle-to-cycle variation: ±{reg.variation.toFixed(1)} days (last {Math.min(6, stats.cycleLengths.length)} cycles)</p>
+          <p className="hint">Cycle to cycle variation: ±{reg.variation.toFixed(1)} days (last {Math.min(6, stats.cycleLengths.length)} cycles)</p>
         )}
       </div>
 
@@ -203,7 +203,7 @@ export default function Insights(p: AppProps) {
             format={(v) => (settings.tempUnit === 'F' ? round2((v * 9) / 5 + 32).toFixed(1) : v.toFixed(1))}
           />
           <p className="hint" style={{ textAlign: 'center' }}>
-            A sustained rise of ~0.2-0.5°C after ovulation is the classic post-ovulatory shift.
+            A sustained rise of ~0.2-0.5°C after ovulation is the classic post ovulatory shift.
           </p>
         </div>
       )}
@@ -244,17 +244,17 @@ export default function Insights(p: AppProps) {
                   ? ph.topSymptoms.length
                     ? ph.topSymptoms.map((s) => `${s.name} ×${s.count}`).join(' · ')
                     : 'no symptoms logged'
-                  : 'no check-ins'}
+                  : 'no check ins'}
               </span>
             </div>
           ))}
-          <p className="hint">Counted only on days with an explicit check-in, so silent days don't dilute the picture.</p>
+          <p className="hint">Counted only on days with an explicit check in, so silent days don't dilute the picture.</p>
         </div>
       )}
 
       {symptoms.length > 0 && (
         <div className="card">
-          <h3>Most-logged symptoms</h3>
+          <h3>Most logged symptoms</h3>
           {symptoms.map((s) => (
             <div key={s.name} className="freq-row">
               <div className="name">{s.name}</div>
@@ -267,7 +267,7 @@ export default function Insights(p: AppProps) {
 
       {moods.length > 0 && (
         <div className="card">
-          <h3>Most-logged moods</h3>
+          <h3>Most logged moods</h3>
           {moods.map((m) => (
             <div key={m.name} className="freq-row">
               <div className="name">{m.name}</div>

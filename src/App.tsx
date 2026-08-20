@@ -87,7 +87,7 @@ export default function App() {
   const stats = useMemo(() => computeStats(entries, settings), [entries, settings]);
   const facts = useMemo(() => buildFacts(entries, stats), [entries, stats]);
 
-  // Granular "while open" notifications, period / fertile / daily check-in, each once per day and respecting quiet hours.
+  // Granular "while open" notifications, period / fertile / daily check in, each once per day and respecting quiet hours.
   useEffect(() => {
     if (!settings.onboarded || !settings.reminders) return;
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
@@ -131,7 +131,7 @@ export default function App() {
       }
     }
 
-    // daily check-in nudge, evening, only if not already checked in today
+    // daily check in nudge, evening, only if not already checked in today
     if (settings.notifyDailyCheckin && lastNotifiedDaily() !== today) {
       const hr = new Date().getHours();
       if (hr >= 19) {
@@ -139,7 +139,7 @@ export default function App() {
         if (!e || !e.checkedIn) {
           try {
             new Notification('Period Tracker', {
-              body: 'Quick check-in? Log how today felt, 10 seconds.',
+              body: 'Quick check in? Log how today felt, 10 seconds.',
               icon: '/icons/icon-192.png',
               badge: '/icons/icon-192.png',
               tag: 'pt-daily',
@@ -287,7 +287,7 @@ export default function App() {
           }
         }
 
-        // daily check-in - repeating 20:00 if not quiet
+        // daily check in - repeating 20:00 if not quiet
         if (settings.notifyDailyCheckin) {
           const probe = new Date();
           probe.setHours(20, 0, 0, 0);
@@ -295,7 +295,7 @@ export default function App() {
             toSchedule.push({
               id: 4103,
               title: 'Period Tracker',
-              body: 'Quick check-in? Log how today felt.',
+              body: 'Quick check in? Log how today felt.',
               schedule: { on: { hour: 20, minute: 0 } },
               extra: { pt: true },
             } as unknown as typeof toSchedule[0]);

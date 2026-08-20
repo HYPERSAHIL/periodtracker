@@ -22,10 +22,10 @@ export const ARTICLES: Article[] = [
     minutes: 3,
     source: 'ACOG',
     body: [
-      'A menstrual cycle runs from the first day of one period to the first day of the next. Although everyone talks about "28 days", normal cycles span roughly 21 to 35 days in adults, and small month-to-month changes are expected.',
+      'A menstrual cycle runs from the first day of one period to the first day of the next. Although everyone talks about "28 days", normal cycles span roughly 21 to 35 days in adults, and small month to month changes are expected.',
       'The menstrual phase is the bleeding itself, typically 2 to 7 days, driven by the lining of the uterus shedding.',
       'The follicular phase overlaps your period and continues after it: the brain sends FSH to the ovaries, follicles mature, and rising estrogen rebuilds the uterine lining. Many people notice steadily rising energy through this phase.',
-      'Ovulation is the release of an egg, usually about 14 days before the next period, not 14 days after the previous one, which is why cycle-length changes mostly shift ovulation earlier or later while the second half stays steadier.',
+      'Ovulation is the release of an egg, usually about 14 days before the next period, not 14 days after the previous one, which is why cycle length changes mostly shift ovulation earlier or later while the second half stays steadier.',
       'The luteal phase follows: progesterone rises then falls, and its withdrawal is what starts the next period. This is when PMS symptoms, like tender breasts, cramps, mood shifts, are most common.',
     ],
   },
@@ -75,7 +75,7 @@ export const ARTICLES: Article[] = [
     minutes: 3,
     source: 'NIA',
     body: [
-      'Perimenopause is the years-long transition before menopause, usually starting in the 40s. Hormone levels become uneven rather than simply low, which is why cycles often become unpredictable in new ways: shorter, longer, heavier, lighter, or skipped for months.',
+      'Perimenopause is the years long transition before menopause, usually starting in the 40s. Hormone levels become uneven rather than simply low, which is why cycles often become unpredictable in new ways: shorter, longer, heavier, lighter, or skipped for months.',
       'Common companions include hot flashes, night sweats, sleep disruption, mood changes, and brain fog. Their intensity varies enormously between people.',
       'Menopause itself is defined retrospectively: 12 consecutive months without a period. Until then, pregnancy is still possible.',
       'Bleeding after several months without a period, very heavy bleeding, or bleeding between periods should always be reported to a clinician. Most causes are benign and treatable, but they deserve a check.',
@@ -116,7 +116,7 @@ export const ARTICLES: Article[] = [
     body: [
       'PMS affects many people in the luteal phase, with tender breasts, cramps, mood shifts, and irritability that ease shortly after bleeding starts. PMDD is a rarer, more severe pattern affecting about 3-8% of people: markedly depressed mood, anxiety, irritability or anger in the week before menses, with clear relief after onset and real impact on work or relationships.',
       'The distinction is not intensity alone but timing and function. Tracking daily for two cycles is the standard clinical starting point: log mood and physical symptoms each day, note impact on routine (none/some/a lot), and mark when bleeding starts. The app marks your luteal days and surfaces any symptom that clusters there.',
-      'If mood dips, anxiety, or weepiness reliably appear 7-10 days before bleeding and clear after day 2, bring the two-month log to a clinician. Effective options exist, from cycle-aware coping and CBT techniques to SSRI or hormonal approaches, but the log is what makes the conversation specific instead of vague.',
+      'If mood dips, anxiety, or weepiness reliably appear 7-10 days before bleeding and clear after day 2, bring the two-month log to a clinician. Effective options exist, from cycle aware coping and CBT techniques to SSRI or hormonal approaches, but the log is what makes the conversation specific instead of vague.',
       'This information is educational and does not diagnose. If you ever feel unsafe with your thoughts, contact a crisis line in Settings → Need support now?',
     ],
   },
@@ -134,7 +134,7 @@ export const ARTICLES: Article[] = [
     ],
   },
   {
-    slug: 'privacy-local-first',
+    slug: 'privacy-local first',
     title: 'Where your data actually lives',
     category: 'Privacy',
     minutes: 2,
@@ -164,7 +164,7 @@ export const TTC_CARDS: TtcCard[] = [
   {
     slug: 'ttc-opk',
     title: 'OPKs detect the LH surge, not release',
-    body: 'A positive ovulation test means ovulation is likely within about 36 hours. It does not confirm the egg was released. Test mid-morning to early evening, and reduce fluids beforehand.',
+    body: 'A positive ovulation test means ovulation is likely within about 36 hours. It does not confirm the egg was released. Test mid morning to early evening, and reduce fluids beforehand.',
     source: 'FDA',
   },
   {
@@ -204,11 +204,11 @@ export interface ReliefGuide {
 
 export const PERI_RELIEF: ReliefGuide[] = [
   {
-    slug: 'peri-hot-flashes',
+    slug: 'peri-hot flashes',
     domain: 'Hot flashes',
     title: 'When heat waves hit',
     tryNow: ['Dress in layers you can shed fast', 'Keep the bedroom cool and use breathable bedding', 'Note triggers, like spicy food, alcohol, and stress are common ones'],
-    askAbout: ['Whether non-hormonal prescription options make sense for you', 'Whether your hot-flash pattern or night versions are affecting sleep enough to treat'],
+    askAbout: ['Whether nonhormonal prescription options make sense for you', 'Whether your hot flash pattern or night versions are affecting sleep enough to treat'],
     source: 'NIA',
   },
   {
@@ -216,7 +216,7 @@ export const PERI_RELIEF: ReliefGuide[] = [
     domain: 'Sleep',
     title: 'Protecting sleep through the transition',
     tryNow: ['Keep a fixed wake time even after a rough night', 'Cut caffeine after noon and alcohol near bedtime', 'If you wake at 3 a.m. worried, keep lights low and try a boring task instead of scrolling'],
-    askAbout: ['Whether sleep changes are hormone-driven or a separate sleep issue', 'Cognitive behavioral therapy for insomnia (CBT-I) as a first-line option'],
+    askAbout: ['Whether sleep changes are hormone driven or a separate sleep issue', 'Cognitive behavioral therapy for insomnia (CBT-I) as a first-line option'],
     source: 'NIA',
   },
   {
@@ -240,14 +240,14 @@ export const PERI_RELIEF: ReliefGuide[] = [
     domain: 'Body & joints',
     title: 'Aches that showed up uninvited',
     tryNow: ['Strength training twice a week, muscle guards joints and bone', 'Keep moving; long stillness usually stiffens joints more', 'Warm baths and heat for flare days'],
-    askAbout: ['Whether joint pain is hormone-related versus arthritis, the treatments differ', 'Bone-density screening if you have risk factors'],
+    askAbout: ['Whether joint pain is hormone related versus arthritis, the treatments differ', 'Bone density screening if you have risk factors'],
     source: 'NIA',
   },
   {
     slug: 'peri-bleeding',
     domain: 'Cycle & bleeding',
     title: 'When bleeding changes, report it',
-    tryNow: ['Log every bleed, dates, heaviness, clots; details make clinic visits far more useful', 'Keep iron-rich foods in rotation during heavy stretches'],
+    tryNow: ['Log every bleed, dates, heaviness, clots; details make clinic visits far more useful', 'Keep iron rich foods in rotation during heavy stretches'],
     askAbout: ['Any bleeding after 3+ months without a period', 'Periods lasting past 7 days, flooding, or clots larger than a grape, all standard reasons to get checked'],
     source: 'ACOG',
   },
@@ -275,9 +275,9 @@ export const PREG_CHECKLISTS: PregnancyChecklistGroup[] = [
     title: 'First trimester',
     items: [
       { id: 't1-water', text: 'Small, frequent meals and fluids for nausea' },
-      { id: 't1-avoid', text: 'Alcohol, smoking, and high-mercury fish off the list' },
+      { id: 't1-avoid', text: 'Alcohol, smoking, and high mercury fish off the list' },
       { id: 't1-screen', text: 'Discuss screening options with your clinician' },
-      { id: 't1-rest', text: 'Rest without guilt, first-trimester fatigue is hormonal, not laziness' },
+      { id: 't1-rest', text: 'Rest without guilt, first trimester fatigue is hormonal, not laziness' },
     ],
   },
   {
@@ -305,7 +305,7 @@ export const PREG_CHECKLISTS: PregnancyChecklistGroup[] = [
 export const PREG_FAQS: { q: string; a: string; source: string }[] = [
   {
     q: 'How is my due date calculated?',
-    a: 'From the first day of your last period, counting 40 weeks, not from conception, which is typically around week 2 of that count. A first-trimester ultrasound is more accurate and can shift the date.',
+    a: 'From the first day of your last period, counting 40 weeks, not from conception, which is typically around week 2 of that count. A first trimester ultrasound is more accurate and can shift the date.',
     source: 'ACOG',
   },
   {
@@ -320,12 +320,12 @@ export const PREG_FAQS: { q: string; a: string; source: string }[] = [
   },
   {
     q: 'What foods should I avoid?',
-    a: 'The usual list: unpasteurized dairy, deli meats unless heated, high-mercury fish, and raw eggs/meat. Caffeine is usually capped around 200 mg per day.',
+    a: 'The usual list: unpasteurized dairy, deli meats unless heated, high mercury fish, and raw eggs/meat. Caffeine is usually capped around 200 mg per day.',
     source: 'CDC / FDA',
   },
   {
     q: 'When should I call immediately?',
-    a: 'Heavy bleeding, severe or one-sided pain, fever, severe headache with vision changes, sudden swelling, or your water breaking, these warrant same-day contact.',
+    a: 'Heavy bleeding, severe or one sided pain, fever, severe headache with vision changes, sudden swelling, or your water breaking, these warrant same day contact.',
     source: 'ACOG',
   },
   {
