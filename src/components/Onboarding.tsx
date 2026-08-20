@@ -4,6 +4,7 @@ import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
+import PhonePreview from './PhonePreview';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
 
@@ -45,7 +46,7 @@ export default function Onboarding({
       </div>
 
       {step === 0 && (
-        <>
+        <div className="onboard-step" key="s0">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
             <Logo size={56} />
             <div>
@@ -55,6 +56,9 @@ export default function Onboarding({
           <p className="lead">
             Track your cycle, predict your period and fertile window, and see your patterns. All of your data stays on your device.
           </p>
+
+          <PhonePreview />
+
           <h2 style={{ fontSize: 19, marginBottom: 6 }}>What brings you here?</h2>
           <p className="lead">You can switch modes anytime in Settings. Nothing is locked in.</p>
           <div className="mode-grid">
@@ -75,11 +79,11 @@ export default function Onboarding({
           <button className="btn primary" onClick={() => setStep(1)}>
             Continue
           </button>
-        </>
+        </div>
       )}
 
       {step === 1 && !isPregnant && (
-        <>
+        <div className="onboard-step" key="s1">
           <div className="steps">Step 2 of 3 · Your last period</div>
           <h2>When did your last period start?</h2>
           <p className="lead">
@@ -110,11 +114,11 @@ export default function Onboarding({
           <button className="btn primary" disabled={!dateOk(lastStart)} onClick={() => setStep(2)}>
             Continue
           </button>
-        </>
+        </div>
       )}
 
       {step === 1 && isPregnant && (
-        <>
+        <div className="onboard-step" key="s1p">
           <div className="steps">Step 2 of 2 · Your pregnancy</div>
           <h2>When is the baby due?</h2>
           <p className="lead">
@@ -161,11 +165,11 @@ export default function Onboarding({
           <button className="btn primary" disabled={!dateOk(dueDate)} onClick={() => setStep(accountStep)}>
             Continue
           </button>
-        </>
+        </div>
       )}
 
       {step === 2 && !isPregnant && (
-        <>
+        <div className="onboard-step" key="s2">
           <div className="steps">Step 3 of 3 · Your typical cycle</div>
           <h2>How long is your cycle?</h2>
           <p className="lead">
@@ -188,7 +192,7 @@ export default function Onboarding({
           <button className="btn primary" onClick={() => setStep(accountStep)}>
             Continue
           </button>
-        </>
+        </div>
       )}
 
       {step === accountStep && <AccountScreen user={null} onDone={finish} onSkip={finish} />}

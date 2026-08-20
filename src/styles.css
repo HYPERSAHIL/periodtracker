@@ -54,6 +54,10 @@
   --font-display: 'Playfair Display', Georgia, serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
   color-scheme: light;
 }
 
@@ -1844,4 +1848,153 @@ label.mini {
   color: var(--muted);
   margin: 14px 0 0;
   line-height: 1.5;
+}
+
+/* ---------- motion 2026 — onboarding + phone preview ---------- */
+.onboard-step {
+  animation: onboardIn 340ms var(--ease-out);
+}
+@keyframes onboardIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.mode-card, .stat, .card {
+  transition: transform 160ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mode-card:hover { transform: translateY(-1px); }
+}
+.mode-card:active, .btn:active, .chip:active, .flow-opt:active {
+  transform: scale(0.97);
+}
+.btn, .chip, .flow-opt, .cal-nav {
+  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out), border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+
+/* phone preview — auto-scrolling mock inside onboarding */
+.phone-preview {
+  width: 220px;
+  height: 460px;
+  margin: 18px auto 14px;
+  border: 10px solid #1A1A1E;
+  border-radius: 36px;
+  background: #0A0A0A;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.18), 0 8px 20px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  overflow: hidden;
+  position: relative;
+}
+.phone-preview::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 86px; height: 18px;
+  background: #1A1A1E;
+  border-radius: 0 0 14px 14px;
+  z-index: 3;
+}
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+}
+.phone-track {
+  display: flex;
+  flex-direction: column;
+  height: 300%;
+  animation: phoneScroll 9s var(--ease-in-out) infinite;
+}
+.phone-frame {
+  flex: 0 0 33.3333%;
+  padding: 18px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(180deg, #FFF8F7 0%, #FFFFFF 100%);
+}
+.phone-frame.m2 { background: linear-gradient(180deg, #FFF0F0 0%, #FFFFFF 100%); }
+.phone-frame.m3 { background: linear-gradient(180deg, #FCEAE9 0%, #FFFFFF 100%); }
+.phone-mini-hero {
+  background: linear-gradient(135deg, #FB7185, #E11D63 60%, #BE123C);
+  border-radius: 18px;
+  padding: 14px;
+  color: #fff;
+}
+.phone-mini-hero .pm-day { font-size: 28px; font-weight: 800; line-height: 1; }
+.phone-mini-hero .pm-label { font-size: 10px; opacity: 0.9; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+.phone-mini-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.phone-mini-stat { background: #fff; border: 1px solid #F0DFDE; border-radius: 12px; padding: 8px 6px; text-align: center; }
+.phone-mini-stat .v { font-size: 11px; font-weight: 800; color: #B9004D; }
+.phone-mini-stat .l { font-size: 7px; color: #8F6F74; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.phone-mini-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; background: #fff; border: 1px solid #F0DFDE; border-radius: 14px; padding: 10px; }
+.phone-mini-cal .d { aspect-ratio: 1; border-radius: 7px; background: #FFF0F0; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+.phone-mini-cal .d.p { background: #E11D63; color: #fff; }
+.phone-mini-cal .d.f { background: #E3F3EC; color: #047857; }
+.phone-dots {
+  position: absolute;
+  bottom: 10px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 5px;
+  z-index: 2;
+}
+.phone-dots span {
+  width: 16px; height: 4px; border-radius: 99px;
+  background: rgba(0,0,0,0.12);
+  animation: dotPulse 9s var(--ease-in-out) infinite;
+}
+.phone-dots span:nth-child(2) { animation-delay: 0.1s; }
+.phone-dots span:nth-child(3) { animation-delay: 0.2s; }
+@keyframes phoneScroll {
+  0%, 27% { transform: translateY(0); }
+  33%, 60% { transform: translateY(-33.3333%); }
+  66%, 92% { transform: translateY(-66.6666%); }
+  100% { transform: translateY(0); }
+}
+@keyframes dotPulse {
+  0%, 27% { background: #E11D63; width: 16px; }
+  33%, 60% { background: rgba(0,0,0,0.12); width: 4px; }
+  33%, 60% { background: #E11D63; width: 16px; }
+  66%, 92% { background: rgba(0,0,0,0.12); width: 4px; }
+  66%, 92% { background: #E11D63; width: 16px; }
+  100% { background: #E11D63; width: 16px; }
+}
+.phone-dots span:nth-child(1) { animation-name: dot1; }
+.phone-dots span:nth-child(2) { animation-name: dot2; }
+.phone-dots span:nth-child(3) { animation-name: dot3; }
+@keyframes dot1 { 0%,27% { background:#E11D63; width:16px; } 33%,100% { background:rgba(0,0,0,0.12); width:4px; } }
+@keyframes dot2 { 0%,27% { background:rgba(0,0,0,0.12); width:4px; } 33%,60% { background:#E11D63; width:16px; } 66%,100% { background:rgba(0,0,0,0.12); width:4px; } }
+@keyframes dot3 { 0%,60% { background:rgba(0,0,0,0.12); width:4px; } 66%,92% { background:#E11D63; width:16px; } 100% { background:rgba(0,0,0,0.12); width:4px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-step { animation: none; }
+  .phone-track { animation: none; transform: none; }
+  .phone-dots span { animation: none; }
+  .mode-card, .btn, .chip { transition: none; }
+}
+@media (max-width: 380px) {
+  .phone-preview { width: 200px; height: 420px; }
+}
+
+/* stagger for onboarding mode cards + home stats — rare delight, not daily */
+.mode-grid .mode-card {
+  animation: cardIn 340ms var(--ease-out) both;
+}
+.mode-grid .mode-card:nth-child(1) { animation-delay: 60ms; }
+.mode-grid .mode-card:nth-child(2) { animation-delay: 110ms; }
+.mode-grid .mode-card:nth-child(3) { animation-delay: 160ms; }
+.mode-grid .mode-card:nth-child(4) { animation-delay: 210ms; }
+.stat-row .stat {
+  animation: cardIn 340ms var(--ease-out) both;
+}
+.stat-row .stat:nth-child(1) { animation-delay: 40ms; }
+.stat-row .stat:nth-child(2) { animation-delay: 90ms; }
+.stat-row .stat:nth-child(3) { animation-delay: 140ms; }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode-grid .mode-card, .stat-row .stat { animation: none; }
 }

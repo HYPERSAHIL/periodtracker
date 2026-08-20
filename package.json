@@ -1,7 +1,7 @@
 {
   "name": "period-tracker",
   "private": true,
-  "version": "2.7.4",
+  "version": "2.8.0",
   "type": "module",
   "description": "Period Tracker — free, private, local-first period & cycle tracking. Installable PWA.",
   "scripts": {
