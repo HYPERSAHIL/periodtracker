@@ -108,6 +108,32 @@ export const ARTICLES: Article[] = [
     ],
   },
   {
+    slug: 'pmdd-pms',
+    title: 'PMS vs PMDD: when luteal symptoms deserve a conversation',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'ACOG / NIA',
+    body: [
+      'PMS affects many people in the luteal phase — tender breasts, cramps, mood shifts, and irritability that ease shortly after bleeding starts. PMDD is a rarer, more severe pattern affecting about 3–8% of people: markedly depressed mood, anxiety, irritability or anger in the week before menses, with clear relief after onset and real impact on work or relationships.',
+      'The distinction is not intensity alone but timing and function. Tracking daily for two cycles is the standard clinical starting point: log mood and physical symptoms each day, note impact on routine (none/some/a lot), and mark when bleeding starts. The app marks your luteal days and surfaces any symptom that clusters there.',
+      'If mood dips, anxiety, or weepiness reliably appear 7–10 days before bleeding and clear after day 2, bring the two-month log to a clinician. Effective options exist — from cycle-aware coping and CBT techniques to SSRI or hormonal approaches — but the log is what makes the conversation specific instead of vague.',
+      'This information is educational and does not diagnose. If you ever feel unsafe with your thoughts, contact a crisis line in Settings → Need support now?',
+    ],
+  },
+  {
+    slug: 'irregular-tracking',
+    title: 'Tracking when cycles are irregular',
+    category: 'Cycle basics',
+    minutes: 3,
+    source: 'ACOG',
+    body: [
+      'If your cycles run 21–35 days as an adult, small shifts are expected. Irregularity that matters clinically is persistent: intervals routinely outside 21–35 days, variation >7–9 days, or gaps of 3+ months without pregnancy.',
+      'For irregular cycles, predictions are estimates with a wider ± window — derived from your own variation — not promises. The most useful log is not just bleeding dates but what surrounded them: sleep shifts, stress, illness, travel, exercise, and medication changes.',
+      'Perimenopause intentionally widens the focus: rather than "when is the next period," the app highlights gaps between bleeds and symptom burden over the last 30 days. Flo and Clue are repeatedly criticized for treating every variation as a failure; this app treats variation as data.',
+      'Bring 3–6 months of logged bleeding + symptoms to any appointment about irregularity, PCOS evaluation, or perimenopause. Dates with heaviness and any intermenstrual spotting matter more than an average cycle number.',
+    ],
+  },
+  {
     slug: 'privacy-local-first',
     title: 'Where your data actually lives',
     category: 'Privacy',

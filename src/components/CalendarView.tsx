@@ -35,13 +35,14 @@ export default function CalendarView(p: AppProps) {
           ))}
           {grid.map((iso) => {
             const f = p.facts.get(iso);
+            const showFertile = p.settings.showFertileWindow && !p.stats.fertileSuppressed;
             const cls = [
               'day',
               isSameMonth(iso, ym.y, ym.m) ? '' : 'out',
               iso === today ? 'today' : '',
               f?.period ? 'period' : '',
               f?.predicted ? 'predicted' : '',
-              f?.fertile && !f.period ? 'fertile' : '',
+              showFertile && f?.fertile && !f.period ? 'fertile' : '',
             ]
               .filter(Boolean)
               .join(' ');
@@ -49,8 +50,8 @@ export default function CalendarView(p: AppProps) {
               iso === today ? 'today' : null,
               f?.period ? 'period' : null,
               f?.predicted ? 'predicted period' : null,
-              f?.fertile ? 'fertile' : null,
-              f?.ovulation ? 'ovulation' : null,
+              showFertile && f?.fertile ? 'fertile' : null,
+              showFertile && f?.ovulation ? 'ovulation' : null,
               p.entries[iso]?.lhTest === 'positive' ? 'LH test positive' : null,
             ]
               .filter(Boolean)
@@ -58,7 +59,7 @@ export default function CalendarView(p: AppProps) {
             return (
               <button key={iso} className={cls} onClick={() => p.openDay(iso)} aria-label={`${iso}${label ? ` — ${label}` : ''}`}>
                 {fromISO(iso).getDate()}
-                {f?.ovulation && <span className="ovu" />}
+                {showFertile && f?.ovulation && <span className="ovu" />}
                 {p.entries[iso]?.lhTest === 'positive' && <span className="lh" title="LH test positive" />}
               </button>
             );
@@ -67,8 +68,12 @@ export default function CalendarView(p: AppProps) {
         <div className="legend">
           <span className="li"><span className="sw p" /> Period</span>
           <span className="li"><span className="sw pd" /> Predicted</span>
-          <span className="li"><span className="sw f" /> Fertile</span>
-          <span className="li"><span className="sw o" /> Ovulation</span>
+          {p.settings.showFertileWindow && !p.stats.fertileSuppressed && (
+            <>
+              <span className="li"><span className="sw f" /> Fertile</span>
+              <span className="li"><span className="sw o" /> Ovulation</span>
+            </>
+          )}
           <span className="li"><span className="sw lhsw" /> LH+</span>
         </div>
       </div>

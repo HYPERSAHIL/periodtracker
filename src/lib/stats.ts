@@ -164,6 +164,40 @@ export function patternCards(
     }
   }
 
+  // PMDD-adjacent mood clustering: luteal mood in ≥60% of recent cycles (non-diagnostic)
+  if (recentStarts.length >= 3) {
+    const pmddMoods = new Set(['Anxious', 'Irritable', 'Sad', 'Weepy', 'Angry', 'Numb', 'Stressed', 'Sensitive']);
+    const tallyMood = new Map<string, { cycles: number; total: number }>();
+    for (const c of recentStarts) {
+      const nextStart = stats.clusters.find((x) => diffDays(c.start, x.start) > 0);
+      if (!nextStart) continue;
+      const lutealMoody = Object.values(entries).filter((e) => {
+        if (!e.checkedIn) return false;
+        const inWindow = e.date > addDaysLocal(c.end, 3) && e.date < nextStart.start;
+        return inWindow && phaseFor(e.date, stats, facts) === 'luteal' && e.moods.some((m) => pmddMoods.has(m));
+      });
+      const seenM = new Set<string>();
+      for (const e of lutealMoody) for (const m of e.moods) if (pmddMoods.has(m)) seenM.add(m);
+      for (const m of seenM) {
+        const t = tallyMood.get(m) ?? { cycles: 0, total: 0 };
+        t.cycles++;
+        tallyMood.set(m, t);
+      }
+      for (const t of tallyMood.values()) t.total++;
+    }
+    for (const [m, t] of tallyMood) {
+      const denom = Math.max(t.total, 1);
+      if (t.cycles / denom >= 0.6 && t.cycles >= 2) {
+        cards.push({
+          id: `luteal-mood-${m}`,
+          title: `${m} often appears before your period`,
+          detail: `${m} was logged in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. If luteal mood changes affect work or relationships, this dated log is exactly what clinicians use to tell PMS from PMDD — bring it to an appointment. Learn more in Learn → PMS vs PMDD.`,
+        });
+        break;
+      }
+    }
+  }
+
   // Perimenopause burden (mode-aware)
   if (settings.mode === 'perimenopause') {
   const days30 = Object.values(entries).filter((e) => {

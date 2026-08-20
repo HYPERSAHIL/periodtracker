@@ -116,6 +116,39 @@ export function markNotifiedDay(day: string): void {
   localStorage.setItem(NOTIFY_KEY, day);
 }
 
+const NOTIFY_OVU_KEY = 'pt.notified.ovu.v1';
+const NOTIFY_DAILY_KEY = 'pt.notified.daily.v1';
+
+export function lastNotifiedOvulation(): string | null {
+  return localStorage.getItem(NOTIFY_OVU_KEY);
+}
+export function markNotifiedOvulation(day: string): void {
+  localStorage.setItem(NOTIFY_OVU_KEY, day);
+}
+export function lastNotifiedDaily(): string | null {
+  return localStorage.getItem(NOTIFY_DAILY_KEY);
+}
+export function markNotifiedDaily(day: string): void {
+  localStorage.setItem(NOTIFY_DAILY_KEY, day);
+}
+
+function parseQuietMinutes(s: string | null): number | null {
+  if (!s || !/^\d{2}:\d{2}$/.test(s)) return null;
+  const [h, m] = s.split(':').map(Number);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+export function inQuietHours(now: Date, start: string | null, end: string | null): boolean {
+  const s = parseQuietMinutes(start);
+  const e = parseQuietMinutes(end);
+  if (s === null || e === null) return false;
+  if (s === e) return false;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  if (s < e) return cur >= s && cur < e;
+  return cur >= s || cur < e;
+}
+
 export function toBackup(entries: Record<string, DayEntry>, settings: Settings): BackupFile {
   return {
     app: 'period-tracker',

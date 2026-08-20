@@ -170,37 +170,126 @@ export default function SettingsView(p: AppProps) {
         </div>
         <div className="set-row">
           <div>
-            <div className="t">Period reminders</div>
-            <div className="d">A notification when your period is near (while the app is open)</div>
+            <div className="t">Reminders master</div>
+            <div className="d">Allow notifications — then choose what you get and when</div>
           </div>
           <button
             className={`switch${settings.reminders ? ' on' : ''}`}
             role="switch"
             aria-checked={settings.reminders}
-            aria-label="Enable period reminders"
+            aria-label="Enable reminders master"
             onClick={() => enableReminders(!settings.reminders)}
           />
         </div>
         {settings.reminders && (
-          <div className="set-row">
-            <div>
-              <div className="t">Remind me</div>
-              <div className="d">Days before predicted period</div>
+          <>
+            <div className="set-row">
+              <div>
+                <div className="t">Period coming</div>
+                <div className="d">Heads-up before your predicted period</div>
+              </div>
+              <button
+                className={`switch${settings.notifyPeriod ? ' on' : ''}`}
+                role="switch"
+                aria-checked={settings.notifyPeriod}
+                aria-label="Period coming reminder"
+                onClick={() => updateSettings({ notifyPeriod: !settings.notifyPeriod })}
+              />
             </div>
-            <div>
-              {[1, 2, 3, 5].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className={`chip${settings.remindDaysBefore === d ? ' on' : ''}`}
-                  style={{ marginRight: 6 }}
-                  onClick={() => updateSettings({ remindDaysBefore: d })}
-                >
-                  {d}d
-                </button>
-              ))}
+            {settings.notifyPeriod && (
+              <div className="set-row">
+                <div>
+                  <div className="t">Remind me</div>
+                  <div className="d">Days before predicted period</div>
+                </div>
+                <div>
+                  {[1, 2, 3, 5].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`chip${settings.remindDaysBefore === d ? ' on' : ''}`}
+                      style={{ marginRight: 6 }}
+                      onClick={() => updateSettings({ remindDaysBefore: d })}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="set-row">
+              <div>
+                <div className="t">Fertile window</div>
+                <div className="d">When the fertile window starts (separate from period)</div>
+              </div>
+              <button
+                className={`switch${settings.notifyOvulation ? ' on' : ''}`}
+                role="switch"
+                aria-checked={settings.notifyOvulation}
+                aria-label="Fertile window reminder"
+                onClick={() => updateSettings({ notifyOvulation: !settings.notifyOvulation })}
+              />
             </div>
+            <div className="set-row">
+              <div>
+                <div className="t">Daily check-in nudge</div>
+                <div className="d">Evening reminder to log today — only if you haven't checked in</div>
+              </div>
+              <button
+                className={`switch${settings.notifyDailyCheckin ? ' on' : ''}`}
+                role="switch"
+                aria-checked={settings.notifyDailyCheckin}
+                aria-label="Daily check-in nudge"
+                onClick={() => updateSettings({ notifyDailyCheckin: !settings.notifyDailyCheckin })}
+              />
+            </div>
+            <div className="set-row">
+              <div>
+                <div className="t">Quiet hours</div>
+                <div className="d">No notifications between these times</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="time"
+                  value={settings.quietStart ?? ''}
+                  onChange={(e) => updateSettings({ quietStart: e.target.value || null })}
+                  style={{ width: 110 }}
+                  aria-label="Quiet hours start"
+                />
+                <span style={{ color: 'var(--muted)' }}>—</span>
+                <input
+                  type="time"
+                  value={settings.quietEnd ?? ''}
+                  onChange={(e) => updateSettings({ quietEnd: e.target.value || null })}
+                  style={{ width: 110 }}
+                  aria-label="Quiet hours end"
+                />
+              </div>
+            </div>
+            <p className="hint" style={{ marginTop: 8 }}>
+              Leave quiet hours empty for no restriction. Example: 22:00 — 08:00 keeps nights silent. On the web, notifications appear only while the app is open; with the installed app they can appear in the background.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <h3>Display</h3>
+        <div className="set-row">
+          <div>
+            <div className="t">Show fertile window</div>
+            <div className="d">Hide it if you prefer to see only period predictions (stored locally, never shared)</div>
           </div>
+          <button
+            className={`switch${settings.showFertileWindow ? ' on' : ''}`}
+            role="switch"
+            aria-checked={settings.showFertileWindow}
+            aria-label="Show fertile window"
+            onClick={() => updateSettings({ showFertileWindow: !settings.showFertileWindow })}
+          />
+        </div>
+        {!settings.showFertileWindow && (
+          <p className="hint">Fertile estimates hidden on your dashboard and calendar. Turn back on anytime in Settings.</p>
         )}
       </div>
 

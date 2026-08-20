@@ -6,6 +6,11 @@ import {
   loadSettings,
   lastNotifiedDay,
   markNotifiedDay,
+  lastNotifiedOvulation,
+  markNotifiedOvulation,
+  lastNotifiedDaily,
+  markNotifiedDaily,
+  inQuietHours,
   saveEntries,
   saveSettings,
 } from './lib/storage';
@@ -82,27 +87,82 @@ export default function App() {
   const stats = useMemo(() => computeStats(entries, settings), [entries, settings]);
   const facts = useMemo(() => buildFacts(entries, stats), [entries, stats]);
 
-  // "Period is coming" notification — once per day, only while the app is open.
+  // Granular "while open" notifications — period / fertile / daily check-in, each once per day and respecting quiet hours.
   useEffect(() => {
     if (!settings.onboarded || !settings.reminders) return;
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (inQuietHours(new Date(), settings.quietStart, settings.quietEnd)) return;
     const today = todayISO();
-    if (lastNotifiedDay() === today) return;
-    const d = stats.daysUntilNext;
-    if (d !== null && d >= 0 && d <= settings.remindDaysBefore) {
-      try {
-        new Notification('Period Tracker', {
-          body: d === 0 ? 'Your period is expected today.' : `Your period is expected in ${d} day${d === 1 ? '' : 's'}.`,
-          icon: '/icons/icon-192.png',
-          badge: '/icons/icon-192.png',
-          tag: 'pt-upcoming',
-        });
-      } catch {
-        /* some browsers restrict constructor usage — banner below still informs */
+
+    // period coming
+    if (settings.notifyPeriod !== false && lastNotifiedDay() !== today) {
+      const d = stats.daysUntilNext;
+      if (d !== null && d >= 0 && d <= settings.remindDaysBefore) {
+        try {
+          new Notification('Period Tracker', {
+            body: d === 0 ? 'Your period is expected today.' : `Your period is expected in ${d} day${d === 1 ? '' : 's'}.`,
+            icon: '/icons/icon-192.png',
+            badge: '/icons/icon-192.png',
+            tag: 'pt-upcoming',
+          });
+        } catch {
+          /* banner still informs */
+        }
+        markNotifiedDay(today);
       }
-      markNotifiedDay(today);
     }
-  }, [settings.onboarded, settings.reminders, settings.remindDaysBefore, stats.daysUntilNext]);
+
+    // fertile window opening
+    if (settings.notifyOvulation && settings.showFertileWindow && lastNotifiedOvulation() !== today) {
+      const f = stats.fertileStart;
+      if (f) {
+        const daysUntilFertile = Math.round((new Date(f).getTime() - new Date(today).getTime()) / 86400000);
+        if (daysUntilFertile >= 0 && daysUntilFertile <= 1) {
+          try {
+            new Notification('Period Tracker', {
+              body: daysUntilFertile === 0 ? 'Fertile window starts today.' : 'Fertile window starts tomorrow.',
+              icon: '/icons/icon-192.png',
+              badge: '/icons/icon-192.png',
+              tag: 'pt-fertile',
+            });
+          } catch {}
+          markNotifiedOvulation(today);
+        }
+      }
+    }
+
+    // daily check-in nudge — evening, only if not already checked in today
+    if (settings.notifyDailyCheckin && lastNotifiedDaily() !== today) {
+      const hr = new Date().getHours();
+      if (hr >= 19) {
+        const e = entries[today];
+        if (!e || !e.checkedIn) {
+          try {
+            new Notification('Period Tracker', {
+              body: 'Quick check-in? Log how today felt — 10 seconds.',
+              icon: '/icons/icon-192.png',
+              badge: '/icons/icon-192.png',
+              tag: 'pt-daily',
+            });
+          } catch {}
+          markNotifiedDaily(today);
+        }
+      }
+    }
+  }, [
+    settings.onboarded,
+    settings.reminders,
+    settings.notifyPeriod,
+    settings.notifyOvulation,
+    settings.notifyDailyCheckin,
+    settings.quietStart,
+    settings.quietEnd,
+    settings.showFertileWindow,
+    settings.remindDaysBefore,
+    stats.daysUntilNext,
+    stats.fertileStart,
+    entries,
+  ]);
 
   const runSync = useCallback(async (currentEntries: Record<string, DayEntry>, currentSettings: Settings) => {
     const token = cloudRef.current.token;
@@ -171,7 +231,7 @@ export default function App() {
   useEffect(() => {
     updater.start();
     if (!isNative() || !settings.onboarded || !settings.reminders) return;
-    // native reminders: (re)schedule the next period heads-up via Capacitor
+    // native reminders: (re)schedule heads-ups via Capacitor — respects granular toggles + quiet hours
     (async () => {
       try {
         const LN = (await import('@capacitor/local-notifications')).LocalNotifications;
@@ -182,29 +242,85 @@ export default function App() {
         if (mine.length) {
           await LN.cancel({ notifications: mine.map((n) => ({ id: n.id })) });
         }
-        const d = stats.daysUntilNext;
-        if (d === null || d < 0 || d > 60) return;
-        const when = new Date();
-        when.setDate(when.getDate() + Math.max(0, d - settings.remindDaysBefore));
-        when.setHours(9, 0, 0, 0);
-        if (when.getTime() < Date.now()) return;
-        await LN.schedule({
-          notifications: [
-            {
-              id: 4101,
+        const toSchedule: Array<{
+          id: number;
+          title: string;
+          body: string;
+          schedule: { at: Date } | { on: { hour: number; minute: number } };
+          extra: { pt: true };
+        }> = [];
+
+        const quiet = (date: Date) => inQuietHours(date, settings.quietStart, settings.quietEnd);
+
+        // period
+        if (settings.notifyPeriod !== false) {
+          const d = stats.daysUntilNext;
+          if (d !== null && d >= 0 && d <= 60) {
+            const when = new Date();
+            when.setDate(when.getDate() + Math.max(0, d - settings.remindDaysBefore));
+            when.setHours(9, 0, 0, 0);
+            if (when.getTime() > Date.now() && !quiet(when)) {
+              toSchedule.push({
+                id: 4101,
+                title: 'Period Tracker',
+                body: d - settings.remindDaysBefore <= 0 ? 'Your period is expected today.' : 'Your period is expected soon.',
+                schedule: { at: when },
+                extra: { pt: true },
+              });
+            }
+          }
+        }
+
+        // fertile window
+        if (settings.notifyOvulation && settings.showFertileWindow && stats.fertileStart) {
+          const f = new Date(stats.fertileStart);
+          f.setHours(9, 0, 0, 0);
+          f.setDate(f.getDate() - 1); // day before window
+          if (f.getTime() > Date.now() && !quiet(f)) {
+            toSchedule.push({
+              id: 4102,
               title: 'Period Tracker',
-              body: d - settings.remindDaysBefore <= 0 ? 'Your period is expected today.' : 'Your period is expected soon.',
-              schedule: { at: when },
+              body: 'Fertile window starts tomorrow.',
+              schedule: { at: f },
               extra: { pt: true },
-            },
-          ],
-        });
+            });
+          }
+        }
+
+        // daily check-in — repeating 20:00 if not quiet
+        if (settings.notifyDailyCheckin) {
+          const probe = new Date();
+          probe.setHours(20, 0, 0, 0);
+          if (!quiet(probe)) {
+            toSchedule.push({
+              id: 4103,
+              title: 'Period Tracker',
+              body: 'Quick check-in? Log how today felt.',
+              schedule: { on: { hour: 20, minute: 0 } },
+              extra: { pt: true },
+            } as unknown as typeof toSchedule[0]);
+          }
+        }
+
+        if (toSchedule.length) await LN.schedule({ notifications: toSchedule as never });
       } catch {
         /* plugin unavailable or not permitted — web banner path still works */
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.onboarded, settings.reminders, settings.remindDaysBefore, stats.daysUntilNext]);
+  }, [
+    settings.onboarded,
+    settings.reminders,
+    settings.notifyPeriod,
+    settings.notifyOvulation,
+    settings.notifyDailyCheckin,
+    settings.quietStart,
+    settings.quietEnd,
+    settings.showFertileWindow,
+    settings.remindDaysBefore,
+    stats.daysUntilNext,
+    stats.fertileStart,
+  ]);
 
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));

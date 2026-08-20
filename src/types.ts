@@ -79,6 +79,13 @@ export interface Settings {
   pinHash: string | null; // salted SHA-256, gate only (not encryption)
   pinSalt: string | null;
   bookmarks: string[]; // content slugs
+  // granular notification controls (master = reminders)
+  notifyPeriod: boolean;
+  notifyOvulation: boolean;
+  notifyDailyCheckin: boolean;
+  quietStart: string | null; // "HH:MM" 24h, local time
+  quietEnd: string | null;
+  showFertileWindow: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -100,6 +107,12 @@ export const DEFAULT_SETTINGS: Settings = {
   pinHash: null,
   pinSalt: null,
   bookmarks: [],
+  notifyPeriod: true,
+  notifyOvulation: false,
+  notifyDailyCheckin: false,
+  quietStart: null,
+  quietEnd: null,
+  showFertileWindow: true,
 };
 
 export const FLOWS: { id: Flow; label: string; dots: number }[] = [
@@ -200,7 +213,7 @@ export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal:
 
 export type Tab = 'home' | 'calendar' | 'insights' | 'learn' | 'settings';
 
-export const APP_VERSION = '2.6.0';
+export const APP_VERSION = '2.7.0';
 
 /** Logging sheet sections — ids are stable and persisted in trackerOrder/trackerHidden. */
 export interface TrackerSectionDef {

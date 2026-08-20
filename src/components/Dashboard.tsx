@@ -60,6 +60,26 @@ export default function Dashboard(p: AppProps) {
       );
     }
     const ttc = settings.mode === 'ttc';
+    if (!settings.showFertileWindow) {
+      return (
+        <>
+          <div className="stat">
+            <div className="v">{stats.nextStart ? prettyDate(stats.nextStart) : '—'}</div>
+            <div className="l">
+              {stats.lateBy ? 'Late by ' + stats.lateBy + 'd' : 'Next period' + (stats.usingDefaults ? ' (est.)' : '')}
+            </div>
+          </div>
+          <div className="stat">
+            <div className="v">{stats.avgCycle}d</div>
+            <div className="l">{stats.usingDefaults ? 'Your baseline' : 'Median cycle'}</div>
+          </div>
+          <div className="stat">
+            <div className="v">{stats.avgPeriod}d</div>
+            <div className="l">Avg period</div>
+          </div>
+        </>
+      );
+    }
     return (
       <>
         <div className="stat" style={ttc && inFertile ? { borderColor: 'var(--leaf-600)' } : undefined}>
@@ -123,7 +143,7 @@ export default function Dashboard(p: AppProps) {
           🕊️ Your period is {stats.lateBy} day{stats.lateBy === 1 ? '' : 's'} past the estimate (±{stats.uncertaintyDays}d). Late periods are common — stress, illness, and sleep all shift cycles. If you might be pregnant, a test now is reliable.
         </div>
       )}
-      {settings.mode === 'ttc' && inFertile && (
+      {settings.mode === 'ttc' && inFertile && settings.showFertileWindow && !stats.fertileSuppressed && (
         <div className="banner" style={{ background: 'var(--leaf-100)', borderColor: 'var(--leaf-600)', color: 'var(--leaf-700)' }}>
           🌱 You're inside your fertile window. An LH test today can help confirm ovulation is near.
         </div>
@@ -186,11 +206,13 @@ export default function Dashboard(p: AppProps) {
                 {prettyDate(stats.periodWindow!.end)}.
               </p>
               <p style={{ margin: 0 }}>
-                {stats.fertileSuppressed
-                  ? 'Fertile-window and ovulation estimates are hidden because a hormonal contraception method is active.'
-                  : stats.ovuEvidenceCount > 0
-                    ? `Ovulation is placed ${stats.lutealLength} days before the next period — learned from your own ${stats.ovuEvidenceCount} positive LH test(s), not a fixed average.`
-                    : 'Ovulation is assumed ~14 days before the next period (calendar method) — log LH tests to personalize this.'}
+                {!settings.showFertileWindow
+                  ? 'Fertile-window estimates are hidden — turn them on in Settings → Display if you want to see them.'
+                  : stats.fertileSuppressed
+                    ? 'Fertile-window and ovulation estimates are hidden because a hormonal contraception method is active.'
+                    : stats.ovuEvidenceCount > 0
+                      ? `Ovulation is placed ${stats.lutealLength} days before the next period — learned from your own ${stats.ovuEvidenceCount} positive LH test(s), not a fixed average.`
+                      : 'Ovulation is assumed ~14 days before the next period (calendar method) — log LH tests to personalize this.'}
               </p>
             </div>
           )}
@@ -230,6 +252,18 @@ export default function Dashboard(p: AppProps) {
               <div className="hint">{regimen.nextRenewal && (!nextChange || regimen.nextRenewal < nextChange) ? 'Next renewal' : 'Next change'}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {p.stats.cycleLengths.length >= 2 && (
+        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div className="t" style={{ fontWeight: 800 }}>Clinician report — ready</div>
+            <div className="d">Printable summary of your last 6 months (symptoms & cycle lengths). Free, no paywall.</div>
+          </div>
+          <button className="btn ghost sm" onClick={p.openReport} style={{ flexShrink: 0 }}>
+            🖨️ View
+          </button>
         </div>
       )}
 
