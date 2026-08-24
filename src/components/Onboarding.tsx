@@ -4,7 +4,8 @@ import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
-import WorldsOnboarding from './WorldsOnboarding';
+import { lazy, Suspense } from 'react';
+const WorldsOnboarding = lazy(() => import('./WorldsOnboarding'));
 import PhonePreview from './PhonePreview';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
@@ -42,7 +43,11 @@ export default function Onboarding({
   const dateOk = (iso: string) => !isNaN(fromISO(iso).getTime());
 
   if (!worldsDone) {
-    return <WorldsOnboarding onFinish={() => setWorldsDone(true)} />;
+    return (
+      <Suspense fallback={<div style={{ minHeight: '60vh' }} />}>
+        <WorldsOnboarding onFinish={() => setWorldsDone(true)} />
+      </Suspense>
+    );
   }
 
   return (
