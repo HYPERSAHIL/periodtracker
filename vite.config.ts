@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import { copyFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, existsSync } from 'node:fs';
 
 export default defineConfig({
   plugins: [
@@ -10,6 +10,7 @@ export default defineConfig({
       // ship the sync API as a Pages Function alongside the static build
       name: 'copy-api-worker',
       closeBundle() {
+        if (!existsSync('dist')) mkdirSync('dist', { recursive: true });
         copyFileSync('api/_worker.js', 'dist/_worker.js');
       },
     },

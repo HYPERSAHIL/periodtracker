@@ -4,6 +4,7 @@ import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
+import WorldsOnboarding from './WorldsOnboarding';
 import PhonePreview from './PhonePreview';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause'];
@@ -20,6 +21,7 @@ export default function Onboarding({
   const [cycleLength, setCycleLength] = useState(28);
   const [dueDate, setDueDate] = useState(addDays(todayISO(), 200));
   const [dueFromScan, setDueFromScan] = useState(true); // true: due date known; false: compute from LMP
+  const [worldsDone, setWorldsDone] = useState(false);
 
   const isPregnant = mode === 'pregnant';
   const accountStep = isPregnant ? 2 : 3;
@@ -38,6 +40,10 @@ export default function Onboarding({
   };
 
   const dateOk = (iso: string) => !isNaN(fromISO(iso).getTime());
+
+  if (!worldsDone) {
+    return <WorldsOnboarding onFinish={() => setWorldsDone(true)} />;
+  }
 
   return (
     <div className="onboard">
