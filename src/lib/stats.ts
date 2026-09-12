@@ -2,6 +2,7 @@ import { DayEntry, PERIMENO_HIGHLIGHT, Settings } from '../types';
 import { CycleStats, PeriodCluster, phaseFor } from './cycle';
 import { DayFacts } from './cycle';
 import { diffDays } from './date';
+import { tx, txd } from './i18n';
 
 export interface WindowStats {
   count: number;
@@ -118,15 +119,22 @@ export function patternCards(
   settings: Settings
 ): PatternCard[] {
   const cards: PatternCard[] = [];
+  const lang = settings.lang;
 
   // Trend: consistent shortening or lengthening over the last 5+ cycles
   const w = windowStats(stats.cycleLengths, 12);
   if (w.slope !== null && Math.abs(w.slope) >= 0.8 && stats.cycleLengths.length >= 5) {
-    const dir = w.slope < 0 ? 'getting shorter' : 'getting longer';
+    const shorter = w.slope < 0;
     cards.push({
       id: 'trend',
-      title: `Cycles have been ${dir}`,
-      detail: `Across your last ${w.count} cycles the trend is about ${Math.abs(w.slope).toFixed(1)} days ${w.slope < 0 ? 'shorter' : 'longer'} per cycle. Gradual drift is common with age; a steady change over 6+ months is worth mentioning to a clinician.`,
+      title: tx(lang, shorter ? 'Cycles have been getting shorter' : 'Cycles have been getting longer'),
+      detail: tx(
+        lang,
+        shorter
+          ? 'Across your last {n} cycles the trend is about {v} days shorter per cycle. Gradual drift is common with age; a steady change over 6+ months is worth mentioning to a clinician.'
+          : 'Across your last {n} cycles the trend is about {v} days longer per cycle. Gradual drift is common with age; a steady change over 6+ months is worth mentioning to a clinician.',
+        { n: w.count, v: Math.abs(w.slope).toFixed(1) }
+      ),
     });
   }
 
@@ -134,9 +142,11 @@ export function patternCards(
   const recentStarts = stats.clusters.slice(-5);
   if (recentStarts.length >= 3) {
     const tally = new Map<string, { cycles: number; total: number }>();
+    let evaluated = 0;
     for (const c of recentStarts) {
       const nextStart = stats.clusters.find((x) => diffDays(c.start, x.start) > 0);
       if (!nextStart) continue;
+      evaluated++;
       const lutealDays = Object.values(entries).filter((e) => {
         if (!e.checkedIn) return false;
         const inWindow = e.date > addDaysLocal(c.end, 3) && e.date < nextStart.start;
@@ -149,15 +159,20 @@ export function patternCards(
         t.cycles++;
         tally.set(s, t);
       }
-      for (const t of tally.values()) t.total++;
+      for (const t of tally.values()) t.total = evaluated;
     }
     for (const [s, t] of tally) {
-      const denom = Math.max(t.total, 1);
+      const denom = Math.max(evaluated, 1);
       if (t.cycles / denom >= 0.6 && t.cycles >= 2) {
+        const name = txd(lang, `symptom.${s}`, s);
         cards.push({
           id: `luteal-${s}`,
-          title: `${s} clusters before your period`,
-          detail: `${s} appeared in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. Recognizable PMS style patterns like this are often manageable - and easier to discuss with a clinician when you can show the data.`,
+          title: tx(lang, '{s} clusters before your period', { s: name }),
+          detail: tx(
+            lang,
+            '{s} appeared in the luteal phase in {c} of your last {n} tracked cycles. Recognizable PMS style patterns like this are often manageable - and easier to discuss with a clinician when you can show the data.',
+            { s: name, c: t.cycles, n: denom }
+          ),
         });
         break; // one card is enough signal
       }
@@ -168,9 +183,11 @@ export function patternCards(
   if (recentStarts.length >= 3) {
     const pmddMoods = new Set(['Anxious', 'Irritable', 'Sad', 'Weepy', 'Angry', 'Numb', 'Stressed', 'Sensitive']);
     const tallyMood = new Map<string, { cycles: number; total: number }>();
+    let evaluatedMood = 0;
     for (const c of recentStarts) {
       const nextStart = stats.clusters.find((x) => diffDays(c.start, x.start) > 0);
       if (!nextStart) continue;
+      evaluatedMood++;
       const lutealMoody = Object.values(entries).filter((e) => {
         if (!e.checkedIn) return false;
         const inWindow = e.date > addDaysLocal(c.end, 3) && e.date < nextStart.start;
@@ -183,15 +200,20 @@ export function patternCards(
         t.cycles++;
         tallyMood.set(m, t);
       }
-      for (const t of tallyMood.values()) t.total++;
+      for (const t of tallyMood.values()) t.total = evaluatedMood;
     }
     for (const [m, t] of tallyMood) {
-      const denom = Math.max(t.total, 1);
+      const denom = Math.max(evaluatedMood, 1);
       if (t.cycles / denom >= 0.6 && t.cycles >= 2) {
+        const name = txd(lang, `mood.${m}`, m);
         cards.push({
           id: `luteal-mood-${m}`,
-          title: `${m} often appears before your period`,
-          detail: `${m} was logged in the luteal phase in ${t.cycles} of your last ${denom} tracked cycles. If luteal mood changes affect work or relationships, this dated log is exactly what clinicians use to tell PMS from PMDD - bring it to an appointment. Learn more in Learn → PMS vs PMDD.`,
+          title: tx(lang, '{m} often appears before your period', { m: name }),
+          detail: tx(
+            lang,
+            '{m} was logged in the luteal phase in {c} of your last {n} tracked cycles. If luteal mood changes affect work or relationships, this dated log is exactly what clinicians use to tell PMS from PMDD - bring it to an appointment.',
+            { m: name, c: t.cycles, n: denom }
+          ),
         });
         break;
       }
@@ -209,8 +231,12 @@ export function patternCards(
     if (days30.length >= 10 && burden / days30.length >= 0.4) {
       cards.push({
         id: 'peri-burden',
-        title: 'High symptom burden this month',
-        detail: `${burden} of the last ${days30.length} logged days included perimenopause typical symptoms. This is a burden snapshot, not a stage or diagnosis - but it is exactly the kind of summary worth bringing to an appointment.`,
+        title: tx(lang, 'High symptom burden this month'),
+        detail: tx(
+          lang,
+          '{b} of the last {n} logged days included perimenopause typical symptoms. This is a burden snapshot, not a stage or diagnosis - but it is exactly the kind of summary worth bringing to an appointment.',
+          { b: burden, n: days30.length }
+        ),
       });
     }
   }
@@ -224,10 +250,120 @@ function addDaysLocal(iso: string, n: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
-/** Bleeding-episode summary for the clinician report. */
-export function episodeSummary(clusters: PeriodCluster[], months = 6): PeriodCluster[] {
+/** Bleeding-episode summary for the clinician report. */export function episodeSummary(clusters: PeriodCluster[], months = 6): PeriodCluster[] {
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
   const cut = cutoff.toISOString().slice(0, 10);
   return clusters.filter((c) => c.end >= cut);
+}
+
+export interface MigraineWindow {
+  inWindow: number;
+  total: number;
+}
+
+/** Marquette-style double check: monitor peak (LH+) + mucus peak in the same cycle. */
+export function marquetteStatus(
+  entries: Record<string, DayEntry>,
+  lastStart: string | null
+): 'double' | 'single' | 'none' {
+  if (!lastStart) return 'none';
+  let lh = false;
+  let mucus = false;
+  for (const e of Object.values(entries)) {
+    if (e.date < lastStart) continue;
+    if (e.lhTest === 'positive') lh = true;
+    if (e.mucus === 'eggwhite') mucus = true;
+  }
+  if (lh && mucus) return 'double';
+  if (lh || mucus) return 'single';
+  return 'none';
+}
+
+/** Variability phenotype from recent history: stable / variable / highly variable. */
+export function variabilityPhenotype(lengths: number[]): 'stable' | 'variable' | 'highly-variable' | 'unknown' {
+  const lens = lengths.slice(-6);
+  if (lens.length < 2) return 'unknown';
+  const mean = lens.reduce((a, b) => a + b, 0) / lens.length;
+  const sd = Math.sqrt(lens.reduce((a, b) => a + (b - mean) ** 2, 0) / lens.length);
+  if (sd <= 2) return 'stable';
+  if (sd <= 5) return 'variable';
+  return 'highly-variable';
+}
+
+/** Share of days since first log with any entry — low coverage means low-confidence forecasts. */
+export function adherenceConfidence(entries: Record<string, DayEntry>): { pct: number; low: boolean } {
+  const c = trackingCompleteness(entries);
+  return { pct: c.pct, low: c.total >= 30 && c.pct < 40 };
+}
+
+/** Migraine/headache days falling in the perimenstrual window (start−2 … start+3). */
+export function perimenstrualMigraine(
+  entries: Record<string, DayEntry>,
+  clusters: PeriodCluster[]
+): MigraineWindow {
+  const isMigraine = (e: DayEntry) =>
+    e.migraine || e.symptoms.includes('Migraine') || e.symptoms.includes('Headache');
+  let inWindow = 0;
+  let total = 0;
+  for (const e of Object.values(entries)) {
+    if (!isMigraine(e)) continue;
+    total++;
+    const hit = clusters.some((c) => {
+      const s = new Date(c.start + 'T00:00:00').getTime();
+      const t = new Date(e.date + 'T00:00:00').getTime();
+      const d = Math.round((t - s) / 86400000);
+      return d >= -2 && d <= 3;
+    });
+    if (hit) inWindow++;
+  }
+  return { inWindow, total };
+}
+
+export interface ThermalShift {
+  /** first day of the sustained rise */
+  date: string;
+  /** estimated ovulation day (day before the rise) */
+  ovulation: string;
+  /** rise over the previous baseline, °C */
+  rise: number;
+}
+
+/**
+ * NFP-lite thermal shift: ≥0.2°C above the previous 6-day max, holding 3+
+ * consecutive calendar days, no fever (≥37.5°C voids the run). Returns the
+ * most recent shift only. Non-diagnostic clue, not proof.
+ */
+export function detectThermalShift(entries: Record<string, DayEntry>): ThermalShift | null {
+  const pts = Object.values(entries)
+    .filter((e) => e.bbt != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (pts.length < 9) return null;
+  const shiftDay = (iso: string, n: number) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d + n);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  };
+  for (let i = pts.length - 1; i >= 8; i--) {
+    const window = pts.slice(i - 8, i + 1); // 6 baseline days + 3 high days
+    let consecutive = true;
+    for (let j = 1; j < window.length; j++) {
+      if (diffDays(window[j - 1].date, window[j].date) !== 1) {
+        consecutive = false;
+        break;
+      }
+    }
+    if (!consecutive) continue;
+    if (window.some((e) => e.bbt! >= 37.5)) continue; // fever voids the run
+    const base = Math.max(...window.slice(0, 6).map((e) => e.bbt!));
+    const high = window.slice(6);
+    if (high.every((e) => e.bbt! - base >= 0.2)) {
+      return {
+        date: high[0].date,
+        ovulation: shiftDay(high[0].date, -1),
+        rise: Math.round((high[0].bbt! - base) * 10) / 10,
+      };
+    }
+  }
+  return null;
 }

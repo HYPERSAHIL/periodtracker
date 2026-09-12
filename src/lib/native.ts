@@ -14,6 +14,5 @@ export function isNative(): boolean {
 /** Absolute API base for fetch calls - same-origin on the web, full URL in the APK. */
 export function apiUrl(path: string): string {
   if (isNative()) return `${API_ORIGIN}${path}`;
-  if (location.origin === API_ORIGIN) return path;
-  return `${API_ORIGIN}${path}`;
+  return path;
 }

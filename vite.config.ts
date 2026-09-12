@@ -29,6 +29,13 @@ export default defineConfig({
         background_color: '#fff6f8',
         theme_color: '#e11d63',
         categories: ['health', 'lifestyle', 'medical'],
+        share_target: {
+          action: '/?share=1',
+          method: 'GET',
+          enctype: 'application/x-www-form-urlencoded',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
+        file_handlers: [{ action: '/?open=backup', accept: { 'application/json': ['.json'] } }],
         icons: [
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },

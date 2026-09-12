@@ -8,10 +8,11 @@
 export interface Article {
   slug: string;
   title: string;
-  category: 'Cycle basics' | 'Fertility' | 'Symptoms' | 'Perimenopause' | 'Pregnancy' | 'Privacy';
+  category: 'Cycle basics' | 'Fertility' | 'Symptoms' | 'Perimenopause' | 'Pregnancy' | 'Privacy' | 'Contraception';
   minutes: number;
   source: string;
   body: string[]; // paragraphs
+  links?: { label: string; url: string }[]; // external resource finders
 }
 
 export const ARTICLES: Article[] = [
@@ -145,6 +146,160 @@ export const ARTICLES: Article[] = [
       'The optional app PIN keeps the app private on a shared device. Handy, simple, and easy to turn on or off.',
     ],
   },
+  {
+    slug: 'pms-vs-pregnancy',
+    title: 'PMS or early pregnancy? How to tell',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'ACOG',
+    body: [
+      'Cramping, tender breasts, fatigue, and mood shifts show up both before a period and in very early pregnancy, so symptoms alone cannot tell them apart. A history of PMS even predicts stronger early-pregnancy symptoms.',
+      'Light spotting happens in roughly 1 in 11 very early pregnancies and is rarely on "implantation day" despite the myth — most early bleeding is light and brief, and most such pregnancies continue normally.',
+      'The only reliable answer is a pregnancy test taken after a missed period (or as its instructions say). If your period is more than a week late with negative tests, check in with a clinician.',
+    ],
+  },
+  {
+    slug: 'contraception-mood-bleeding',
+    title: 'Contraception: mood, bleeding, and switching',
+    category: 'Contraception',
+    minutes: 4,
+    source: 'ACOG',
+    body: [
+      'Hormonal methods can shift mood: large studies link the patch and ring most strongly to later antidepressant use, and teens most of all. If mood dips in the first months of a new method, tell your clinician early rather than quietly stopping.',
+      'Bleeding changes are the top reason people quit: copper IUDs often bring heavier periods (about 4 in 10), while hormonal IUDs usually lighten them. Spotting in the first 3 months of pills, patch, ring, or shot is common and usually settles.',
+      'Switching is normal, not failure. Track bleeding, mood, and side effects for 2 to 3 months per method and bring the log — it makes the next choice much easier. Log missed pills and use backup as its leaflet says.',
+    ],
+  },
+  {
+    slug: 'menopause-hrt-basics',
+    title: 'Menopause hormones: benefits, risks, options',
+    category: 'Perimenopause',
+    minutes: 4,
+    source: 'NAMS',
+    body: [
+      'Hormone therapy is the most effective treatment for hot flashes and night sweats. Benefits generally outweigh risks for healthy people under 60 or within 10 years of the final period; starting much later changes the balance, especially for heart and stroke risk.',
+      'Think in absolute numbers with your clinician: risks that sound scary as headlines are small per person, while symptom relief is large. Anyone with a history of breast cancer, clots, stroke, or liver disease needs a personalized review.',
+      'Non-hormonal options exist and work: CBT programs roughly halve how bothersome flashes feel, and newer non-hormonal medicines (like fezolinetant) cut frequency for people who cannot or prefer not to use hormones.',
+    ],
+  },
+  {
+    slug: 'pcos-metabolic',
+    title: 'PCOS beyond irregular periods',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'Endocrine Society',
+    body: [
+      'PCOS needs two of three for diagnosis: irregular or absent ovulation, signs of extra androgens (acne, hirsutism, thinning hair), and polycystic-looking ovaries — after ruling out thyroid and prolactin causes. Irregular cycles alone are not PCOS.',
+      'The metabolic side matters as much as the cycles: markedly higher odds of impaired glucose tolerance and type 2 diabetes mean a glucose check (OGTT) is worth discussing, whatever your weight.',
+      'Lifestyle is first-line treatment, not a lecture: regular movement and balanced eating improve ovulation, androgens, and insulin together. Some people track inositol against cycle return with their clinician.',
+    ],
+  },
+  {
+    slug: 'migraine-triptans',
+    title: 'Menstrual migraine: prevention vs rescue',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'IHS',
+    body: [
+      'Menstrual migraine usually strikes without aura in the 2-days-before to 3-days-after window, and attacks tend to be longer and harder to treat than at other times. A diary — not memory — is what confirms the pattern.',
+      'Two different jobs: short-term prevention around the window (frovatriptan has the best evidence) versus acute rescue once pain starts (sumatriptan 100mg works best). They are prescribed differently, so log which you took and whether it helped.',
+      'Track aura, timing, med, and response in the headache section. Three months of that log is what headache specialists use to plan prevention.',
+    ],
+  },
+  {
+    slug: 'pain-toolkit',
+    title: 'Period pain toolkit: what actually helps',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'Cochrane',
+    body: [
+      'NSAIDs beat placebo clearly and no single one wins — the trick is timing: start at the first sign of bleeding or pain rather than waiting, unless your clinician says otherwise.',
+      'Heat works about as well as painkillers for many people. Regular exercise (roughly 45 minutes, three times a week) lowers pain scores over time, and steady meals with fruit, vegetables, and fish are linked to less pain than skipped meals.',
+      'Rate pain 0–10 each day and mark where it spreads. A log showing 7+ pain, pain with intercourse, bowel or bladder pain, or pain that keeps you home is exactly what moves a workup forward.',
+    ],
+  },
+  {
+    slug: 'sleep-flash-gsm',
+    title: 'Sleep, flashes, and vaginal changes in perimenopause',
+    category: 'Perimenopause',
+    minutes: 3,
+    source: 'NAMS',
+    body: [
+      'About a quarter of people in transition meet insomnia criteria, driven by night flashes, anxiety, and sometimes apnea. Treating the anxiety often fixes the sleep perception even before flashes fade.',
+      'Vaginal dryness, burning, UTIs, and pain with sex have a name — genitourinary syndrome of menopause (GSM) — and unlike flashes they do not improve with time alone. Moisturizers help; local estrogen is first-line for most.',
+      'Log sleep, flashes, and GSM symptoms together for a month. The combined picture is what makes treatment choices obvious.',
+    ],
+  },
+  {
+    slug: 'postpartum-mood',
+    title: 'Baby blues vs postpartum depression',
+    category: 'Pregnancy',
+    minutes: 3,
+    source: 'ACOG',
+    body: [
+      'Weepiness and overwhelm in the first two weeks are baby blues and usually lift on their own. Past two weeks, worsening, or trouble bonding, sleeping even when the baby sleeps, or scary thoughts point toward postpartum depression.',
+      'Fatigue and broken sleep mask it, so screen explicitly: low mood or lost interest most days for two weeks deserves a call, not waiting. Partners can answer for you if you cannot.',
+      'Treatment works and breastfeeding-compatible options exist. The in-app mood check is a nudge, never a diagnosis.',
+    ],
+  },
+  {
+    slug: 'cbt-flashes',
+    title: 'CBT for hot flashes: the 4-week version',
+    category: 'Perimenopause',
+    minutes: 4,
+    source: 'MENOS trials',
+    body: [
+      'Group CBT roughly halves how bothersome hot flashes feel — not by cooling the body but by changing the stress response around them. Effects hold at six months in trials.',
+      'Week 1–2: paced breathing (in 5, out 7) at flash onset plus sleep hygiene — cool dark room, no late caffeine or alcohol.',
+      'Week 3–4: catch catastrophic thoughts ("everyone stares", "I cannot cope") and rehearse calmer alternatives; schedule pleasant activities daily even when motivation dips.',
+    ],
+  },
+  {
+    slug: 'cbt-luteal-mood',
+    title: 'Luteal rumination reset',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'CBT',
+    body: [
+      'The late luteal phase amplifies rumination and negative affect, especially with anxiety. Naming it — "this is the luteal spike, not the truth" — already weakens its grip.',
+      'Use a 10-minute worry window: write every looping thought down, close the note, revisit once at a set time. Outside the window, redirect to one concrete task.',
+      'Protect the inputs that same week: earlier bedtime, daylight walk, capped caffeine and alcohol. If low mood persists past bleeding, talk to a clinician.',
+    ],
+  },
+  {
+    slug: 'sti-testing',
+    title: 'STI testing: when, where, how often',
+    category: 'Symptoms',
+    minutes: 3,
+    source: 'CDC',
+    body: [
+      'Unusual discharge, pelvic pain, bleeding after sex, or a new partner are all good reasons to test — and routine yearly screening is advised for sexually active people under 25.',
+      'Most bacterial STIs are cured with a short course of medication; the key step is simply getting tested instead of waiting.',
+      'Use the finder links below for confidential testing near you.',
+    ],
+    links: [
+      { label: 'CDC GetTested (US)', url: 'https://gettested.cdc.gov/' },
+      { label: 'NHS sexual health services (UK)', url: 'https://www.nhs.uk/service-search/sexual-health' },
+      { label: 'Planned Parenthood finder (US)', url: 'https://www.plannedparenthood.org/health-center' },
+    ],
+  },
+  {
+    slug: 'period-poverty-help',
+    title: 'Free and low-cost period products',
+    category: 'Cycle basics',
+    minutes: 2,
+    source: '-',
+    body: [
+      'No one should miss school or work for lack of products. If cost is a barrier, help exists in most places.',
+      'In India, Jan Aushadhi stores sell quality sanitary napkins for ₹1, and several states run free-pad schemes through schools and anganwadis — ask a teacher or ASHA worker.',
+      'Use the finder links below for banks and programs near you.',
+    ],
+    links: [
+      { label: 'Alliance for Period Supplies (US)', url: 'https://allianceforperiodsupplies.org/find-help/' },
+      { label: 'Bloody Good Period (UK)', url: 'https://www.bloodygoodperiod.com/' },
+      { label: 'Jan Aushadhi stores (India)', url: 'https://janaushadhi.gov.in/' },
+    ],
+  },
 ];
 
 export interface TtcCard {
@@ -166,6 +321,12 @@ export const TTC_CARDS: TtcCard[] = [
     title: 'OPKs detect the LH surge, not release',
     body: 'A positive ovulation test means ovulation is likely within about 36 hours. It does not confirm the egg was released. Test mid morning to early evening, and reduce fluids beforehand.',
     source: 'FDA',
+  },
+  {
+    slug: 'ttc-double-check',
+    title: 'The Marquette double check',
+    body: 'One marker can mislead, so protocols like Marquette require two: a monitor/LH peak plus peak-type mucus. When both agree in one cycle, the fertile call is far more trustworthy. After birth or coming off hormones, the same double check beats any calendar.',
+    source: 'Marquette Model',
   },
   {
     slug: 'ttc-bbt',
@@ -347,3 +508,48 @@ export function searchContent(q: string): Article[] {
     (a) => a.title.toLowerCase().includes(needle) || a.body.some((p) => p.toLowerCase().includes(needle))
   );
 }
+
+/** Cycle-syncing lifestyle tips per phase. Wellness ideas, never prescriptions. */export const PHASE_TIPS: Record<string, string[]> = {
+  menstrual: [
+    'Gentle movement over intensity: walks, stretching, yoga.',
+    'Iron-rich meals + vitamin C help replenish what bleeding takes.',
+    'Protect sleep — fatigue peaks here for most people.',
+  ],
+  follicular: [
+    'Energy climbs: good window for harder workouts and new habits.',
+    'Protein + complex carbs support the estrogen rise.',
+    'Social and creative tasks tend to feel easier now.',
+  ],
+  ovulation: [
+    'Peak energy days — schedule demanding work or workouts.',
+    'Stay hydrated; body temperature runs slightly higher.',
+    'Trying to conceive? These are the key days.',
+  ],
+  luteal: [
+    'Wind down intensity; prioritize sleep as progesterone rises.',
+    'Cravings are normal — magnesium-rich foods help some people.',
+    'Keep a light schedule buffer before your expected period.',
+  ],
+  unknown: [
+    'Log a period to unlock phase-based tips tuned to your cycle.',
+  ],
+};
+
+/** Trimester check-in ideas. Education, never medical advice. */
+export const PREG_TIPS: Record<1 | 2 | 3, string[]> = {
+  1: [
+    'Start folic acid if you have not — ideally before conception, otherwise now.',
+    'Book the first prenatal visit around week 8–10.',
+    'Nausea peaks around weeks 6–9 for many; small frequent meals help.',
+  ],
+  2: [
+    'The anatomy scan usually happens around week 20.',
+    'Glucose screening typically lands at weeks 24–28.',
+    'Kick counting becomes meaningful from about week 28 — try the counter above.',
+  ],
+  3: [
+    'Pack the hospital bag by week 36; confirm the birth plan.',
+    'Count kicks daily — 10 movements within 2 hours is the rule of thumb.',
+    'Watch for severe headache, vision changes, sudden swelling, or reduced movement: call promptly.',
+  ],
+};

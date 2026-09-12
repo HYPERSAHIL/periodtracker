@@ -29,6 +29,7 @@ type Listener = (s: UpdateState) => void;
 class UpdateManager {
   state: UpdateState = { stage: 'idle', version: null, progress: 0, sizeBytes: null, notes: null };
   private listeners = new Set<Listener>();
+  private timer: number | null = null;
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -85,11 +86,20 @@ class UpdateManager {
 
     await this.check();
     // background re-check every 6 hours while the app is open
-    window.setInterval(() => this.check(), 6 * 3600 * 1000);
+    if (this.timer === null) this.timer = window.setInterval(() => this.check(), 6 * 3600 * 1000);
+  }
+
+  /** Clear the background re-check (effect cleanup / hot-reload). */
+  stop() {
+    if (this.timer !== null) {
+      window.clearInterval(this.timer);
+      this.timer = null;
+    }
   }
 
   async check(): Promise<void> {
     if (!isNative()) return;
+    if (this.state.stage === 'ready' || this.state.stage === 'installing' || this.state.stage === 'need_permission') return;
     this.set({ stage: 'checking' });
     try {
       const res = await fetch(apiUrl('/api/app/latest'));

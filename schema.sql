@@ -29,3 +29,23 @@ CREATE TABLE IF NOT EXISTS data (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- read-only partner share links (summary blobs only, never entries)
+CREATE TABLE IF NOT EXISTS shares (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_shares_user ON shares(user_id);
+
+-- opt-in cycle summary emails (explicit consent only)
+CREATE TABLE IF NOT EXISTS email_subs (
+  user_id TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  freq TEXT NOT NULL DEFAULT 'weekly',
+  level TEXT NOT NULL DEFAULT 'minimal',
+  unsub_token TEXT UNIQUE NOT NULL,
+  created_at TEXT NOT NULL
+);

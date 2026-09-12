@@ -1,0 +1,13 @@
+# Cloudflare Pages project config for Period Tracker.
+# Deploy: bun run build && wrangler pages deploy dist --project-name periodtracker
+# Secrets (dashboard or `wrangler pages secret put`): PT_ADMIN_KEY, PT_ENC_KEY, GH_TOKEN (optional)
+# D1: create once (`wrangler d1 create periodtracker`), paste the id below, then
+# `wrangler d1 execute periodtracker --file=schema.sql`.
+
+name = "periodtracker"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "periodtracker"
+database_id = "REPLACE_WITH_D1_ID"

@@ -7,6 +7,7 @@
 import { DayEntry, Settings } from '../types';
 import { DeviceInfo } from './device';
 import { apiUrl } from './native';
+import { normLang } from './i18n';
 
 const CLOUD_KEY = 'pt.cloud.v1';
 
@@ -113,6 +114,85 @@ export async function signOut(token: string): Promise<void> {
   saveSession(null);
 }
 
+// ---------- partner share (read-only summary links) ----------
+
+export interface SharedSummary {
+  cycleDay: number | null;
+  nextStart: string | null;
+  fertileStart: string | null;
+  fertileEnd: string | null;
+  phase: string | null;
+  generatedAt: string;
+}
+
+export interface ShareRow {
+  token: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export async function shareCreate(token: string, summary: SharedSummary, days = 30): Promise<{ token: string; expiresInDays: number }> {
+  const r = await api('share', { summary, days }, token);
+  if (!r.ok) throw new Error('share_failed');
+  return r.data as { token: string; expiresInDays: number };
+}
+
+export async function shareList(token: string): Promise<ShareRow[]> {
+  const r = await api('share', undefined, token);
+  if (!r.ok) throw new Error('share_list_failed');
+  return (r.data.shares ?? []) as ShareRow[];
+}
+
+export async function shareRevoke(token: string, shareToken: string): Promise<void> {
+  const r = await api('share/revoke', { token: shareToken }, token);
+  if (!r.ok) throw new Error('share_revoke_failed');
+}
+
+export async function fetchShared(shareToken: string): Promise<{ summary: SharedSummary; expiresAt: string } | null> {  if (!/^[a-f0-9]{32}$/i.test(shareToken)) return null;
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(`/api/s/${encodeURIComponent(shareToken)}`));
+  } catch {
+    throw new Error('network');
+  }
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('network');
+  try {
+    return (await res.json()) as { summary: SharedSummary; expiresAt: string };
+  } catch {
+    throw new Error('network');
+  }
+}
+
+// ---------- email summaries (explicit opt-in) ----------
+
+export interface EmailSub {
+  email: string;
+  freq: 'weekly' | 'monthly';
+  level: 'minimal' | 'full';
+}
+
+export async function emailSubscribe(
+  token: string,
+  input: { email: string; freq: 'weekly' | 'monthly'; level: 'minimal' | 'full' }
+): Promise<void> {
+  const r = await api('email/subscribe', input, token);
+  if (!r.ok) {
+    if (r.data?.error === 'invalid_email') throw new Error('Please enter a valid email.');
+    throw new Error('subscribe_failed');
+  }
+}
+
+export async function emailStatus(token: string): Promise<{ sub: EmailSub | null }> {
+  const r = await api('email/status', undefined, token);
+  if (!r.ok) throw new Error('status_failed');
+  return r.data as { sub: EmailSub | null };
+}
+
+export async function emailUnsubscribe(token: string): Promise<void> {
+  await api('email/unsubscribe', {}, token).catch(() => undefined);
+}
+
 // ---------- merge ----------
 
 export function mergeEntries(
@@ -129,7 +209,9 @@ export function mergeEntries(
 
 export function mergeSettings(local: Settings, remote: Settings | null): Settings {
   if (!remote) return local;
-  return (local.updatedAt ?? 0) >= (remote.updatedAt ?? 0) ? local : remote;
+  const out = (local.updatedAt ?? 0) >= (remote.updatedAt ?? 0) ? local : remote;
+  if (out.weekStart !== 0 && out.weekStart !== 1) return { ...out, weekStart: 1, lang: normLang(out.lang) };
+  return { ...out, lang: normLang(out.lang) };
 }
 
 // ---------- sync cycle ----------
@@ -138,6 +220,15 @@ export interface SyncResult {
   entries?: Record<string, DayEntry>;
   settings?: Settings;
   changed: boolean;
+}
+
+/** Key-order-insensitive stringify so reordered-but-equal objects don't look changed. */
+function stable(v: unknown): string {
+  return JSON.stringify(v, (_k, val) =>
+    val && typeof val === 'object' && !Array.isArray(val)
+      ? Object.fromEntries(Object.keys(val).sort().map((k) => [k, (val as Record<string, unknown>)[k]]))
+      : val
+  );
 }
 
 export async function syncCycle(
@@ -155,8 +246,8 @@ export async function syncCycle(
   const mergedEntries = mergeEntries(entries, remoteEntries);
   const mergedSettings = mergeSettings(settings, remoteSettings);
   const localChanged =
-    JSON.stringify(mergedEntries) !== JSON.stringify(remoteEntries ?? {}) ||
-    JSON.stringify({ ...mergedSettings }) !== JSON.stringify(remoteSettings ?? null);
+    stable(mergedEntries) !== stable(remoteEntries ?? {}) ||
+    stable({ ...mergedSettings }) !== stable(remoteSettings ?? null);
   if (localChanged) {
     applyMerged({ entries: mergedEntries, settings: mergedSettings, changed: true });
   }
@@ -165,8 +256,8 @@ export async function syncCycle(
   if (push.status === 409 && !push.ok) {
     const retry = await api('data', undefined, token);
     if (!retry.ok) throw new Error('conflict_retry_failed');
-    const m2e = mergeEntries(entries, retry.data.entries);
-    const m2s = mergeSettings(settings, retry.data.settings);
+    const m2e = mergeEntries(mergedEntries, retry.data.entries);
+    const m2s = mergeSettings(mergedSettings, retry.data.settings);
     applyMerged({ entries: m2e, settings: m2s, changed: true });
     const push2 = await api('data', { baseRev: retry.data.rev, settings: m2s, entries: m2e }, token);
     if (!push2.ok) throw new Error('push_conflict');

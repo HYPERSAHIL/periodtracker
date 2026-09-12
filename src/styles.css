@@ -538,6 +538,48 @@ button:focus-visible,
   gap: 5px;
 }
 
+.year-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 10px;
+}
+
+.mini-head {
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cal-grid.mini {
+  gap: 2px;
+}
+
+.cal-grid.mini .day {
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.drag-handle {
+  touch-action: none;
+  cursor: grab;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 6px 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 .cal-grid .wd {
   text-align: center;
   font-size: 10.5px;
@@ -588,6 +630,13 @@ button:focus-visible,
   background: var(--rose-100);
   color: var(--rose-700);
   border: 1.5px dashed var(--rose-300);
+}
+
+.day.window {
+  background: var(--rose-100);
+  color: var(--rose-700);
+  border: 1.5px dotted var(--rose-300);
+  opacity: 0.75;
 }
 
 .day.fertile {
@@ -660,6 +709,11 @@ button:focus-visible,
 .legend .sw.pd {
   background: var(--rose-100);
   border: 1.5px dashed var(--rose-300);
+}
+
+.legend .sw.w {
+  background: var(--rose-100);
+  border: 1.5px dotted var(--rose-300);
 }
 
 .legend .sw.f {
@@ -1972,6 +2026,9 @@ label.mini {
   .phone-track { animation: none; transform: none; }
   .phone-dots span { animation: none; }
   .mode-card, .btn, .chip { transition: none; }
+  .ring, .ring.r2 { animation: none; }
+  .upd-progress > div { transition: none; }
+  .day:active { transform: none; }
 }
 @media (max-width: 380px) {
   .phone-preview { width: 200px; height: 420px; }

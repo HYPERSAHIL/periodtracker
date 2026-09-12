@@ -1,6 +1,6 @@
 export function Logo({ size = 34 }: { size?: number }) {
   return (
-    <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-label="Period Tracker logo">
+    <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
       <defs>
         <linearGradient id="pt-lg" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#f43f5e" />
@@ -24,6 +24,7 @@ const base = {
   strokeWidth: 1.9,
   strokeLinecap: 'round' as const,
   strokeLinejoin: 'round' as const,
+  'aria-hidden': true,
 };
 
 export const IconHome = (_p: P) => (

@@ -107,9 +107,12 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
 
   const allIntervals: number[] = [];
   const excluded: number[] = [];
+  const userExcluded = new Set(settings.excludedStarts ?? []);
   for (let i = 1; i < starts.length; i++) {
     const len = diffDays(starts[i - 1], starts[i]);
-    if (len >= 15 && len <= 90) allIntervals.push(len);
+    if (userExcluded.has(starts[i - 1]) || userExcluded.has(starts[i])) {
+      excluded.push(len);
+    } else if (len >= 15 && len <= 90) allIntervals.push(len);
     else excluded.push(len);
   }
   const included = allIntervals.slice(-6);
@@ -149,11 +152,15 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
 
   const today = todayISO();
   const lastStart = starts.length ? starts[starts.length - 1] : settings.lastPeriodStart;
-  const paused = settings.predictionsPaused || settings.mode === 'pregnant';
+  const paused = settings.predictionsPaused || settings.mode === 'pregnant' || settings.mode === 'postpartum';
   const daysSinceLast = lastStart ? diffDays(lastStart, today) : null;
   const stale = !paused && daysSinceLast !== null && daysSinceLast > 90;
 
-  const uncertaintyDays = usingDefaults ? 7 : uncertaintyFromHistory(included);
+  const uncertaintyDays = usingDefaults
+    ? 7
+    : settings.irregular
+      ? Math.min(14, uncertaintyFromHistory(included) + 4)
+      : uncertaintyFromHistory(included);
 
   let nextStart: string | null = null;
   let lateBy: number | null = null;
@@ -173,7 +180,7 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
     daysUntilNext = diffDays(today, anchor);
   }
 
-  const fertileSuppressed = !paused && isHormonal(settings.contraception);
+  const fertileSuppressed = !paused && (isHormonal(settings.contraception) || settings.teen);
   const ovulationDate = nextStart && !fertileSuppressed ? addDays(nextStart, -lutealLength) : null;
   const fertileStart = ovulationDate ? addDays(ovulationDate, -5) : null;
   const fertileEnd = ovulationDate ? addDays(ovulationDate, 1) : null;
@@ -242,7 +249,7 @@ export function buildFacts(
     for (let c = 0; c < 6; c++) {
       for (let i = 0; i < stats.avgPeriod; i++) touch(addDays(anchor, i)).predicted = true;
       if (!stats.fertileSuppressed) {
-        const ovu = addDays(anchor, -14);
+        const ovu = addDays(anchor, -stats.lutealLength);
         for (let i = -5; i <= 1; i++) touch(addDays(ovu, i)).fertile = true;
         touch(ovu).ovulation = true;
       }

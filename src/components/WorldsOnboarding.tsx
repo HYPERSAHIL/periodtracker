@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability -- three.js scene graph is mutable by design (official r3f pattern) */
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -45,26 +46,28 @@ const WORLDS = [
 ];
 
 /** Soft particle field that reorganizes from chaos cloud into an orderly ring. */
+function makeField(count: number): { positions: Float32Array; startPositions: Float32Array } {
+  const positions = new Float32Array(count * 3);
+  const startPositions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const sx = (Math.random() - 0.5) * 14;
+    const sy = (Math.random() - 0.5) * 10;
+    const sz = (Math.random() - 0.5) * 6 - 2;
+    positions[i * 3] = sx;
+    positions[i * 3 + 1] = sy;
+    positions[i * 3 + 2] = sz;
+    startPositions[i * 3] = sx;
+    startPositions[i * 3 + 1] = sy;
+    startPositions[i * 3 + 2] = sz;
+  }
+  return { positions, startPositions };
+}
+
 function ParticleField({ progress }: { progress: React.MutableRefObject<number> }) {
   const COUNT = window.innerWidth < 480 ? 220 : 420;
   const points = useRef<THREE.Points>(null);
 
-  const { positions, startPositions } = useMemo(() => {
-    const positions = new Float32Array(COUNT * 3);
-    const startPositions = new Float32Array(COUNT * 3);
-    for (let i = 0; i < COUNT; i++) {
-      const sx = (Math.random() - 0.5) * 14;
-      const sy = (Math.random() - 0.5) * 10;
-      const sz = (Math.random() - 0.5) * 6 - 2;
-      positions[i * 3] = sx;
-      positions[i * 3 + 1] = sy;
-      positions[i * 3 + 2] = sz;
-      startPositions[i * 3] = sx;
-      startPositions[i * 3 + 1] = sy;
-      startPositions[i * 3 + 2] = sz;
-    }
-    return { positions, startPositions };
-  }, [COUNT]);
+  const { positions, startPositions } = useMemo(() => makeField(COUNT), [COUNT]);
 
   useFrame(() => {
     if (!points.current) return;
@@ -191,10 +194,10 @@ export default function WorldsOnboarding({ onFinish }: { onFinish: () => void })
   const wrapRef = useRef<HTMLDivElement>(null);
   const progress = useRef(0);
   const [activeWorld, setActiveWorld] = useState(0);
-  const [reduced, setReduced] = useState(false);
+  const [travel, setTravel] = useState(0);
+  const [reduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
-    setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
@@ -204,6 +207,7 @@ export default function WorldsOnboarding({ onFinish }: { onFinish: () => void })
         const total = rect.height - window.innerHeight;
         const scrolled = Math.min(Math.max(-rect.top / total, 0), 1);
         progress.current = scrolled;
+        setTravel(scrolled);
         setActiveWorld(Math.min(Math.floor(scrolled * 4), 3));
       });
     };
@@ -218,7 +222,7 @@ export default function WorldsOnboarding({ onFinish }: { onFinish: () => void })
   }, []);
 
   const world = WORLDS[activeWorld];
-  const travel = reduced ? 0 : progress.current;
+  const shown = reduced ? 0 : travel;
 
   return (
     <div ref={wrapRef} style={{ height: reduced ? 'auto' : '480vh' }}>
@@ -229,13 +233,13 @@ export default function WorldsOnboarding({ onFinish }: { onFinish: () => void })
           camera={{ position: [0, 0, 6], fov: 55 }}
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         >
-          <Atmosphere progress={{ current: travel }} />
+          <Atmosphere progress={{ current: shown }} />
           <ambientLight intensity={0.85} />
           <directionalLight position={[4, 6, 6]} intensity={1.1} />
-          <CameraRig progress={{ current: travel }} />
-          <ParticleField progress={{ current: travel }} />
-          <JourneyOrb progress={{ current: travel }} />
-          <OrbitRings progress={{ current: travel }} />
+          <CameraRig progress={{ current: shown }} />
+          <ParticleField progress={{ current: shown }} />
+          <JourneyOrb progress={{ current: shown }} />
+          <OrbitRings progress={{ current: shown }} />
         </Canvas>
       </div>
 

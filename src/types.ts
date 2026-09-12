@@ -1,7 +1,7 @@
 export type Flow = 'spotting' | 'light' | 'medium' | 'heavy';
 export type Mucus = 'dry' | 'sticky' | 'creamy' | 'watery' | 'eggwhite' | 'unusual';
 export type TestResult = 'negative' | 'positive' | 'faint' | 'unclear';
-export type Mode = 'cycle' | 'ttc' | 'pregnant' | 'perimenopause';
+export type Mode = 'cycle' | 'ttc' | 'pregnant' | 'perimenopause' | 'postpartum';
 export type Severity = 'mild' | 'moderate' | 'severe';
 export type ContraceptionMethod =
   | 'none'
@@ -15,6 +15,23 @@ export type ContraceptionMethod =
   | 'other';
 
 export const HORMONAL_METHODS: ContraceptionMethod[] = ['pill', 'patch', 'ring', 'injection', 'implant', 'iud'];
+
+export const ALL_METHODS: ContraceptionMethod[] = [
+  'none',
+  'pill',
+  'patch',
+  'ring',
+  'injection',
+  'implant',
+  'iud',
+  'condom',
+  'other',
+];
+
+/** Coerce unknown input to a valid method or null (prior-method answers). */
+export function normMethod(v: unknown): ContraceptionMethod | null {
+  return typeof v === 'string' && (ALL_METHODS as string[]).includes(v) ? (v as ContraceptionMethod) : null;
+}
 
 export interface DayEntry {
   date: string; // YYYY-MM-DD
@@ -47,6 +64,15 @@ export interface DayEntry {
   pillMissed: boolean;
   symptomSeverity: Severity | null; // overall severity for the day
   routineImpact: 'none' | 'some' | 'lot' | null; // impact on daily routine
+  painLevel: number | null; // 0-10 cramp/pain scale
+  painAreas: string[]; // body-map ids, see PAIN_AREAS
+  migraine: boolean; // migraine-day tag
+  migraineAura: boolean;
+  migraineMed: boolean; // acute med taken
+  migraineHelped: boolean; // med helped
+  giIssues: boolean; // bowel/GI issues (endo set)
+  bladderPain: boolean; // bladder pain/urgency (endo set)
+  endoFlare: boolean; // endo flare day tag
 }
 
 export interface ContraceptionRegimen {
@@ -79,13 +105,44 @@ export interface Settings {
   pinHash: string | null; // salted SHA-256, gate only (not encryption)
   pinSalt: string | null;
   bookmarks: string[]; // content slugs
+  customSymptoms: string[]; // user-added symptom names (data, shown as-is)
+  customMoods: string[]; // user-added mood names (data, shown as-is)
   // granular notification controls (master = reminders)
   notifyPeriod: boolean;
   notifyOvulation: boolean;
   notifyDailyCheckin: boolean;
+  notifyMeds: boolean; // daily medication/contraception reminder
+  medTime: string | null; // "HH:MM" for the med reminder
   quietStart: string | null; // "HH:MM" 24h, local time
   quietEnd: string | null;
   showFertileWindow: boolean;
+  weekStart: 0 | 1; // 1 = Monday (default), 0 = Sunday
+  lang: 'en' | 'hi';
+  irregular: boolean; // PCOS/irregular cycles: wider windows, no "late" nagging
+  teen: boolean; // teen mode: fertile/TTC content hidden, simpler UI
+  discreetNotifs: boolean; // lock-screen-safe notification text (no details)
+  postpartum: { birthDate: string | null; exclusiveBF: boolean } | null;
+  pmddCheckStart: string | null; // date a 2-cycle PMDD confirmation was started
+  priorMethod: ContraceptionMethod | null; // method used before tracking (tailors counseling)
+  excludedStarts: string[]; // period-start dates excluded from predictions (outlier cycles)
+  tryingSince: string | null; // TTC start date for infertility timeline
+  ppMood: { date: string; score: number } | null; // last postpartum mood screen
+  // pregnancy extras ride the normal settings blob, so backup + sync carry them
+  kickLog?: KickSession[];
+  activeKick?: KickSession | null;
+  apptList?: ApptItem[];
+}
+
+export interface KickSession {
+  startedAt: number;
+  endedAt: number | null;
+  kicks: number[];
+}
+
+export interface ApptItem {
+  id: number;
+  text: string;
+  done: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -107,12 +164,27 @@ export const DEFAULT_SETTINGS: Settings = {
   pinHash: null,
   pinSalt: null,
   bookmarks: [],
+  customSymptoms: [],
+  customMoods: [],
   notifyPeriod: true,
   notifyOvulation: false,
   notifyDailyCheckin: false,
+  notifyMeds: false,
+  medTime: '09:00',
   quietStart: null,
   quietEnd: null,
   showFertileWindow: true,
+  weekStart: 1,
+  lang: 'en',
+  irregular: false,
+  teen: false,
+  discreetNotifs: false,
+  postpartum: null,
+  pmddCheckStart: null,
+  priorMethod: null,
+  excludedStarts: [],
+  tryingSince: null,
+  ppMood: null,
 };
 
 export const FLOWS: { id: Flow; label: string; dots: number }[] = [
@@ -175,8 +247,23 @@ export const PERIMENO_HIGHLIGHT = new Set([
   'Insomnia',
 ]);
 
-export const MOODS: { id: string; emoji: string }[] = [
-  { id: 'Happy', emoji: '😊' },
+/** Body-map areas for the 0-10 pain scale. Ids are stable; labels translate at render. */
+export const PAIN_AREAS: { id: string; emoji: string }[] = [
+  { id: 'head', emoji: '🤕' },
+  { id: 'jaw', emoji: '🦷' },
+  { id: 'neck', emoji: '🧣' },
+  { id: 'shoulders', emoji: '🤷' },
+  { id: 'back', emoji: '🎒' },
+  { id: 'lowerback', emoji: '🪑' },
+  { id: 'abdomen', emoji: '🤰' },
+  { id: 'pelvis', emoji: '🩸' },
+  { id: 'breasts', emoji: '👚' },
+  { id: 'joints', emoji: '🦵' },
+  { id: 'legs', emoji: '🦶' },
+  { id: 'fullbody', emoji: '🧍' },
+];
+
+export const MOODS: { id: string; emoji: string }[] = [  { id: 'Happy', emoji: '😊' },
   { id: 'Calm', emoji: '😌' },
   { id: 'Energized', emoji: '⚡' },
   { id: 'Confident', emoji: '😎' },
@@ -197,6 +284,7 @@ export const MODE_INFO: Record<Mode, { label: string; blurb: string; emoji: stri
   ttc: { label: 'Trying to conceive', blurb: 'Fertility signs, ovulation tests, fertile days', emoji: '🌱' },
   pregnant: { label: "I'm pregnant", blurb: 'Week by week tracking until due date', emoji: '🤰' },
   perimenopause: { label: 'Perimenopause', blurb: 'Irregular cycles and changing symptoms', emoji: '🍂' },
+  postpartum: { label: 'Postpartum', blurb: 'Recovery, feeding, first period watch', emoji: '🍼' },
 };
 
 export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal: boolean }> = {
@@ -235,5 +323,8 @@ export const TRACKER_SECTIONS: TrackerSectionDef[] = [
   { id: 'activity', label: 'Activity', description: 'Exercise, steps, water' },
   { id: 'lifestyle', label: 'Lifestyle', description: 'Alcohol, caffeine, smoking' },
   { id: 'meds', label: 'Medication', description: 'Contraception, supplements' },
+  { id: 'pain', label: 'Pain', description: '0-10 scale and body map' },
+  { id: 'headache', label: 'Headache', description: 'Migraine days, aura, meds' },
+  { id: 'endo', label: 'Endo & pelvic', description: 'Flares, bowel, bladder' },
   { id: 'note', label: 'Notes', description: 'Freeform journal' },
 ];

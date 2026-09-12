@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DayEntry, Settings, Tab } from './types';
 import { buildFacts, computeStats, phaseFor } from './lib/cycle';
 import {
   loadEntries,
   loadSettings,
+  blankEntry,
+  mergeImportedEntries,
+  parseBackup,
+  parseCSVEntries,
+  parseHealthXML,
+  lastNotifiedMeds,
+  markNotifiedMeds,
   lastNotifiedDay,
   markNotifiedDay,
   lastNotifiedOvulation,
@@ -14,7 +21,7 @@ import {
   saveEntries,
   saveSettings,
 } from './lib/storage';
-import { todayISO } from './lib/date';
+import { todayISO, setDateLocale } from './lib/date';
 import { Logo, IconHome, IconCalendar, IconChart, IconGear } from './components/Icons';
 import { IconBook } from './components/Icons';
 import Onboarding from './components/Onboarding';
@@ -28,14 +35,19 @@ import PregnancyScreen from './components/PregnancyScreen';
 import DaySheet from './components/DaySheet';
 import PinGate from './components/PinGate';
 import UpdateOverlay from './components/UpdateOverlay';
+import withBoundary from './components/ErrorBoundary';
 import AccountScreen from './components/AccountScreen';
-import {
-  CloudUser, SyncStatus, ensureAnonymousSession, loadSession, signOut, syncCycle,
-} from './lib/cloud';
-import { deviceInfo } from './lib/device';
-import { APP_VERSION } from './types';
+import type { CloudUser } from './lib/cloud';
+import { loadSession } from './lib/cloud';
+import { fetchShared, type EmailSub, type SharedSummary, type ShareRow } from './lib/cloud';
 import { updater } from './lib/updater';
 import { isNative } from './lib/native';
+import { tx } from './lib/i18n';
+import { useCloudSync } from './hooks/useCloudSync';
+import { scheduleNativeReminders } from './lib/nativeReminders';
+import { pushWidgetSnapshot } from './lib/widgetSnapshot';
+import { pushRecentToHealth } from './lib/healthSync';
+import PartnerView from './components/PartnerView';
 
 export interface AppProps {
   entries: Record<string, DayEntry>;
@@ -52,24 +64,48 @@ export interface AppProps {
   cloudUser: CloudUser | null;
   openAccount: () => void;
   signOutCloud: () => void;
+  shareApi: {
+    create: (s: SharedSummary, days?: number) => Promise<{ token: string; expiresInDays: number }>;
+    list: () => Promise<ShareRow[]>;
+    revoke: (t: string) => Promise<void>;
+  };
+  emailApi: {
+    status: () => Promise<{ sub: EmailSub | null }>;
+    subscribe: (i: { email: string; freq: 'weekly' | 'monthly'; level: 'minimal' | 'full' }) => Promise<void>;
+    unsubscribe: () => Promise<void>;
+  };
 }
 
-export default function App() {
+function MainApp() {
   const [entries, setEntries] = useState<Record<string, DayEntry>>(() => loadEntries());
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  // minute tick so time-based reminders fire while the tab sits open
+  const [minTick, setMinTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setMinTick((t) => t + 1), 60000);
+    return () => window.clearInterval(id);
+  }, []);
   const [tab, setTab] = useState<Tab>('home');
   const [sheetDate, setSheetDate] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('pt.unlocked') === '1');
-  const [, setSyncStatus] = useState<SyncStatus>('idle');
-  const [cloudUser, setCloudUser] = useState<CloudUser | null>(() => loadSession()?.user ?? null);
   const [accountSheet, setAccountSheet] = useState(false);
-  const cloudRef = useRef<{ token: string | null }>({ token: loadSession()?.token ?? null });
-  const syncTimer = useRef<number | null>(null);
-  const firstPaint = useRef(true);
+  const sync = useCloudSync({ entries, settings, setEntries, setSettings });
+  const lang = settings.lang;
+  const statusText = sync.pending ? tx(lang, 'unsynced changes') : tx(lang, sync.syncStatus);
 
   useEffect(() => saveEntries(entries), [entries]);
   useEffect(() => saveSettings(settings), [settings]);
+
+  // localized date formatting follows the app language (hi → Hindi), else device
+  useEffect(() => {
+    setDateLocale(settings.lang === 'hi' ? 'hi' : null);
+    try {
+      document.documentElement.lang = settings.lang === 'hi' ? 'hi' : 'en';
+    } catch {
+      /* non-DOM renderers */
+    }
+  }, [settings.lang]);
 
   // Theme: resolved attribute on <html>, live-follows the OS in "system" mode.
   useEffect(() => {
@@ -93,21 +129,31 @@ export default function App() {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     if (inQuietHours(new Date(), settings.quietStart, settings.quietEnd)) return;
     const today = todayISO();
+    const lang = settings.lang;
+    const discreet = settings.discreetNotifs === true;
+    const notify = (body: string, tag: string) => {
+      try {
+        new Notification(tx(lang, 'Period Tracker'), {
+          body: discreet ? tx(lang, 'You have a reminder from Period Tracker.') : body,
+          icon: '/icons/icon-192.png',
+          badge: '/icons/icon-192.png',
+          tag,
+        });
+      } catch {
+        /* banner still informs */
+      }
+    };
 
     // period coming
     if (settings.notifyPeriod !== false && lastNotifiedDay() !== today) {
       const d = stats.daysUntilNext;
       if (d !== null && d >= 0 && d <= settings.remindDaysBefore) {
-        try {
-          new Notification('Period Tracker', {
-            body: d === 0 ? 'Your period is expected today.' : `Your period is expected in ${d} day${d === 1 ? '' : 's'}.`,
-            icon: '/icons/icon-192.png',
-            badge: '/icons/icon-192.png',
-            tag: 'pt-upcoming',
-          });
-        } catch {
-          /* banner still informs */
-        }
+        notify(
+          d === 0
+            ? tx(lang, 'Your period is expected today.')
+            : tx(lang, 'Your period is expected in {n} day{s}.', { n: d, s: d === 1 ? '' : 's' }),
+          'pt-upcoming'
+        );
         markNotifiedDay(today);
       }
     }
@@ -118,14 +164,10 @@ export default function App() {
       if (f) {
         const daysUntilFertile = Math.round((new Date(f).getTime() - new Date(today).getTime()) / 86400000);
         if (daysUntilFertile >= 0 && daysUntilFertile <= 1) {
-          try {
-            new Notification('Period Tracker', {
-              body: daysUntilFertile === 0 ? 'Fertile window starts today.' : 'Fertile window starts tomorrow.',
-              icon: '/icons/icon-192.png',
-              badge: '/icons/icon-192.png',
-              tag: 'pt-fertile',
-            });
-          } catch {}
+          notify(
+            daysUntilFertile === 0 ? tx(lang, 'Fertile window starts today.') : tx(lang, 'Fertile window starts tomorrow.'),
+            'pt-fertile'
+          );
           markNotifiedOvulation(today);
         }
       }
@@ -137,16 +179,25 @@ export default function App() {
       if (hr >= 19) {
         const e = entries[today];
         if (!e || !e.checkedIn) {
-          try {
-            new Notification('Period Tracker', {
-              body: 'Quick check in? Log how today felt, 10 seconds.',
-              icon: '/icons/icon-192.png',
-              badge: '/icons/icon-192.png',
-              tag: 'pt-daily',
-            });
-          } catch {}
+          notify(tx(lang, 'Quick check in? Log how today felt, 10 seconds.'), 'pt-daily');
           markNotifiedDaily(today);
         }
+      }
+    }
+
+    // medication / contraception reminder at the chosen time
+    if (settings.notifyMeds && lastNotifiedMeds() !== today && settings.medTime) {
+      const [hh, mm] = settings.medTime.split(':').map(Number);
+      const now = new Date();
+      const fireAt = new Date(now);
+      fireAt.setHours(hh, mm, 0, 0);
+      if (
+        Number.isInteger(hh) && Number.isInteger(mm) &&
+        now.getTime() >= fireAt.getTime() &&
+        !inQuietHours(fireAt, settings.quietStart, settings.quietEnd)
+      ) {
+        notify(tx(lang, 'Time for your medication / contraception.'), 'pt-meds');
+        markNotifiedMeds(today);
       }
     }
   }, [
@@ -155,6 +206,11 @@ export default function App() {
     settings.notifyPeriod,
     settings.notifyOvulation,
     settings.notifyDailyCheckin,
+    settings.notifyMeds,
+    settings.medTime,
+    settings.discreetNotifs,
+    settings.lang,
+    minTick,
     settings.quietStart,
     settings.quietEnd,
     settings.showFertileWindow,
@@ -164,163 +220,15 @@ export default function App() {
     entries,
   ]);
 
-  const runSync = useCallback(async (currentEntries: Record<string, DayEntry>, currentSettings: Settings) => {
-    const token = cloudRef.current.token;
-    if (!token || !navigator.onLine) {
-      setSyncStatus(navigator.onLine ? 'error' : 'offline');
-      return;
-    }
-    setSyncStatus('syncing');
-    try {
-      await syncCycle(token, currentEntries, currentSettings, (m) => {
-        if (m.changed) {
-          if (m.entries) setEntries(m.entries);
-          if (m.settings) setSettings(m.settings);
-        }
-      });
-      setSyncStatus('synced');
-    } catch {
-      setSyncStatus('error');
-    }
-  }, []);
-
-  // bootstrap: anonymous session (sync works without sign-in), then initial sync
-  useEffect(() => {
-    if (!settings.onboarded) return;
-    let cancelled = false;
-    (async () => {
-      setSyncStatus('connecting');
-      try {
-        if (!cloudRef.current.token) {
-          const s = await ensureAnonymousSession(deviceInfo(APP_VERSION));
-          if (cancelled) return;
-          cloudRef.current.token = s.token;
-          setCloudUser(s.user);
-        }
-        await runSync(entries, settings);
-      } catch {
-        if (!cancelled) setSyncStatus('error');
-      }
-    })();
-    const onOnline = () => runSync(entriesRef.current, settingsRef.current);
-    window.addEventListener('online', onOnline);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('online', onOnline);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.onboarded]);
-
-  // keep latest data reachable for event-driven syncs
-  const entriesRef = useRef(entries);
-  const settingsRef = useRef(settings);
-  useEffect(() => { entriesRef.current = entries; settingsRef.current = settings; });
-
-  // debounced auto-sync on every change (skips the very first paint)
-  useEffect(() => {
-    if (firstPaint.current) {
-      firstPaint.current = false;
-      return;
-    }
-    if (!settings.onboarded || !cloudRef.current.token) return;
-    if (syncTimer.current) window.clearTimeout(syncTimer.current);
-    syncTimer.current = window.setTimeout(() => runSync(entriesRef.current, settingsRef.current), 2500);
-  }, [entries, settings, runSync, settings.onboarded]);
-
   // APK auto-updater: background check, non-closable install overlay
+  // + native reminder (re)scheduling via Capacitor (cancel-by-id makes re-runs cheap)
   useEffect(() => {
     updater.start();
-    if (!isNative() || !settings.onboarded || !settings.reminders) return;
-    // native reminders: (re)schedule heads-ups via Capacitor, respects granular toggles + quiet hours
-    (async () => {
-      try {
-        const LN = (await import('@capacitor/local-notifications')).LocalNotifications;
-        const perm = await LN.requestPermissions();
-        if (perm.display !== 'granted') return;
-        const existing = await LN.getPending();
-        const mine = existing.notifications.filter((n) => (n as any).extra?.pt);
-        if (mine.length) {
-          await LN.cancel({ notifications: mine.map((n) => ({ id: n.id })) });
-        }
-        const toSchedule: Array<{
-          id: number;
-          title: string;
-          body: string;
-          schedule: { at: Date } | { on: { hour: number; minute: number } };
-          extra: { pt: true };
-        }> = [];
-
-        const quiet = (date: Date) => inQuietHours(date, settings.quietStart, settings.quietEnd);
-
-        // period
-        if (settings.notifyPeriod !== false) {
-          const d = stats.daysUntilNext;
-          if (d !== null && d >= 0 && d <= 60) {
-            const when = new Date();
-            when.setDate(when.getDate() + Math.max(0, d - settings.remindDaysBefore));
-            when.setHours(9, 0, 0, 0);
-            if (when.getTime() > Date.now() && !quiet(when)) {
-              toSchedule.push({
-                id: 4101,
-                title: 'Period Tracker',
-                body: d - settings.remindDaysBefore <= 0 ? 'Your period is expected today.' : 'Your period is expected soon.',
-                schedule: { at: when },
-                extra: { pt: true },
-              });
-            }
-          }
-        }
-
-        // fertile window
-        if (settings.notifyOvulation && settings.showFertileWindow && stats.fertileStart) {
-          const f = new Date(stats.fertileStart);
-          f.setHours(9, 0, 0, 0);
-          f.setDate(f.getDate() - 1); // day before window
-          if (f.getTime() > Date.now() && !quiet(f)) {
-            toSchedule.push({
-              id: 4102,
-              title: 'Period Tracker',
-              body: 'Fertile window starts tomorrow.',
-              schedule: { at: f },
-              extra: { pt: true },
-            });
-          }
-        }
-
-        // daily check in - repeating 20:00 if not quiet
-        if (settings.notifyDailyCheckin) {
-          const probe = new Date();
-          probe.setHours(20, 0, 0, 0);
-          if (!quiet(probe)) {
-            toSchedule.push({
-              id: 4103,
-              title: 'Period Tracker',
-              body: 'Quick check in? Log how today felt.',
-              schedule: { on: { hour: 20, minute: 0 } },
-              extra: { pt: true },
-            } as unknown as typeof toSchedule[0]);
-          }
-        }
-
-        if (toSchedule.length) await LN.schedule({ notifications: toSchedule as never });
-      } catch {
-        /* plugin unavailable or not permitted - web banner path still works */
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    settings.onboarded,
-    settings.reminders,
-    settings.notifyPeriod,
-    settings.notifyOvulation,
-    settings.notifyDailyCheckin,
-    settings.quietStart,
-    settings.quietEnd,
-    settings.showFertileWindow,
-    settings.remindDaysBefore,
-    stats.daysUntilNext,
-    stats.fertileStart,
-  ]);
+    if (isNative() && settings.onboarded && settings.reminders) scheduleNativeReminders(settings, stats);
+    if (isNative() && settings.onboarded) pushWidgetSnapshot(stats);
+    if (isNative() && settings.onboarded) pushRecentToHealth(entries);
+    return () => updater.stop();
+  }, [settings, stats, entries]);
 
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));
@@ -353,28 +261,74 @@ export default function App() {
 
   const openAccount = useCallback(() => setAccountSheet(true), []);
 
-  const signOutCloud = useCallback(async () => {
-    const token = cloudRef.current.token;
-    if (token) await signOut(token);
-    cloudRef.current.token = null;
-    setCloudUser(null);
-    try {
-      const s = await ensureAnonymousSession();
-      cloudRef.current.token = s.token;
-      setCloudUser(s.user);
-      await runSync(entriesRef.current, settingsRef.current);
-    } catch {
-      setSyncStatus('error');
-    }
-  }, [runSync]);
+  // PWA share_target / file_handlers intake (stashed by main.tsx before render)
+  useEffect(() => {
+    if (!settings.onboarded) return;
+    const consumeShare = () => {
+      let shared: string | null = null;
+      try {
+        shared = sessionStorage.getItem('pt.shared.v1');
+        if (shared) sessionStorage.removeItem('pt.shared.v1');
+      } catch {
+        /* intake is best-effort */
+      }
+      if (!shared) return;
+      const text = shared.slice(0, 2000);
+      const t = todayISO();
+      setEntries((prev) => {
+        const cur = prev[t] ?? blankEntry(t);
+        return { ...prev, [t]: { ...cur, note: cur.note ? `${cur.note}\n${text}` : text, updatedAt: Date.now() } };
+      });
+      setSheetDate(t);
+    };
+    consumeShare();
+    window.addEventListener('pt:shared', consumeShare);
+    return () => window.removeEventListener('pt:shared', consumeShare);
+  }, [settings.onboarded]);
+
+  useEffect(() => {
+    if (!settings.onboarded) return;
+    const consume = () => {
+      let raw: string | null = null;
+      try {
+        raw = sessionStorage.getItem('pt.openfile.v1');
+        if (raw) sessionStorage.removeItem('pt.openfile.v1');
+      } catch {
+        /* intake is best-effort */
+      }
+      if (!raw) return;
+      try {
+        const { name, text } = JSON.parse(raw) as { name: string; text: string };
+        if (/\.xml$/i.test(name ?? '')) {
+          const xmlEntries = parseHealthXML(text);
+          if (!xmlEntries) return;
+          setEntries((prev) => mergeImportedEntries(prev, xmlEntries));
+        } else if (/\.csv$/i.test(name ?? '')) {
+          const csvEntries = parseCSVEntries(text);
+          if (!csvEntries) return;
+          setEntries((prev) => mergeImportedEntries(prev, csvEntries));
+        } else {
+          const parsed = parseBackup(text);
+          if (!parsed) return;
+          replaceAll(parsed.settings, parsed.entries);
+        }
+        setTab('insights');
+      } catch {
+        /* malformed payloads are ignored */
+      }
+    };
+    consume();
+    window.addEventListener('pt:openfile', consume);
+    return () => window.removeEventListener('pt:openfile', consume);
+  }, [settings.onboarded, replaceAll]);
 
   const props: AppProps = {
     entries, settings, stats, facts, upsert, remove, replaceAll, updateSettings, eraseAll, openDay, openReport,
-    cloudUser, openAccount, signOutCloud,
+    cloudUser: sync.cloudUser, openAccount, signOutCloud: sync.signOutCloud, shareApi: sync.shareApi, emailApi: sync.emailApi,
   };
 
   if (settings.pinHash && settings.pinSalt && !unlocked) {
-    return <PinGate pinHash={settings.pinHash} pinSalt={settings.pinSalt} onUnlocked={() => setUnlocked(true)} />;
+    return <PinGate pinHash={settings.pinHash} pinSalt={settings.pinSalt} onUnlocked={() => setUnlocked(true)} lang={lang} />;
   }
 
   return (
@@ -383,8 +337,8 @@ export default function App() {
         <header className="topbar">
           <Logo />
           <div>
-            <h1>Period Tracker</h1>
-            <div className="sub">Private cycle tracking</div>
+            <h1>{tx(lang, 'Period Tracker')}</h1>
+            <div className="sub">{tx(lang, 'Private cycle tracking')}</div>
           </div>
         </header>
 
@@ -398,13 +352,13 @@ export default function App() {
           <>
             <main className="screen" key={tab}>
               {tab === 'home' &&
-                (settings.mode === 'pregnant' ? <PregnancyScreen {...props} /> : <Dashboard {...props} />)}
-              {tab === 'calendar' && <CalendarView {...props} />}
-              {tab === 'insights' && <Insights {...props} />}
-              {tab === 'learn' && <Learn {...props} />}
-              {tab === 'settings' && <SettingsView {...props} />}
+                withBoundary(settings.mode === 'pregnant' ? <PregnancyScreen {...props} /> : <Dashboard {...props} />, tx(lang, 'Home'), lang)}
+              {tab === 'calendar' && withBoundary(<CalendarView {...props} />, tx(lang, 'Calendar'), lang)}
+              {tab === 'insights' && withBoundary(<Insights {...props} />, tx(lang, 'Insights'), lang)}
+              {tab === 'learn' && withBoundary(<Learn {...props} />, tx(lang, 'Learn'), lang)}
+              {tab === 'settings' && withBoundary(<SettingsView {...props} />, tx(lang, 'Settings'), lang)}
             </main>
-            <div className="footer">Your data stays on this device · backed up automatically</div>
+            <div className="footer">{tx(lang, 'Your data stays on this device · backed up automatically')} · {statusText}</div>
           </>
         )}
       </div>
@@ -412,38 +366,38 @@ export default function App() {
       {settings.onboarded && !showReport && (
         <nav className="bottomnav" aria-label="Main navigation">
           <div className="inner">
-            <NavBtn on={tab === 'home'} label="Home" icon={<IconHome />} go={() => setTab('home')} />
-            <NavBtn on={tab === 'calendar'} label="Calendar" icon={<IconCalendar />} go={() => setTab('calendar')} />
-            <NavBtn on={tab === 'insights'} label="Insights" icon={<IconChart />} go={() => setTab('insights')} />
-            <NavBtn on={tab === 'learn'} label="Learn" icon={<IconBook />} go={() => setTab('learn')} />
-            <NavBtn on={tab === 'settings'} label="Settings" icon={<IconGear />} go={() => setTab('settings')} />
+            <NavBtn lang={lang} on={tab === 'home'} label="Home" icon={<IconHome />} go={() => setTab('home')} />
+            <NavBtn lang={lang} on={tab === 'calendar'} label="Calendar" icon={<IconCalendar />} go={() => setTab('calendar')} />
+            <NavBtn lang={lang} on={tab === 'insights'} label="Insights" icon={<IconChart />} go={() => setTab('insights')} />
+            <NavBtn lang={lang} on={tab === 'learn'} label="Learn" icon={<IconBook />} go={() => setTab('learn')} />
+            <NavBtn lang={lang} on={tab === 'settings'} label="Settings" icon={<IconGear />} go={() => setTab('settings')} />
           </div>
         </nav>
       )}
 
       {accountSheet && (
         <AccountScreen
-          user={cloudUser}
+          user={sync.cloudUser}
+          lang={lang}
           onDone={() => {
-            const s = loadSession();
-            cloudRef.current.token = s?.token ?? null;
-            setCloudUser(s?.user ?? null);
-            if (s?.token) runSync(entriesRef.current, settingsRef.current);
+            sync.adoptSession(loadSession());
             setAccountSheet(false);
           }}
           onClose={() => setAccountSheet(false)}
         />
       )}
 
-      <UpdateOverlay />
+      <UpdateOverlay lang={lang} />
 
       {sheetDate && (
         <DaySheet
+          key={sheetDate}
           date={sheetDate}
           entry={entries[sheetDate] ?? null}
           facts={facts.get(sheetDate)}
           phase={phaseFor(sheetDate, stats, facts)}
           settings={settings}
+          updateSettings={updateSettings}
           onClose={() => setSheetDate(null)}
           onSave={(e) => {
             upsert(e);
@@ -459,11 +413,85 @@ export default function App() {
   );
 }
 
-function NavBtn({ on, label, icon, go }: { on: boolean; label: string; icon: JSX.Element; go: () => void }) {
+function NavBtn({ on, label, icon, go, lang }: { on: boolean; label: string; icon: JSX.Element; go: () => void; lang: string }) {
   return (
     <button className={on ? 'on' : ''} onClick={go} aria-current={on ? 'page' : undefined}>
       {icon}
-      {label}
+      {tx(lang, label)}
     </button>
   );
+}
+
+/** Public partner link (?s=TOKEN): read-only snapshot, no login, no sync. */
+function PartnerRoute({ token }: { token: string }) {
+  const [shared, setShared] = useState<{ summary: SharedSummary; expiresAt: string } | 'loading' | 'invalid' | 'offline'>('loading');
+  const lang = (() => {
+    try {
+      return navigator.language?.toLowerCase().startsWith('hi') ? 'hi' : 'en';
+    } catch {
+      return 'en';
+    }
+  })();
+  useEffect(() => {
+    let live = true;
+    fetchShared(token).then(
+      (r) => {
+        if (live) setShared(r ?? 'invalid');
+      },
+      () => {
+        if (live) setShared('offline');
+      }
+    );
+    return () => {
+      live = false;
+    };
+  }, [token]);
+  if (shared === 'loading')
+    return (
+      <div className="app">
+        <main className="screen">
+          <div className="card">{tx(lang, 'Loading')}</div>
+        </main>
+      </div>
+    );
+  if (shared === 'offline')
+    return (
+      <div className="app">
+        <main className="screen">
+          <div className="card">
+            <p>{tx(lang, 'No connection. Check your internet and try again.')}</p>
+            <button className="btn primary" onClick={() => {
+              setShared('loading');
+              fetchShared(token).then(
+                (r) => setShared(r ?? 'invalid'),
+                () => setShared('offline')
+              );
+            }}>
+              {tx(lang, 'Try again')}
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  if (shared === 'invalid')
+    return (
+      <div className="app">
+        <main className="screen">
+          <div className="card">{tx(lang, 'This link is invalid or expired.')}</div>
+        </main>
+      </div>
+    );
+  return <PartnerView summary={shared.summary} expiresAt={shared.expiresAt} lang={lang} />;
+}
+
+export default function App() {
+  const [shareToken] = useState(() => {
+    try {
+      return new URLSearchParams(location.search).get('s');
+    } catch {
+      return null;
+    }
+  });
+  if (shareToken) return <PartnerRoute token={shareToken} />;
+  return <MainApp />;
 }

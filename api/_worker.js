@@ -536,6 +536,123 @@ async function route(request, env, url) {
     return json({ rev: current.rev + 1 });
   }
 
+  // --- partner share (read-only summary links) ----------------------------------------------------
+  async function ensureShares() {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS shares (
+      token TEXT PRIMARY KEY, user_id TEXT NOT NULL, summary TEXT NOT NULL,
+      expires_at TEXT NOT NULL, created_at TEXT NOT NULL
+    )`).run();
+  }
+
+  if (method === 'POST' && path === '/api/share') {
+    const u = await userFromToken(env, request);
+    await ensureShares();
+    const b = await readBody(request);
+    const days = Math.min(90, Math.max(1, Number(b.days) || 30));
+    const s = b.summary && typeof b.summary === 'object' ? b.summary : null;
+    if (!s) throw new HttpError(400, { error: 'invalid_summary' });
+    // allowlist: cycle-state fields only, never entries/symptoms/notes
+    const clean = {};
+    const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const isShort = (v) => typeof v === 'string' && v.length <= 64;
+    if (s.cycleDay === null || (Number.isInteger(s.cycleDay) && s.cycleDay >= 0 && s.cycleDay <= 500)) clean.cycleDay = s.cycleDay ?? null;
+    if (s.nextStart === null || isDate(s.nextStart)) clean.nextStart = s.nextStart ?? null;
+    if (s.fertileStart === null || isDate(s.fertileStart)) clean.fertileStart = s.fertileStart ?? null;
+    if (s.fertileEnd === null || isDate(s.fertileEnd)) clean.fertileEnd = s.fertileEnd ?? null;
+    if (s.phase === null || (isShort(s.phase) && /^[a-z]+$/.test(s.phase))) clean.phase = s.phase ?? null;
+    if (isDate(s.generatedAt)) clean.generatedAt = s.generatedAt;
+    else throw new HttpError(400, { error: 'invalid_summary' });
+    const token = randomHex(16);
+    const now = new Date();
+    await env.DB.prepare('INSERT INTO shares (token, user_id, summary, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+      .bind(token, u.id, JSON.stringify(clean), new Date(now.getTime() + days * 86400000).toISOString(), now.toISOString()).run();
+    // opportunistic prune of the caller's expired links
+    await env.DB.prepare('DELETE FROM shares WHERE user_id = ? AND expires_at <= ?').bind(u.id, now.toISOString()).run();
+    await logEvent(env, request, u.id, 'share_create', { days });
+    return json({ token, expiresInDays: days });
+  }
+
+  if (method === 'GET' && path === '/api/share') {
+    const u = await userFromToken(env, request);
+    await ensureShares();
+    const rows = await env.DB.prepare('SELECT token, expires_at, created_at FROM shares WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC').bind(u.id, new Date().toISOString()).all();
+    return json({ shares: rows.results || [] });
+  }
+
+  if (method === 'POST' && path === '/api/share/revoke') {
+    const u = await userFromToken(env, request);
+    await ensureShares();
+    const b = await readBody(request);
+    if (typeof b.token !== 'string') throw new HttpError(400, { error: 'invalid_token' });
+    await env.DB.prepare('DELETE FROM shares WHERE token = ? AND user_id = ?').bind(b.token, u.id).run();
+    await logEvent(env, request, u.id, 'share_revoke', {});
+    return json({ ok: true });
+  }
+
+  if (method === 'GET' && path.startsWith('/api/s/')) {
+    const token = path.slice('/api/s/'.length);
+    if (!/^[a-f0-9]{32}$/.test(token)) throw new HttpError(404, { error: 'not_found' });
+    const row = await env.DB.prepare('SELECT summary, expires_at FROM shares WHERE token = ?').bind(token).first();
+    if (!row || row.expires_at <= new Date().toISOString()) throw new HttpError(404, { error: 'not_found' });
+    return json({ summary: JSON.parse(row.summary), expiresAt: row.expires_at });
+  }
+
+  // --- email summaries (explicit opt-in only) -----------------------------------------------------
+  async function ensureEmailSubs() {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS email_subs (
+      user_id TEXT PRIMARY KEY, email TEXT NOT NULL, freq TEXT NOT NULL DEFAULT 'weekly',
+      level TEXT NOT NULL DEFAULT 'minimal', unsub_token TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL
+    )`).run();
+  }
+  const appUrl = () => (env.APP_URL || 'https://periodtracker.run').replace(/\/$/, '');
+
+  if (method === 'POST' && path === '/api/email/subscribe') {
+    const u = await userFromToken(env, request);
+    await ensureEmailSubs();
+    const b = await readBody(request);
+    const email = String(b.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new HttpError(400, { error: 'invalid_email' });
+    const freq = b.freq === 'monthly' ? 'monthly' : 'weekly';
+    const level = b.level === 'full' ? 'full' : 'minimal';
+    const existing = await env.DB.prepare('SELECT unsub_token FROM email_subs WHERE user_id = ?').bind(u.id).first();
+    const token = existing ? existing.unsub_token : randomHex(16);
+    await env.DB.prepare(
+      'INSERT INTO email_subs (user_id, email, freq, level, unsub_token, created_at) VALUES (?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT(user_id) DO UPDATE SET email = excluded.email, freq = excluded.freq, level = excluded.level'
+    ).bind(u.id, email, freq, level, token, new Date().toISOString()).run();
+    await logEvent(env, request, u.id, 'email_subscribe', { freq, level });
+    return json({ ok: true, freq, level, unsubUrl: `${appUrl()}/api/email/unsub?token=${token}` });
+  }
+
+  if (method === 'GET' && path === '/api/email/status') {
+    const u = await userFromToken(env, request);
+    await ensureEmailSubs();
+    const row = await env.DB.prepare('SELECT email, freq, level FROM email_subs WHERE user_id = ?').bind(u.id).first();
+    return json({ sub: row || null });
+  }
+
+  if (method === 'POST' && path === '/api/email/unsubscribe') {
+    const u = await userFromToken(env, request);
+    await ensureEmailSubs();
+    await env.DB.prepare('DELETE FROM email_subs WHERE user_id = ?').bind(u.id).run();
+    await logEvent(env, request, u.id, 'email_unsubscribe', {});
+    return json({ ok: true });
+  }
+
+  if (path === '/api/email/unsub' && (method === 'GET' || method === 'POST')) {
+    await ensureEmailSubs();
+    const token = url.searchParams.get('token') || '';
+    if (/^[a-f0-9]{32}$/.test(token)) {
+      await env.DB.prepare('DELETE FROM email_subs WHERE unsub_token = ?').bind(token).run();
+    }
+    return new Response(
+      '<!doctype html><html><body style="font-family:sans-serif;padding:40px;text-align:center">' +
+      '<h2>Unsubscribed</h2><p>You will no longer receive cycle summaries. Re-enable anytime in the app.</p>' +
+      '</body></html>',
+      { headers: { 'Content-Type': 'text/html' } }
+    );
+  }
+
   // --- admin (owner only) -----------------------------------------------------------------------
   if (path.startsWith('/api/admin')) {
     requireAdmin(env, request);

@@ -13,6 +13,32 @@ import './styles.css';
 
 registerSW({ immediate: true });
 
+// PWA share_target (?share=1&text=..) and file_handlers (?open=backup):
+// stash the payload, strip the query, let App consume it after mount.
+try {
+  const q = new URLSearchParams(location.search);
+  if (q.get('share') === '1') {
+    const text = [q.get('title'), q.get('text'), q.get('url')].filter(Boolean).join('\n');
+    if (text) {
+      sessionStorage.setItem('pt.shared.v1', text);
+      // App may already be mounted (repeat share while open)
+      window.dispatchEvent(new Event('pt:shared'));
+    }
+    history.replaceState(null, '', location.pathname);
+  }
+  const LQ = (window as unknown as { launchQueue?: { setConsumer: (fn: (p: unknown) => void) => void } }).launchQueue;
+  LQ?.setConsumer((params) => {
+    const files = (params as { files?: File[] })?.files ?? [];
+    if (!files.length) return;
+    void files[0].text().then((text) => {
+      sessionStorage.setItem('pt.openfile.v1', JSON.stringify({ name: files[0].name, text }));
+      window.dispatchEvent(new Event('pt:openfile'));
+    });
+  });
+} catch {
+  /* share/file intake is best-effort */
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CloudUser, restoreWithKey, signIn, signUp } from '../lib/cloud';
 import { deviceInfo } from '../lib/device';
+import { tx } from '../lib/i18n';
 import { APP_VERSION } from '../types';
 import { Logo } from './Icons';
 
@@ -15,11 +16,13 @@ export default function AccountScreen({
   onDone,
   onSkip,
   onClose,
+  lang,
 }: {
   user: CloudUser | null;
   onDone: () => void;
   onSkip?: () => void;
   onClose?: () => void;
+  lang?: string;
 }) {
   const [tab, setTab] = useState<Tab>(user && !user.anonymous ? 'signin' : 'signup');
   const [name, setName] = useState('');
@@ -37,20 +40,20 @@ export default function AccountScreen({
       await fn();
       onDone();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Something went wrong.');
+      setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
     } finally {
       setBusy(false);
     }
   };
 
   const title =
-    tab === 'signup' ? 'Create your account' : tab === 'signin' ? 'Welcome back' : 'Restore your data';
+    tab === 'signup' ? tx(lang, 'Create your account') : tab === 'signin' ? tx(lang, 'Welcome back') : tx(lang, 'Restore your data');
   const sub =
     tab === 'signup'
-      ? 'Your data is backed up automatically. An account lets you sign in on any device.'
+      ? tx(lang, 'Your data is backed up automatically. An account lets you sign in on any device.')
       : tab === 'signin'
-        ? 'Sign in to pick up right where you left off.'
-        : 'Enter the backup code from your other device.';
+        ? tx(lang, 'Sign in to pick up right where you left off.')
+        : tx(lang, 'Enter the backup code from your other device.');
 
   return (
     <div className="acct2">
@@ -64,7 +67,7 @@ export default function AccountScreen({
         )}
 
         <Logo size={56} />
-        <h1 className="acct2-h">Period Tracker</h1>
+        <h1 className="acct2-h">{tx(lang, 'Period Tracker')}</h1>
         <div className="acct2-tabs" role="tablist">
           {(['signup', 'signin'] as const).map((t) => (
             <button
@@ -74,7 +77,7 @@ export default function AccountScreen({
               className={tab === t ? 'on' : ''}
               onClick={() => setTab(t)}
             >
-              {t === 'signup' ? 'Create' : 'Sign in'}
+              {t === 'signup' ? tx(lang, 'Create') : tx(lang, 'Sign in')}
             </button>
           ))}
         </div>
@@ -87,21 +90,21 @@ export default function AccountScreen({
             <>
               <div className="acct2-row">
                 <div className="acct2-field" style={{ flex: 1 }}>
-                  <label htmlFor="ac-name">Name</label>
-                  <input id="ac-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" />
+                  <label htmlFor="ac-name">{tx(lang, 'Name')}</label>
+                  <input id="ac-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={tx(lang, 'Your name')} autoComplete="name" />
                 </div>
                 <div className="acct2-field" style={{ width: 92 }}>
-                  <label htmlFor="ac-age">Age</label>
+                  <label htmlFor="ac-age">{tx(lang, 'Age')}</label>
                   <input id="ac-age" type="number" inputMode="numeric" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="24" />
                 </div>
               </div>
               <div className="acct2-field">
-                <label htmlFor="ac-email">Email</label>
+                <label htmlFor="ac-email">{tx(lang, 'Email')}</label>
                 <input id="ac-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
               </div>
               <div className="acct2-field">
-                <label htmlFor="ac-pass">Password</label>
-                <input id="ac-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" />
+                <label htmlFor="ac-pass">{tx(lang, 'Password')}</label>
+                <input id="ac-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tx(lang, 'At least 6 characters')} autoComplete="new-password" />
               </div>
               <button
                 className="btn primary acct2-btn"
@@ -119,7 +122,7 @@ export default function AccountScreen({
                   )
                 }
               >
-                {busy ? 'Creating…' : 'Create account'}
+                {busy ? tx(lang, 'Creating…') : tx(lang, 'Create account')}
               </button>
             </>
           )}
@@ -127,15 +130,15 @@ export default function AccountScreen({
           {tab === 'signin' && (
             <>
               <div className="acct2-field">
-                <label htmlFor="si-email">Email</label>
+                <label htmlFor="si-email">{tx(lang, 'Email')}</label>
                 <input id="si-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
               </div>
               <div className="acct2-field">
-                <label htmlFor="si-pass">Password</label>
-                <input id="si-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" autoComplete="current-password" />
+                <label htmlFor="si-pass">{tx(lang, 'Password')}</label>
+                <input id="si-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tx(lang, 'Your password')} autoComplete="current-password" />
               </div>
               <button className="btn primary acct2-btn" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password))}>
-                {busy ? 'Signing in…' : 'Sign in'}
+                {busy ? tx(lang, 'Signing in…') : tx(lang, 'Sign in')}
               </button>
             </>
           )}
@@ -143,7 +146,7 @@ export default function AccountScreen({
           {tab === 'restore' && (
             <>
               <div className="acct2-field">
-                <label htmlFor="rs-key">Backup code</label>
+                <label htmlFor="rs-key">{tx(lang, 'Backup code')}</label>
                 <input
                   id="rs-key"
                   className="acct2-code"
@@ -153,18 +156,18 @@ export default function AccountScreen({
                 />
               </div>
               <button className="btn primary acct2-btn" disabled={busy || key.length !== 11} onClick={() => run(() => restoreWithKey(key))}>
-                {busy ? 'Restoring…' : 'Restore my data'}
+                {busy ? tx(lang, 'Restoring…') : tx(lang, 'Restore my data')}
               </button>
             </>
           )}
 
           {tab !== 'restore' && (
             <button className="acct2-alt" onClick={() => setTab('restore')}>
-              I have a backup code
+              {tx(lang, 'I have a backup code')}
             </button>
           )}
           {tab === 'restore' && (
-            <button className="acct2-alt" onClick={() => setTab('signup')}>Create an account instead</button>
+            <button className="acct2-alt" onClick={() => setTab('signup')}>{tx(lang, 'Create an account instead')}</button>
           )}
 
           {err && <p className="acct2-err">{err}</p>}
@@ -172,7 +175,7 @@ export default function AccountScreen({
 
         {onSkip && (
           <button className="acct2-skip" onClick={onSkip}>
-            Skip
+            {tx(lang, 'Skip')}
           </button>
         )}
       </div>
