@@ -1,0 +1,43 @@
+name: Android APK (cloud build, no local SDK needed)
+
+# Builds a debug APK on GitHub's Ubuntu runners: JDK + Android cmdline-tools
+# download ON THE RUNNER, never locally. Includes the staged widget +
+# health-bridge sources (copied in after `cap add android`).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'api/**', 'android-widget/**', 'health-bridge/**', 'capacitor.config.ts', 'package.json']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap add android
+      # drop in staged native sources (widget + health bridge)
+      - run: |
+          cp android-widget/CycleWidget.java android-widget/WidgetSnapshotPlugin.java \
+             android/app/src/main/java/run/periodtracker/app/ || echo "widget copy skipped (adjust package path)"
+          mkdir -p android/app/src/main/res/layout android/app/src/main/res/xml
+          cp android-widget/widget_cycle.xml android/app/src/main/res/layout/
+          cp android-widget/cycle_widget_info.xml android/app/src/main/res/xml/
+          cp health-bridge/HealthBridgePlugin.java android/app/src/main/java/run/periodtracker/app/ || true
+      - run: npx cap sync android
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: periodtracker-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
