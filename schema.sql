@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   age INTEGER,
   anonymous INTEGER NOT NULL DEFAULT 0,
   sync_key TEXT UNIQUE,        -- restore code for anonymous accounts
+  email_verified INTEGER NOT NULL DEFAULT 0, -- 1 once the inbox OTP is confirmed
   country TEXT,                -- from Cloudflare IP geolocation header, never asked
   user_agent TEXT,             -- device type from request header, never asked
   created_at TEXT NOT NULL,
@@ -49,3 +50,15 @@ CREATE TABLE IF NOT EXISTS email_subs (
   unsub_token TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- email verification OTPs (password stays mandatory; code only proves the inbox)
+CREATE TABLE IF NOT EXISTS magic_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  ip TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_magic_email ON magic_codes(email);

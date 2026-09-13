@@ -19,6 +19,7 @@ export interface CloudUser {
   name: string | null;
   age: number | null;
   anonymous: boolean;
+  emailVerified: boolean;
   syncKey: string;
   createdAt: string;
 }
@@ -107,6 +108,30 @@ export async function restoreWithKey(key: string): Promise<CloudSession> {
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
   saveSession(s);
   return s;
+}
+
+export async function requestEmailCode(token: string): Promise<{ verified: boolean }> {
+  const r = await api('magic/request', {}, token);
+  if (!r.ok) {
+    if (r.data?.error === 'rate_limited') throw new Error('Too many codes requested. Wait an hour and try again.');
+    if (r.data?.error === 'email_failed') throw new Error('Could not send the email. Please try again later.');
+    throw new Error('Could not send a code. Check your connection and try again.');
+  }
+  return { verified: r.data?.verified === true };
+}
+
+export async function verifyEmailCode(token: string, code: string): Promise<CloudUser> {
+  const r = await api('magic/verify', { code }, token);
+  if (!r.ok) {
+    if (r.data?.error === 'invalid_code') throw new Error('Wrong code. Check the email and try again.');
+    if (r.data?.error === 'code_expired') throw new Error('That code expired. Request a fresh one.');
+    if (r.data?.error === 'rate_limited') throw new Error('Too many wrong tries. Request a fresh code.');
+    throw new Error('Verification failed. Please try again.');
+  }
+  const user = r.data.user as CloudUser;
+  const s = loadSession();
+  if (s) saveSession({ token: s.token, user });
+  return user;
 }
 
 export async function signOut(token: string): Promise<void> {

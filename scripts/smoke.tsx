@@ -13,6 +13,7 @@ import SettingsView from '../src/components/SettingsView';
 import Report from '../src/components/Report';
 import PregnancyScreen from '../src/components/PregnancyScreen';
 import DaySheet from '../src/components/DaySheet';
+import AccountScreen from '../src/components/AccountScreen';
 
 // --- minimal browser shims (renderToString needs no DOM, but libs touch these) ---
 const store = new Map<string, string>();
@@ -123,6 +124,18 @@ for (const lang of ['en', 'hi'] as const) {
   } catch (e) {
     failures++;
     console.log('FAIL: screen=PregnancyScreen-full:', (e as Error).message.slice(0, 200));
+  }
+  // AccountScreen: password gate intact, no passwordless tab
+  try {
+    const html = renderToString(
+      React.createElement(AccountScreen, { user: null, onDone: noop, lang: 'en' } as never)
+    );
+    if (!html.includes('ac-pass')) throw new Error('password field missing');
+    if (html.includes('email code instead') || html.includes('mg-email')) throw new Error('passwordless tab leaked');
+    console.log(`ok: screen=AccountScreen (${html.length} chars)`);
+  } catch (e) {
+    failures++;
+    console.log('FAIL: screen=AccountScreen:', (e as Error).message.slice(0, 200));
   }
   try {
     const html = renderToString(

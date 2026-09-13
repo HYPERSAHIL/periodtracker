@@ -7,6 +7,7 @@ import { phaseFor } from '../lib/cycle';
 import type { ShareRow, SharedSummary } from '../lib/cloud';
 import { CRISIS_NOTE } from '../lib/safety';
 import { Stepper } from './Onboarding';
+import InstallCard from './InstallCard';
 import { todayISO, prettyDate } from '../lib/date';
 import { APP_VERSION, ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, MOODS, SYMPTOMS, TRACKER_SECTIONS } from '../types';
 
@@ -214,6 +215,7 @@ export default function SettingsView(p: AppProps) {
 
   return (
     <>
+      <InstallCard lang={lang} />
       <div className="card">
         <h3>{tx(lang, 'Mode')}</h3>
         <div className="mode-grid">
@@ -644,6 +646,10 @@ export default function SettingsView(p: AppProps) {
         </div>
       </div>
 
+      {p.cloudUser && !p.cloudUser.anonymous && p.cloudUser.email && !p.cloudUser.emailVerified && (
+        <VerifyEmailCard lang={lang} otpApi={p.otpApi} />
+      )}
+
       <div className="card">
         <h3>{tx(lang, 'Partner share')}</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
@@ -945,8 +951,7 @@ export default function SettingsView(p: AppProps) {
       </div>
 
       <div className="card">
-        <h3>{tx(lang, 'Your data')}</h3>
-        <p className="hint" style={{ margin: '0 0 12px' }}>
+        <h3>{tx(lang, 'Your data')}</h3>        <p className="hint" style={{ margin: '0 0 12px' }}>
           {tx(lang, 'Everything lives in this browser only. Export a backup before switching phones or clearing browser data - there is no copy anywhere else.')}
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -1025,5 +1030,103 @@ export default function SettingsView(p: AppProps) {
         </div>
       )}
     </>
+  );
+}
+
+function VerifyEmailCard({
+  lang,
+  otpApi,
+}: {
+  lang: string;
+  otpApi: AppProps['otpApi'];
+}) {
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  if (done) return null;
+  return (
+    <div className="card">
+      <h3>{tx(lang, 'Verify your email')}</h3>
+      <p className="hint" style={{ margin: '0 0 12px' }}>
+        {tx(lang, 'Confirm your inbox with a 6-digit code. Your password stays as your sign-in.')}
+      </p>
+      {!sent ? (
+        <button
+          className="btn ghost"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setMsg(null);
+            try {
+              const r = await otpApi.request();
+              if (r.verified) setDone(true);
+              else setSent(true);
+            } catch (e) {
+              setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {tx(lang, 'Send code')}
+        </button>
+      ) : (
+        <>
+          <div className="field">
+            <label htmlFor="st-otp">{tx(lang, '6-digit code')}</label>
+            <input
+              id="st-otp"
+              className="num-in"
+              inputMode="numeric"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="123456"
+              autoComplete="one-time-code"
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              className="btn ghost"
+              disabled={busy || code.length !== 6}
+              onClick={async () => {
+                setBusy(true);
+                setMsg(null);
+                try {
+                  await otpApi.verify(code);
+                  setDone(true);
+                } catch (e) {
+                  setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {tx(lang, 'Verify')}
+            </button>
+            <button
+              className="btn ghost"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setMsg(null);
+                try {
+                  await otpApi.request();
+                  setCode('');
+                } catch (e) {
+                  setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {tx(lang, 'Resend code')}
+            </button>
+          </div>
+        </>
+      )}
+      {msg && <p className="hint" style={{ marginTop: 10 }}>{msg}</p>}
+    </div>
   );
 }

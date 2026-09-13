@@ -1,0 +1,34 @@
+name: iOS compile check (macOS runner, no signing)
+
+# Verifies the Capacitor iOS shell + staged Swift plugin COMPILE.
+# No Xcode/Mac needed locally: GitHub's macOS runner does it.
+# This does NOT produce installable apps — that needs an Apple Developer
+# account ($99/yr) + signing certificates (see docs/apple-watch.md).
+# Public repos get macOS minutes free; private repos burn 10x minutes.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'health-bridge/**', 'capacitor.config.ts', 'package.json']
+
+jobs:
+  ios-compile:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap add ios
+      - run: cp health-bridge/HealthBridgePlugin.swift ios/App/App/ || echo "health plugin copy skipped"
+      - run: npx cap sync ios
+      - name: Compile without signing
+        working-directory: ios/App
+        run: >
+          xcodebuild build-for-testing
+          -workspace App.xcworkspace -scheme App
+          -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO

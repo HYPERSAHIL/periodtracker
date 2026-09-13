@@ -74,6 +74,10 @@ export interface AppProps {
     subscribe: (i: { email: string; freq: 'weekly' | 'monthly'; level: 'minimal' | 'full' }) => Promise<void>;
     unsubscribe: () => Promise<void>;
   };
+  otpApi: {
+    request: () => Promise<{ verified: boolean }>;
+    verify: (code: string) => Promise<CloudUser>;
+  };
 }
 
 function MainApp() {
@@ -324,7 +328,7 @@ function MainApp() {
 
   const props: AppProps = {
     entries, settings, stats, facts, upsert, remove, replaceAll, updateSettings, eraseAll, openDay, openReport,
-    cloudUser: sync.cloudUser, openAccount, signOutCloud: sync.signOutCloud, shareApi: sync.shareApi, emailApi: sync.emailApi,
+    cloudUser: sync.cloudUser, openAccount, signOutCloud: sync.signOutCloud, shareApi: sync.shareApi, emailApi: sync.emailApi, otpApi: sync.otpApi,
   };
 
   if (settings.pinHash && settings.pinSalt && !unlocked) {

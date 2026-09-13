@@ -23,6 +23,7 @@ export default defineConfig({
         description:
           'Free, private, local-first period and cycle tracking. Your data never leaves your device.',
         start_url: '/',
+        id: '/',
         scope: '/',
         display: 'standalone',
         orientation: 'portrait',

@@ -246,6 +246,7 @@ function publicUser(u) {
     name: u.name,
     age: u.age,
     anonymous: !!u.anonymous,
+    emailVerified: !!u.email_verified,
     syncKey: u.sync_key,
     createdAt: u.created_at,
   };
@@ -475,6 +476,102 @@ async function route(request, env, url) {
     await touchUser(env, request, u.id);
     await logEvent(env, request, u.id, 'restore', {});
     return json({ token, user: publicUser(u) });
+  }
+
+  // --- email verification OTP (password stays mandatory; code only proves inbox) ------------------
+  async function ensureMagicCodes() {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS magic_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, code_hash TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0, expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL, ip TEXT
+    )`).run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_magic_email ON magic_codes(email)').run();
+    try {
+      await env.DB.prepare('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0').run();
+    } catch {
+      /* column already exists */
+    }
+  }
+
+  if (method === 'POST' && path === '/api/magic/request') {
+    const u = await userFromToken(env, request);
+    await ensureMagicCodes();
+    if (!u.email) throw new HttpError(400, { error: 'no_email' });
+    if (u.email_verified) return json({ ok: true, verified: true });
+    const now = new Date().toISOString();
+    const hourAgo = new Date(Date.now() - 3600000).toISOString();
+    const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
+    const recentUser = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM magic_codes WHERE email = ? AND created_at > ?"
+    ).bind(u.email, hourAgo).first();
+    if (recentUser && recentUser.n >= 5) {
+      await logEvent(env, request, u.id, 'magic_rate_limited', {});
+      throw new HttpError(429, { error: 'rate_limited' });
+    }
+    if (ip) {
+      const recentIp = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM magic_codes WHERE ip = ? AND created_at > ?"
+      ).bind(ip, hourAgo).first();
+      if (recentIp && recentIp.n >= 20) {
+        await logEvent(env, request, u.id, 'magic_rate_limited', {});
+        throw new HttpError(429, { error: 'rate_limited' });
+      }
+    }
+    const code = String(100000 + Math.floor(Math.random() * 900000));
+    const expires = new Date(Date.now() + 15 * 60000).toISOString();
+    await env.DB.prepare(
+      'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
+    ).bind(u.email, hex(await sha256(code)), expires, now, ip).run();
+    if (!env.EMAIL) {
+      // dev/preview without the sending binding: nothing can deliver the
+      // code, so verification completes here instead of stranding the user.
+      // Production always has the binding (see docs/email-setup.md).
+      await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
+      await env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(u.id).run();
+      await logEvent(env, request, u.id, 'magic_no_binding', {});
+      return json({ ok: true, verified: true });
+    }
+    try {
+      await env.EMAIL.send({
+        to: u.email,
+        from: { email: 'updates@mail.periodtracker.run', name: 'Period Tracker' },
+        subject: `Verify your email: ${code}`,
+        text: `Your Period Tracker verification code is ${code} (expires in 15 minutes).\n\nEnter it in the app to confirm this email is yours.\n\nIf you didn't ask for this, ignore this email — your password still protects your account.`,
+      });
+    } catch {
+      await logEvent(env, request, u.id, 'magic_email_failed', {});
+      throw new HttpError(502, { error: 'email_failed' });
+    }
+    await logEvent(env, request, u.id, 'magic_request', {});
+    return json({ ok: true });
+  }
+
+  if (method === 'POST' && path === '/api/magic/verify') {
+    const u = await userFromToken(env, request);
+    await ensureMagicCodes();
+    if (!u.email) throw new HttpError(400, { error: 'no_email' });
+    if (u.email_verified) return json({ ok: true, user: publicUser(u) });
+    const b = await readBody(request);
+    const code = String(b.code || '').trim();
+    if (!/^\d{6}$/.test(code)) throw new HttpError(401, { error: 'invalid_code' });
+    const nowIso = new Date().toISOString();
+    const row = await env.DB.prepare(
+      'SELECT * FROM magic_codes WHERE email = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(u.email, nowIso).first();
+    if (!row) throw new HttpError(410, { error: 'code_expired' });
+    if (row.attempts >= 5) {
+      await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
+      throw new HttpError(429, { error: 'rate_limited' });
+    }
+    if (!safeEqual(row.code_hash, hex(await sha256(code)))) {
+      await env.DB.prepare('UPDATE magic_codes SET attempts = attempts + 1 WHERE id = ?').bind(row.id).run();
+      await logEvent(env, request, u.id, 'magic_failed', {});
+      throw new HttpError(401, { error: 'invalid_code' });
+    }
+    await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
+    await env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(u.id).run();
+    await logEvent(env, request, u.id, 'magic_verify', {});
+    return json({ ok: true, user: publicUser(await rawUser(env, u.id)) });
   }
 
   // --- session scoped -----------------------------------------------------------------------

@@ -12,11 +12,13 @@ import {
   emailUnsubscribe,
   ensureAnonymousSession,
   loadSession,
+  requestEmailCode,
   shareCreate,
   shareList,
   shareRevoke,
   signOut,
   syncCycle,
+  verifyEmailCode,
 } from '../lib/cloud';
 import { deviceInfo } from '../lib/device';
 
@@ -185,5 +187,20 @@ export function useCloudSync({
     },
   };
 
-  return { syncStatus, pending, cloudUser, setCloudUser, adoptSession, runSync, signOutCloud, shareApi, emailApi };
+  const otpApi = {
+    request: async (): Promise<{ verified: boolean }> => {
+      const t = cloudRef.current.token;
+      if (!t) throw new Error('no session');
+      return requestEmailCode(t);
+    },
+    verify: async (code: string): Promise<CloudUser> => {
+      const t = cloudRef.current.token;
+      if (!t) throw new Error('no session');
+      const user = await verifyEmailCode(t, code);
+      setCloudUser(user);
+      return user;
+    },
+  };
+
+  return { syncStatus, pending, cloudUser, setCloudUser, adoptSession, runSync, signOutCloud, shareApi, emailApi, otpApi };
 }

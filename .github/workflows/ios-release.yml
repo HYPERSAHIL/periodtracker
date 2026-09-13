@@ -1,0 +1,37 @@
+name: iOS TestFlight release (macOS runner, manual)
+
+# No Mac needed locally. Trigger manually after enrolling in the Apple
+# Developer Program ($99/yr) and storing these repo secrets:
+#   ASC_API_KEY_JSON — App Store Connect API key JSON (Issuer ID, Key ID, key)
+#   MATCH_GIT_URL    — private repo holding certs/profiles (fastlane match)
+#   MATCH_PASSWORD   — encryption password for the match repo
+# Then uncomment the lanes in ios-fastlane/Fastfile and run this workflow.
+on:
+  workflow_dispatch:
+
+jobs:
+  testflight:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: ios-fastlane
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap add ios
+      - run: cp health-bridge/HealthBridgePlugin.swift ios/App/App/ || echo "health plugin copy skipped"
+      - run: npx cap sync ios
+      - name: Fastlane beta
+        working-directory: ios-fastlane
+        env:
+          ASC_API_KEY_JSON: ${{ secrets.ASC_API_KEY_JSON }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane beta

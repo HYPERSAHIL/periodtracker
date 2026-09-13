@@ -142,6 +142,22 @@ export const HI: Record<string, string> = {
   'Restore my data': 'मेरा डेटा वापस लाएं',
   'I have a backup code': 'मेरे पास बैकअप कोड है',
   'Create an account instead': 'इसके बजाय खाता बनाएं',
+  'Verify your email': 'अपना ईमेल सत्यापित करें',
+  'We sent a 6-digit code to {email}. Enter it to confirm this inbox is yours.':
+    'हमने {email} पर 6-अंकों का कोड भेजा है। यह इनबॉक्स आपका है, इसकी पुष्टि के लिए डालें।',
+  'Confirm your inbox with a 6-digit code. Your password stays as your sign-in.':
+    '6-अंकों के कोड से अपना इनबॉक्स पक्का करें। साइन-इन के लिए आपका पासवर्ड ही रहेगा।',
+  'Send code': 'कोड भेजें',
+  'Verify': 'सत्यापित करें',
+  'Verifying…': 'सत्यापित हो रहा है…',
+  'Verify later': 'बाद में सत्यापित करें',
+  'Install the app': 'ऐप इंस्टॉल करें',
+  'Add Period Tracker to your home screen for fullscreen, offline use.':
+    'फुलस्क्रीन, ऑफ़लाइन इस्तेमाल के लिए पीरियड ट्रैकर होम स्क्रीन पर जोड़ें।',
+  'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app — no App Store needed.':
+    'iPhone पर: Share दबाएं, फिर “Add to Home Screen”। नेटिव ऐप जैसा फुलस्क्रीन खुलेगा — App Store की ज़रूरत नहीं।',
+  '6-digit code': '6-अंकों का कोड',
+  'Resend code': 'कोड फिर भेजें',
   Skip: 'छोड़ें',
   'Something went wrong.': 'कुछ गलत हो गया।',
 

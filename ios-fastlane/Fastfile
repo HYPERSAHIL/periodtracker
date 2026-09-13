@@ -1,0 +1,13 @@
+# Fastlane scaffold (runs on macOS CI — no Mac needed locally)
+default_platform(:ios)
+
+platform :ios do
+  desc "Build + upload to TestFlight (needs App Store Connect API key + match)"
+  lane :beta do
+    # 1. app_store_connect_api_key(key_json from ASC_API_KEY_JSON secret)
+    # 2. match(type: \"appstore\", readonly: true)  # certs in private repo
+    # 3. gym(scheme: \"App\", workspace: \"ios/App/App.xcworkspace\")
+    # 4. pilot(skip_waiting_for_build_processing: true)
+    UI.message("Wire ASC_API_KEY_JSON + MATCH secrets, then uncomment the lanes above.")
+  end
+end
