@@ -46,16 +46,6 @@ async function freshPage(browser, tag) {
 
 async function onboard(page, { mode = 'cycle', teen = false } = {}) {
   await page.goto(URL);
-  // 3D worlds gate: scroll through, then start
-  const startBtn = page.getByRole('button', { name: 'Start tracking' });
-  for (let i = 0; i < 15; i++) {
-    try {
-      if (await startBtn.isVisible({ timeout: 500 })) break;
-    } catch {}
-    await page.evaluate(() => window.scrollBy(0, 900));
-    await page.waitForTimeout(250);
-  }
-  await startBtn.click();
   if (teen) await page.getByRole('button', { name: /Teen mode/ }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Continue' }).click();

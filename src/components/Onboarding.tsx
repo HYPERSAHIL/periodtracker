@@ -5,8 +5,6 @@ import { dueFromLmp } from '../lib/pregnancy';
 import { Lang, tx, txd } from '../lib/i18n';
 import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
-import { lazy, Suspense } from 'react';
-const WorldsOnboarding = lazy(() => import('./WorldsOnboarding'));
 import PhonePreview from './PhonePreview';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause', 'postpartum'];
@@ -28,7 +26,6 @@ export default function Onboarding({
   const [irregular, setIrregular] = useState(false);
   const [priorMethod, setPriorMethod] = useState<ContraceptionMethod | null>(null);
   const [tryingSince, setTryingSince] = useState('');
-  const [worldsDone, setWorldsDone] = useState(false);
 
   const isPregnant = mode === 'pregnant';
   const isPostpartum = mode === 'postpartum';
@@ -55,14 +52,6 @@ export default function Onboarding({
   };
 
   const dateOk = (iso: string) => !isNaN(fromISO(iso).getTime());
-
-  if (!worldsDone) {
-    return (
-      <Suspense fallback={<div style={{ minHeight: '60vh' }} />}>
-        <WorldsOnboarding onFinish={() => setWorldsDone(true)} />
-      </Suspense>
-    );
-  }
 
   return (
     <div className="onboard">

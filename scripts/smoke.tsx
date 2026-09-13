@@ -57,8 +57,8 @@ for (const lang of ['en', 'hi'] as const) {
     try {
       const html = renderToString(React.createElement(App));
       if (lang === 'hi' && onboarded && !html.includes('होम')) throw new Error('hindi nav missing');
-      // fresh sessions render the lazy 3D gate fallback server-side
-      if (!onboarded && !html.includes('onboard') && !html.includes('60vh')) throw new Error('onboarding missing');
+      // fresh sessions render the onboarding flow server-side
+      if (!onboarded && !html.includes('onboard')) throw new Error('onboarding missing');
       console.log(`ok: app lang=${lang} onboarded=${onboarded} (${html.length} chars)`);
     } catch (e) {
       failures++;

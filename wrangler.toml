@@ -10,4 +10,4 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "periodtracker"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "b9344d01-3125-4790-a6f7-9ae0d08fe254"
