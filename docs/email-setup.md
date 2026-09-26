@@ -1,66 +1,68 @@
-# Cycle-summary emails — setup (subdomain sending via Cloudflare)
+# Cycle emails that work on the free plan (Resend first, Cloudflare optional)
 
-Yes — emails send from a subdomain (`updates@mail.periodtracker.run`) with no
-mail server of our own. Cloudflare Email Sending handles SPF/DKIM/DMARC.
+Bad news first, verified today in the docs: **Cloudflare Email Sending to
+arbitrary recipients needs the Workers Paid plan ($5/mo minimum)** — the free
+plan can only send to your own verified destination addresses. Your OAuth
+token also lacks the scope to onboard a sending domain (`Unauthorized 2036`),
+so that path is closed for now on two fronts.
 
-## 1. Enable sending on the subdomain (once)
+The fix: **Resend free tier** — 3,000 emails/month, 100/day, no Cloudflare
+paid plan, no domain onboarding on Cloudflare's side. Both the app worker
+(signup OTP) and the cron worker (digests) now try the `EMAIL` binding first
+and fall back to Resend via a `RESEND_API_KEY` secret.
+
+## 1. Get a free Resend key (5 minutes, you do this once)
+
+1. Sign up at https://resend.com (free tier, no card).
+2. Add + verify `mail.periodtracker.run` (or the apex) in Resend → Domains,
+   and add the SPF/DKIM records it shows to the `periodtracker.run` DNS zone.
+3. Create an API key (Sending access) and keep it somewhere safe.
+
+## 2. Store the key as a secret (I do this on your machine)
 
 ```bash
-wrangler email sending enable mail.periodtracker.run
+cd /media/mint/WDC_WD10EZRX_932G/Sahil/periodtracker
+printf '%s' 're_xxx' | bunx -y wrangler@latest pages secret put RESEND_API_KEY --project-name periodtracker
+cd workers/email-cron
+printf '%s' 're_xxx' | bunx -y wrangler@latest secret put RESEND_API_KEY
 ```
 
-This provisions DNS automatically if Cloudflare manages the zone. Verify:
-
-```bash
-npx wrangler email sending list
-```
-
-## 2. Point wrangler at the real D1
-
-In `wrangler.toml` AND `workers/email-cron/wrangler.toml`, replace
-`REPLACE_WITH_D1_ID` with the output of `wrangler d1 list`.
-Apply the schema (includes `email_subs` + `shares`):
+Also paste the real D1 id into both `wrangler.toml` files (app root one is
+already `b9344d01-…`; the cron one still says `REPLACE_WITH_D1_ID`), then:
 
 ```bash
 wrangler d1 execute periodtracker --file=schema.sql
 ```
 
-## 3. Deploy the site + the cron worker
+## 3. Deploy (I do this)
 
 ```bash
-bun run build && wrangler pages deploy dist --project-name periodtracker
-cd workers/email-cron && wrangler deploy
+bun run build && bunx -y wrangler@latest pages deploy dist --project-name periodtracker
+cd workers/email-cron && bunx -y wrangler@latest deploy
 ```
 
-Cron runs weekly Monday 07:00 UTC + monthly 1st. Manual test (optional
-`CRON_KEY` secret first: `wrangler secret put CRON_KEY` in that dir):
+Cron runs weekly Monday 07:00 UTC + monthly 1st. Manual test:
 
 ```bash
 curl 'https://periodtracker-email.<you>.workers.dev/?key=...&freq=weekly'
+# (first: `wrangler secret put CRON_KEY` in workers/email-cron)
 ```
 
-Without the `EMAIL` binding (not yet enabled) the worker logs and skips —
-nothing crashes.
+## 4. Optional paid upgrade later
 
-## 3b. Attach the EMAIL binding to the Pages project (for OTP + summaries)
+Onboard `mail.periodtracker.run` to Cloudflare Email Sending (dashboard →
+Compute → Email Service → Onboard Domain, or `wrangler email sending
+enable`), add the `[[send_email]]` binding, redeploy. Code prefers the
+binding automatically; nothing else changes.
 
-The app worker (`api/_worker.js`) also needs the `send_email` binding —
-it sends signup verification codes and (via the cron worker) digests.
-In the Cloudflare dashboard → Pages → periodtracker → Settings → Bindings:
+## 5. Privacy design (do not weaken)
 
-- Add **Email Sending** binding named `EMAIL` (same sending domain).
-- Confirm the **D1** binding named `DB` points at the same database.
-
-Then re-apply the schema (adds `email_verified` + `magic_codes`):
-
-```bash
-wrangler d1 execute periodtracker --file=schema.sql
-```
-
-Why Email Service and not marketing mail: Cloudflare Email Sending is
-transactional-only (auth codes, digests, receipts). Bulk marketing/newsletters
-are forbidden by its terms — that restriction is exactly why OTP and magic
-links belong here and promo blasts do not.
+- Explicit opt-in per user; one row per user; one-click unsubscribe link in
+  every mail (`List-Unsubscribe` + `List-Unsubscribe-Post` headers).
+- Minimal level sends dates only. Full adds symptom counts, never notes.
+- Transactional only (auth codes, digests) — Resend's free tier is fine with
+  this volume; marketing bulk is forbidden by policy and by our design.
+- Unsubscribing deletes the row; no backup of addresses anywhere else.
 
 ## 4. Privacy design (do not weaken)
 

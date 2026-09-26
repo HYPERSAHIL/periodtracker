@@ -522,22 +522,32 @@ async function route(request, env, url) {
     await env.DB.prepare(
       'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
     ).bind(u.email, hex(await sha256(code)), expires, now, ip).run();
-    if (!env.EMAIL) {
-      // dev/preview without the sending binding: nothing can deliver the
+    if (!env.EMAIL && !env.RESEND_API_KEY) {
+      // dev/preview without any mail provider: nothing can deliver the
       // code, so verification completes here instead of stranding the user.
-      // Production always has the binding (see docs/email-setup.md).
+      // Production always has a provider (see docs/email-setup.md).
       await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
       await env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(u.id).run();
       await logEvent(env, request, u.id, 'magic_no_binding', {});
       return json({ ok: true, verified: true });
     }
+    const mail = {
+      to: u.email,
+      from: { email: 'updates@mail.periodtracker.run', name: 'Period Tracker' },
+      subject: `Verify your email: ${code}`,
+      text: `Your Period Tracker verification code is ${code} (expires in 15 minutes).\n\nEnter it in the app to confirm this email is yours.\n\nIf you didn't ask for this, ignore this email — your password still protects your account.`,
+    };
     try {
-      await env.EMAIL.send({
-        to: u.email,
-        from: { email: 'updates@mail.periodtracker.run', name: 'Period Tracker' },
-        subject: `Verify your email: ${code}`,
-        text: `Your Period Tracker verification code is ${code} (expires in 15 minutes).\n\nEnter it in the app to confirm this email is yours.\n\nIf you didn't ask for this, ignore this email — your password still protects your account.`,
-      });
+      if (env.EMAIL) {
+        await env.EMAIL.send(mail);
+      } else {
+        const rr = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: `${mail.from.name} <${mail.from.email}>`, ...mail }),
+        });
+        if (!rr.ok) throw new Error(`resend ${rr.status}`);
+      }
     } catch {
       await logEvent(env, request, u.id, 'magic_email_failed', {});
       throw new HttpError(502, { error: 'email_failed' });

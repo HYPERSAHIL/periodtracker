@@ -1,12 +1,31 @@
 /**
  * periodtracker-email — weekly/monthly cycle-summary sender.
  * Separate Worker because Pages Functions can't hold cron triggers.
- * Reads the same D1 as the app; sends via the EMAIL (send_email) binding.
- * Deploy: `wrangler deploy` from this directory (after `wrangler email
- * sending enable mail.periodtracker.run` + D1 id + APP_URL, see docs/email-setup.md).
+ * Reads the same D1 as the app; sends via Cloudflare EMAIL binding or
+ * Resend (RESEND_API_KEY secret) — whichever is configured. Free-plan safe:
+ * needs neither a paid Workers plan nor an onboarded sending domain.
+ * Deploy: `wrangler deploy` from this directory (D1 id + APP_URL +
+ * optional RESEND_API_KEY secret, see docs/email-setup.md).
  */
 
 const FROM = { email: 'updates@mail.periodtracker.run', name: 'Period Tracker' };
+
+async function sendMail(env, msg) {
+  if (env.EMAIL) {
+    await env.EMAIL.send(msg);
+    return;
+  }
+  if (env.RESEND_API_KEY) {
+    const rr = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: `${msg.from.name} <${msg.from.email}>`, ...msg }),
+    });
+    if (!rr.ok) throw new Error(`resend ${rr.status}`);
+    return;
+  }
+  throw new Error('no-mail-provider');
+}
 
 function diffDays(a, b) {
   const pa = a.split('-').map(Number);
@@ -70,10 +89,6 @@ function compose(sub, fc) {
 }
 
 async function sendDue(env, freq) {
-  if (!env.EMAIL) {
-    console.log('email summary: no EMAIL binding, skipping');
-    return { sent: 0, skipped: 'no-binding' };
-  }
   const appUrl = (env.APP_URL || 'https://periodtracker.run').replace(/\/$/, '');
   const rows = await env.DB.prepare(
     'SELECT s.email, s.level, s.unsub_token, d.entries FROM email_subs s LEFT JOIN data d ON d.user_id = s.user_id WHERE s.freq = ?'
@@ -92,7 +107,7 @@ async function sendDue(env, freq) {
       const fc = forecast(entries);
       const text = compose({ freq, level: r.level }, fc);
       const unsub = `${appUrl}/api/email/unsub?token=${r.unsub_token}`;
-      await env.EMAIL.send({
+      await sendMail(env, {
         to: r.email,
         from: FROM,
         subject: freq === 'monthly' ? 'Your monthly cycle snapshot' : 'Your weekly cycle snapshot',

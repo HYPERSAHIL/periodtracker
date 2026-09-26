@@ -1,8 +1,11 @@
 # Separate Worker: Pages Functions can't hold cron triggers.
 # Deploy from THIS directory: `wrangler deploy`
-# Secrets: none required (EMAIL is a binding; CRON_KEY optional via `wrangler secret put CRON_KEY`)
+# Secrets: RESEND_API_KEY (free tier, `wrangler secret put RESEND_API_KEY`);
+#   CRON_KEY optional (`wrangler secret put CRON_KEY`) for manual triggers.
 # Vars: APP_URL=https://periodtracker.run
-# Prereq: `wrangler email sending enable mail.periodtracker.run`, D1 id below.
+# Prereq: D1 id below (same database as the app).
+# Optional paid path: onboard mail.periodtracker.run to Cloudflare Email
+# Sending and uncomment the [[send_email]] block below.
 name = "periodtracker-email"
 main = "email-cron.js"
 compatibility_date = "2024-11-01"
@@ -16,7 +19,7 @@ crons = ["0 7 * * 1", "0 7 1 * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "periodtracker"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "b9344d01-3125-4790-a6f7-9ae0d08fe254"
 
-[[send_email]]
-binding = "EMAIL"
+# [[send_email]]
+# binding = "EMAIL"
