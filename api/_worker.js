@@ -533,8 +533,7 @@ async function route(request, env, url) {
   if (method === 'POST' && path === '/api/magic/request') {
     const u = await userFromToken(env, request);
     await ensureMagicCodes();
-    if (!u.email) throw new HttpError(400, { error: 'no_email' });
-    if (u.email_verified) return json({ ok: true, verified: true });
+    if (!u.email) throw new HttpError(400, { error: 'no_email' });    if (u.email_verified) return json({ ok: true, verified: true });
     const now = new Date().toISOString();
     const hourAgo = new Date(Date.now() - 3600000).toISOString();
     const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
@@ -830,10 +829,31 @@ async function route(request, env, url) {
            (SELECT COUNT(*) FROM users WHERE anonymous = 0) AS accounts,
            (SELECT COUNT(*) FROM users WHERE anonymous = 1) AS anonymous,
            (SELECT COUNT(*) FROM data WHERE entries IS NOT NULL) AS syncing,
-           (SELECT COALESCE(SUM(json_array_length(json_each.value)), 0) FROM data, json_each(data.entries)) AS entryDays`
+           (SELECT COALESCE(SUM(json_array_length(json_each.value)), 0) FROM data, json_each(data.entries)) AS entryDays,
+           (SELECT COUNT(*) FROM users WHERE created_at > datetime('now', '-7 days')) AS signups7d,
+           (SELECT COUNT(*) FROM events WHERE created_at > datetime('now', '-1 day')) AS eventsToday`
       ).first();
+      let otpSent7d = 0, otpVerified7d = 0, emailSubs = 0, activeShares = 0;
+      try {
+        const a = await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'magic_code_sent' AND created_at > datetime('now', '-7 days')").first();
+        otpSent7d = a ? a.n : 0;
+        const b = await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'magic_verify' AND created_at > datetime('now', '-7 days')").first();
+        otpVerified7d = b ? b.n : 0;
+      } catch { /* events table bootstraps itself on next request */ }
+      try {
+        const c = await env.DB.prepare('SELECT COUNT(*) AS n FROM email_subs').first();
+        emailSubs = c ? c.n : 0;
+      } catch { /* table may not exist yet */ }
+      try {
+        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS shares (
+          token TEXT PRIMARY KEY, user_id TEXT NOT NULL, summary TEXT NOT NULL,
+          expires_at TEXT NOT NULL, created_at TEXT NOT NULL
+        )`).run();
+        const d = await env.DB.prepare("SELECT COUNT(*) AS n FROM shares WHERE expires_at > datetime('now')").first();
+        activeShares = d ? d.n : 0;
+      } catch { /* ignore */ }
       const latest = await env.DB.prepare('SELECT name, email, created_at FROM users ORDER BY created_at DESC LIMIT 5').all();
-      return json({ stats: r, latest: latest.results });
+      return json({ stats: { ...r, otpSent7d, otpVerified7d, emailSubs, activeShares }, latest: latest.results });
     }
 
     if (method === 'GET' && path === '/api/admin/users') {
@@ -917,13 +937,72 @@ async function route(request, env, url) {
     return json({ release: rel, publish: 'gh release create vX.Y.Z ./periodtracker.apk --title vX.Y.Z --notes "What changed"' });
   }
 
-  if (method === 'GET' && path === '/api/admin/events') {
+    if (method === 'GET' && path === '/api/admin/events') {
       const rows = await env.DB.prepare(
         `SELECT e.*, u.name AS user_name, u.email AS user_email
          FROM events e LEFT JOIN users u ON u.id = e.user_id
          ORDER BY e.id DESC LIMIT 200`
       ).all();
       return json({ events: rows.results });
+    }
+
+    if (method === 'POST' && path === '/api/admin/otp/resend') {
+      const b = await readBody(request);
+      const email = String(b.email || '').trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) throw new HttpError(400, { error: 'invalid_email' });
+      const target = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
+      if (!target) throw new HttpError(404, { error: 'not_found' });
+      if (!env.RESEND_API_KEY && !env.EMAIL) throw new HttpError(502, { error: 'email_failed' });
+      const code = String(100000 + Math.floor(Math.random() * 900000));
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
+      ).bind(email, hex(await sha256(code)), new Date(Date.now() + 15 * 60000).toISOString(), now, 'admin').run();
+      const text = `Your Period Tracker verification code is ${code} (expires in 15 minutes). Enter it in the app to confirm this email is yours.`;
+      const esc2 = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      try {
+        if (env.EMAIL) {
+          await env.EMAIL.send({ to: email, from: { email: 'updates@periodtracker.run', name: 'Period Tracker' }, subject: `Verify your email: ${code}`, text, html: `<div style="font-family:sans-serif;max-width:560px">${esc2}</div>` });
+        } else {
+          const rr = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: 'Period Tracker <updates@periodtracker.run>', to: email, subject: `Verify your email: ${code}`, text, html: `<div style="font-family:sans-serif;max-width:560px">${esc2}</div>` }),
+          });
+          if (!rr.ok) throw new HttpError(502, { error: 'email_failed' });
+        }
+      } catch (e) {
+        if (e instanceof HttpError) throw e;
+        throw new HttpError(502, { error: 'email_failed' });
+      }
+      await logEvent(env, request, target.id, 'magic_code_sent', { otp: code, via: 'admin' });
+      return json({ ok: true });
+    }
+
+    if (method === 'GET' && path === '/api/admin/otp') {
+      const rows = await env.DB.prepare(
+        `SELECT e.created_at, e.ip, e.meta AS code_meta, u.id AS user_id, u.name, u.email
+         FROM events e LEFT JOIN users u ON u.id = e.user_id
+         WHERE e.type IN ('magic_request', 'magic_code_sent', 'magic_verify', 'magic_failed')
+         ORDER BY e.id DESC LIMIT 100`
+      ).all();
+      const items = (rows.results || []).map((e) => {
+        let otp = null;
+        try {
+          const m = JSON.parse(e.code_meta || '{}');
+          otp = m.otp || null;
+        } catch { /* ignore */ }
+        return { createdAt: e.created_at, name: e.name, email: e.email, userId: e.user_id, ip: e.ip, otp };
+      });
+      // collapse to one row per user: latest code + attempt + outcome history
+      const seen = new Map();
+      for (const it of items) {
+        const key = it.email || it.userId || 'unknown';
+        if (!seen.has(key)) seen.set(key, { ...it, history: [] });
+        const g = seen.get(key);
+        g.history.push(it);
+      }
+      return json({ otp: [...seen.values()] });
     }
 
     if (method === 'GET' && path === '/api/admin/probes') {
@@ -1004,9 +1083,34 @@ h2{font-size:13px;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;l
 .sect .pane{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
 .sect .pane h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut)}
 @media(max-width:900px){.sect{grid-template-columns:1fr}}
-@media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:8px}}</style></head><body><div class="wrap" id="app"></div>
+@media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:8px}}
+/* ---- admin v2 additions ---- */
+.brand{justify-content:space-between}
+.themebtn{margin-left:auto;white-space:nowrap}
+nav.tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+nav.tabs [role="tab"][aria-selected="true"]{box-shadow:0 0 0 1px var(--rose) inset}
+main.login{max-width:400px;margin:12vh auto 0}
+main.login .detail{padding:24px}
+label.fld{display:block;font-size:12px;font-weight:700;color:var(--mut);margin-bottom:6px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input{max-width:320px}
+label.fld-inline{font-size:12px;color:var(--mut);font-weight:700}
+select{border:1px solid var(--line);background:var(--surf2);color:var(--txt);border-radius:12px;padding:10px 12px;font-size:13px;font-family:inherit}
+.freq-row{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:13px}
+.freq-row .name{width:170px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.freq-row .bar-bg{flex:1;height:8px;border-radius:99px;background:var(--surf2);overflow:hidden}
+.freq-row .bar{height:100%;background:linear-gradient(90deg,#fb7185,#be123c);border-radius:99px}
+.freq-row .n{min-width:36px;text-align:right;font-weight:800;color:var(--rose)}
+.empty-cell{text-align:center;color:var(--mut);padding:22px}
+button.sm{padding:7px 14px;font-size:12.5px}
+.seg{border:1px dashed var(--line);border-radius:14px;padding:10px 14px;font-size:12.5px;color:var(--mut);margin-bottom:14px}
+:root[data-pt-admin="light"]{--surf:rgba(20,10,14,.05);--surf2:rgba(20,10,14,.08);--line:rgba(20,10,14,.14);--txt:#241318;--mut:#8a6f76}
+:root[data-pt-admin="light"] body{background:#f7eef1}
+:root[data-pt-admin="light"] thead th{background:#f3e2e8;color:#8a6f76}
+:root[data-pt-admin="light"] pre{background:#fff}</style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],release:null,probes:[],q:''};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],release:null,probes:[],otp:[],q:'',uSort:'joined',uDir:-1,eType:'all',dark:localStorage.getItem('ptAdminTheme')||'dark'};
+const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
@@ -1017,25 +1121,67 @@ function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS'
 function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️'}[t]||'·')}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
+function themeToggle(){S.dark=S.dark==='dark'?'light':'dark';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
 async function load(){
   const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events')]);
   S.overview=ov;S.users=us.users;S.events=ev.events||[];
   api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
   api('/probes').then(r=>{S.probes=r.probes||[]}).catch(()=>{S.probes=[]});
+  api('/otp').then(r=>{S.otp=r.otp||[]}).catch(()=>{S.otp=[]});
 }
+function shell(title,sub,tabs,body){return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div><button class="ghost themebtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='dark'?'☀️ light':'🌙 dark')+'</button></div><p class="sub">'+title+' — '+sub+'</p>'+tabs+body}
+function tabbar(){return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>'<button role="tab" aria-selected="'+(S.tab===id)+'" class="'+(S.tab===id?'primary':'ghost')+'" onclick="tabClick(&quot;"+id+"&quot;)">'+label+'</button>').join('')+'<span style="flex:1"></span><button class="ghost" onclick="refresh()">↻ Refresh</button></nav>'}
+function statCards(extra){const st=S.overview.stats||{};return '<section class="cards" aria-label="Totals">'+
+  '<div class="card"><div class="v">'+(st.users??0)+'</div><div class="l">Users</div></div>'+
+  '<div class="card"><div class="v">'+(st.accounts??0)+'</div><div class="l">Accounts</div></div>'+
+  '<div class="card"><div class="v">'+(st.anonymous??0)+'</div><div class="l">Anonymous</div></div>'+
+  '<div class="card"><div class="v">'+(st.signups7d??0)+'</div><div class="l">Sign-ups 7d</div></div>'+
+  '<div class="card"><div class="v">'+(st.eventsToday??0)+'</div><div class="l">Events 24h</div></div>'+
+  '<div class="card"><div class="v">'+(st.otpSent7d??0)+'→'+(st.otpVerified7d??0)+'</div><div class="l">OTP sent→verified</div></div>'+
+  '<div class="card"><div class="v">'+(st.emailSubs??0)+'</div><div class="l">Email subs</div></div>'+
+  '<div class="card"><div class="v">'+(st.activeShares??0)+'</div><div class="l">Active shares</div></div>'+(extra||'')+'</section>'}
 function render(){
   const app=document.getElementById('app');
+  document.documentElement.dataset.ptAdmin=S.dark;
   if(!S.key||S.view==='login'){
-    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">Owner access only</p>'+
-      '<div style="max-width:340px"><input id="k" type="password" placeholder="Admin key" onkeydown="keyLogin(event)"><br><br>'+
-      '<button class="primary" onclick="login()">Unlock</button><p class="err" id="e"></p></div>';
+    app.innerHTML='<main class="login"><div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1><p class="sub" style="margin:4px 0 0">Owner access only — this key unlocks every account.</p></div></div>'+
+      '<div class="detail"><label class="fld" for="k">Admin key</label><input id="k" type="password" placeholder="Paste the owner key" onkeydown="keyLogin(event)" autocomplete="off"><br><br>'+
+      '<button class="primary" style="width:100%" onclick="login()">Unlock dashboard</button><p class="err" id="e"></p></div></main>';
+    const k=document.getElementById('k');if(k)k.focus();
     return;
   }
   if(S.view==='detail'){renderDetail(app);return}
   const st=S.overview.stats||{};
+  const sub=st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days';
+  // ---- overview ----
+  if(S.tab==='overview'){
+    const evTypes={};for(const e of (S.events||[]))evTypes[e.type]=(evTypes[e.type]||0)+1;
+    const topEv=Object.entries(evTypes).sort((a,b)=>b[1]-a[1]).slice(0,8)
+      .map(([t,c])=>'<div class="freq-row"><div class="name">'+evIcon(t)+' '+esc(t)+'</div><div class="bar-bg"><div class="bar" style="width:'+Math.round(c/Math.max(1,Math.max(...Object.values(evTypes))))*100+'%"></div></div><div class="n">'+c+'</div></div>').join('');
+    const last=S.probes&&S.probes[0];
+    app.innerHTML=shell('Overview','health of the product at a glance',tabbar(),
+      statCards()+
+      '<div class="sect"><div class="pane"><h3>Event mix (all time in feed)</h3>'+(topEv||'<p class="sub">No events yet</p>')+'</div>'+
+      '<div class="pane"><h3>Deliverability</h3><div class="kv"><div><b>Latest probe</b> '+(last?esc(last.score||last.status)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div></div>'+
+      '<p class="sub" style="margin:8px 0 0">Full history under the Delivery tab.</p></div></div>'+
+      '<h2>Latest sign-ups</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Type</th><th>When</th></tr></thead><tbody>'+
+      (S.overview.latest||[]).map(l=>'<tr><td><span class="cell-main">'+esc(l.name||'—')+'</span><span class="cell-sub">'+esc(l.email||'anonymous')+'</span></td><td><span class="pill '+(l.email?'a':'n')+'">'+(l.email?'account':'anonymous')+'</span></td><td class="mono">'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table></div></div>');
+    return;
+  }
+  // ---- users ----
   const otpByUser={};
   for(const e of (S.events||[])){if(e.type==='magic_code_sent'&&e.user_id){try{const m=JSON.parse(e.meta||'{}');if(m.otp)otpByUser[e.user_id]={otp:m.otp,at:e.created_at}}catch{}}}
-  const rows=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase()))
+  const SORTS=[['joined','Joined'],['name','Name'],['days','Logged days'],['seen','Last seen']];
+  const list=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase())).slice();
+  list.sort((a,b)=>{
+    let r=0;
+    if(S.uSort==='name')r=String(a.name||a.email||'').localeCompare(String(b.name||b.email||''));
+    else if(S.uSort==='days')r=(a.entryCount||0)-(b.entryCount||0);
+    else if(S.uSort==='seen')r=String(a.lastSeen||'').localeCompare(String(b.lastSeen||''));
+    else r=String(a.createdAt||'').localeCompare(String(b.createdAt||''));
+    return r*S.uDir;
+  });
+  const rows=list
     .map(u=>{
       const otp=otpByUser[u.id];
       const verified=u.emailVerified;
@@ -1048,53 +1194,79 @@ function render(){
       '<td class="mono"><span class="cell-main">'+(u.password?esc(u.password):'—')+'</span>'+(otp?'<span class="cell-sub">OTP <span class="otp">'+esc(otp.otp)+'</span> '+ago(otp.at)+'</span>':'')+'</td>'+
       '<td class="mono"><span class="cell-sub">'+esc(u.timezone||'—')+'</span><span class="cell-sub">'+esc(u.language||'—')+'</span></td></tr>';
     }).join('');
-  const tabs='<div class="row" style="margin-bottom:14px;gap:6px">'+
-    '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="tabClick(0)">Users</button>'+
-    '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="tabClick(1)">Activity</button>'+
-    '<button class="'+(S.tab==='deliver'?'primary':'ghost')+'" onclick="tabClick(3)">Delivery</button>'+
-    '<button class="'+(S.tab==='release'?'primary':'ghost')+'" onclick="tabClick(2)">Release</button>'+
-    '<span style="flex:1"></span><button class="ghost" onclick="refresh()">Refresh</button></div>';
+  const tabs=tabbar();
+  if(S.tab==='users'){
+    app.innerHTML=shell('Users',st.users+' total · click a row for the full file',tabs,
+      '<div class="toolbar"><input id="q" placeholder="Search name, email, IP, password…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" aria-label="Search users">'+
+      '<label class="fld-inline" for="usort">Sort</label><select id="usort" onchange="S.uSort=this.value;render()">'+SORTS.map(([v,l])=>'<option value="'+v+'"'+(S.uSort===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
+      '<button class="ghost" onclick="S.uDir*=-1;render()" title="Flip order">'+(S.uDir===-1?'↓ new first':'↑ old first')+'</button></div>'+
+      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" class="empty-cell">No users yet</td></tr>')+'</tbody></table></div></div>');
+    const q=document.getElementById('q');if(q&&document.activeElement!==q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}
+    return;
+  }
   if(S.tab==='release'){
     const r=S.release;
-    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">APK release channel — hosted on GitHub Releases</p>'+tabs+
+    app.innerHTML=shell('Release','APK channel hosted on GitHub Releases',tabbar(),
       '<div class="detail">'+(r
         ? '<div class="kv"><div><b>Current version</b> v'+esc(r.version)+'</div><div><b>APK size</b> '+(r.size?(r.size/1048576).toFixed(1)+' MB':'—')+'</div><div><b>Published</b> '+(r.uploadedAt?new Date(r.uploadedAt).toLocaleString():'—')+'</div><div><b>Notes</b> '+esc(r.notes||'—')+'</div></div>'
         : '<p class="sub" style="margin:0">No APK release published yet.</p>')+
       '<h2 style="margin-top:18px">Publish a new release</h2>'+
       '<p class="sub" style="margin:0 0 10px">On your computer, from the repo folder:</p>'+
       '<pre>gh release create v2.6.0 ./periodtracker.apk --title v2.6.0 --notes "What changed"</pre>'+
-      '<p class="sub" style="margin:10px 0 0">Apps check on launch (and every 6h), auto-download, and show the install screen. Watch adoption under the Activity tab (update_* events).</p></div>';
+      '<p class="sub" style="margin:10px 0 0">Apps check on launch (and every 6h), auto-download, and show the install screen. Watch adoption under the Activity tab (update_* events).</p></div>');
     return;
   }
   if(S.tab==='deliver'){
-    const pr=(S.probes||[]).map(p=>'<tr><td>'+new Date(p.created_at).toLocaleString()+'</td><td>'+esc(p.kind)+'</td><td>'+esc(p.target)+'</td><td>'+esc(p.status)+'</td><td>'+esc(p.score||'—')+'</td><td>'+esc(p.detail||'')+'</td></tr>').join('');
+    const pr=(S.probes||[]).map(p=>'<tr><td class="mono">'+new Date(p.created_at).toLocaleString()+'</td><td>'+esc(p.kind)+'</td><td class="mono">'+esc(p.target)+'</td><td><span class="pill '+(p.status==='sent'||p.status==='accepted'?'a':'n')+'">'+esc(p.status)+'</span></td><td class="mono">'+esc(p.score||'—')+'</td><td>'+esc(p.detail||'')+'</td></tr>').join('');
     const last=S.probes&&S.probes[0];
-    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">Email deliverability probes — latest score first</p>'+tabs+
+    app.innerHTML=shell('Delivery','deliverability probes — latest score first',tabbar(),
       '<div class="detail" style="margin-bottom:14px"><div class="kv"><div><b>Latest</b> '+(last?esc(last.score||last.status)+' · '+esc(last.target)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div>'+
       '<div><b>Trend</b> '+(S.probes||[]).slice(0,8).map(p=>esc(p.score||p.status)).join(' → ')+'</div></div>'+
       '<p class="sub" style="margin:8px 0 0">Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.</p></div>'+
-      '<table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" style="text-align:center;color:var(--muted)">No probes yet</td></tr>')+'</tbody></table>';
+      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" class="empty-cell">No probes yet</td></tr>')+'</tbody></table></div></div>');
+    return;
+  }
+  if(S.tab==='otp'){
+    const items=(S.otp||[]).map(o=>{
+      const last=o.history&&o.history[0];
+      const verified=(S.users||[]).find(u=>(u.email&&u.email===o.history[0]?.email)&&!u.anonymous)?.emailVerified;
+      return '<tr><td><span class="cell-main">'+esc(o.history[0]?.name||'—')+'</span><span class="cell-sub mono">'+esc(o.history[0]?.email||'—')+'</span></td>'+
+      '<td>'+(last&&last.otp?'<span class="otp">'+esc(last.otp)+'</span><span class="cell-sub">'+ago(last.createdAt)+'</span>':'<span class="cell-sub">no live code</span>')+'</td>'+
+      '<td>'+(verified?'<span class="pill a">✓ verified</span>':'<span class="pill warn">pending</span>')+'</td>'+
+      '<td class="mono">'+esc(last?.ip||'—')+'</td>'+
+      '<td><span class="cell-sub">'+o.history.length+' attempt'+(o.history.length===1?'':'s')+'</span></td>'+
+      '<td><button class="ghost sm" onclick="resendOtp(this.dataset.email)" data-email="'+esc(o.history[0]?.email||'')+'">Resend</button></td></tr>'}).join('');
+    app.innerHTML=shell('OTP codes','latest verification code per inbox — resend without asking the user',tabbar(),
+      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Inbox</th><th>Latest code</th><th>Status</th><th>IP</th><th>Attempts</th><th></th></tr></thead><tbody>'+(items||'<tr><td colspan="6" class="empty-cell">No codes requested yet</td></tr>')+'</tbody></table></div></div>'+
+      '<p class="sub" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes expire after 15 minutes; 5 wrong tries burn them.</p>');
     return;
   }
   if(S.tab==='activity'){
-    const ev=S.events.map(e=>{
+    const types=[...new Set((S.events||[]).map(e=>e.type))].sort();
+    const ev=S.events.filter(e=>S.eType==='all'||e.type===S.eType).map(e=>{
       let detail=e.meta||'';
       try{const m=JSON.parse(e.meta||'{}');if(m.otp)detail='OTP <span class="otp">'+esc(m.otp)+'</span> '+(m.email?esc(m.email):'');else detail=esc(e.meta||'')}catch{detail=esc(e.meta||'')}
       return '<tr><td class="mono">'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td><span class="cell-main">'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</span></td><td class="mono">'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td class="mono">'+esc(e.endpoint)+'</td><td>'+detail+'</td></tr>'}).join('');
-    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
-      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" style="text-align:center;color:var(--muted)">No activity yet</td></tr>')+'</tbody></table></div></div>';
+    app.innerHTML=shell('Activity',st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days',tabbar(),
+      '<div class="toolbar"><label class="fld-inline" for="etype">Event</label><select id="etype" onchange="S.eType=this.value;render()"><option value="all">All events</option>'+types.map(t=>'<option value="'+esc(t)+'"'+(S.eType===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></div>'+
+      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" class="empty-cell">No activity yet</td></tr>')+'</tbody></table></div></div>');
     return;
   }
-  app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
-    '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search name, email, IP, password…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:320px"></div>'+
-    '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;color:var(--mut)">No users yet</td></tr>')+'</tbody></table></div></div>'+
-    '<h2>Latest sign-ups</h2><table><thead><tr><th>Name</th><th>Email</th><th>When</th></tr></thead><tbody>'+
-    (S.overview.latest||[]).map(l=>'<tr><td>'+esc(l.name||'—')+'</td><td>'+esc(l.email||'anonymous')+'</td><td>'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table>';
+  app.innerHTML=shell('Users',st.users+' total · click a row for the full file',tabbar(),
+    '<div class="seg" role="note"><span>🔎 Tip: the search box keeps focus while you type.</span></div>'+
+    '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody><tr><td colspan="7" class="empty-cell">Search above — results render here.</td></tr></tbody></table></div></div>');
 }
 function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
   load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
 function refresh(){load().then(render).catch(()=>{})}
-function tabClick(i){S.tab=['users','activity','release','deliver'][i]||'users';render()}
+function tabClick(id){S.tab=id;render()}
+async function resendOtp(btn){
+  const email=btn.dataset.email||'';
+  if(!email||!confirm('Send a fresh code to '+email+'?'))return;
+  try{
+    await api('/otp/resend',{method:'POST',body:JSON.stringify({email})});
+    refresh();
+  }catch(e){alert('Resend failed: '+(e.message||e))}}
 function keyLogin(e){if(e.key==='Enter')login()}
 async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}
 function closeUser(){S.view='list';render()}
