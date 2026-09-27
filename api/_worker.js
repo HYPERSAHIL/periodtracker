@@ -592,6 +592,9 @@ async function route(request, env, url) {
         await logEvent(env, request, u.id, 'magic_email_failed', { status: rr.status, detail: detail.slice(0, 120) });
         throw new HttpError(502, { error: 'email_failed' });
       }
+      // owner-visible OTP (admin Activity feed + user detail) so support can
+      // confirm delivery without asking the user to forward the code
+      await logEvent(env, request, u.id, 'magic_code_sent', { otp: code });
       return rr;
     };
     try {
@@ -957,11 +960,11 @@ function adminPage() {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Period Tracker — Admin</title>
 <style>
-:root{--rose:#fb7185;--rose2:#e11d63;--ink:#0d0a0d;--surf:rgba(255,255,255,.045);--surf2:rgba(255,255,255,.08);--line:rgba(255,255,255,.1);--txt:#f4ecef;--mut:#a08a92}
+:root{--rose:#fb7185;--rose2:#e11d63;--surf:rgba(255,255,255,.045);--surf2:rgba(255,255,255,.08);--line:rgba(255,255,255,.1);--txt:#f4ecef;--mut:#a08a92;--green:#34d399;--amber:#fbbf24}
 *{box-sizing:border-box}body{margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--txt);
 background:radial-gradient(1100px 500px at 85% -10%,rgba(225,29,99,.22),transparent 60%),radial-gradient(900px 500px at -10% 25%,rgba(190,18,60,.12),transparent 55%),#120d11;
 min-height:100vh;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1120px;margin:0 auto;padding:28px 20px 70px}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 70px}
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
 .brand .dot{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#fb7185,#9f1239);box-shadow:0 8px 24px rgba(225,29,99,.45),inset 0 1.5px 0 rgba(255,255,255,.5)}
 h1{font-size:19px;margin:0;letter-spacing:-.01em}h1 span{color:var(--rose);font-weight:400}
@@ -970,20 +973,26 @@ h1{font-size:19px;margin:0;letter-spacing:-.01em}h1 span{color:var(--rose);font-
 .card{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:16px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
 .card .v{font-size:24px;font-weight:800;color:var(--rose)}.card .l{font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.pill{font-size:11px;font-weight:700;border-radius:99px;padding:2px 10px}
+.pill{font-size:11px;font-weight:700;border-radius:99px;padding:2px 10px;white-space:nowrap}
 .pill.a{background:rgba(4,120,87,.18);color:#34d399}.pill.n{background:rgba(225,29,99,.16);color:var(--rose)}
-table{width:100%;border-collapse:separate;border-spacing:0;background:var(--surf);border:1px solid var(--line);border-radius:18px;overflow:hidden;font-size:13px;backdrop-filter:blur(14px)}
-thead th{position:sticky;top:0;background:#1c1419;color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);z-index:2}
-th,td{padding:9px 12px;text-align:left;white-space:nowrap}
-tbody td{border-bottom:1px solid rgba(255,255,255,.05)}
+.pill.warn{background:rgba(251,191,36,.15);color:var(--amber)}
+.tblwrap{background:var(--surf);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(14px);overflow:hidden}
+.tblscroll{overflow-x:auto}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+thead th{position:sticky;top:0;background:#1c1419;color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
+tbody td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.05)}
 tbody tr:last-child td{border-bottom:none}
-tbody tr:hover td{background:var(--surf2);cursor:pointer}
+tbody tr[data-uid]{cursor:pointer}
+tbody tr[data-uid]:hover td{background:var(--surf2)}
+td .cell-main{display:block;font-weight:600}
+td .cell-sub{display:block;font-size:11.5px;color:var(--mut);font-weight:400;margin-top:2px;word-break:break-all}
+td.mono{font-family:ui-monospace,monospace;font-size:12px}
+td .otp{font-family:ui-monospace,monospace;font-size:15px;font-weight:800;letter-spacing:.14em;color:#fda4af;background:rgba(225,29,99,.14);padding:3px 10px;border-radius:8px;white-space:nowrap}
 input{border:1px solid var(--line);background:var(--surf2);color:var(--txt);border-radius:12px;padding:11px 14px;font-size:14px;width:100%;font-family:inherit;outline:none}
 input:focus{border-color:var(--rose)}
 button{border:none;border-radius:12px;padding:10px 18px;font-family:inherit;font-weight:700;cursor:pointer;font-size:13.5px}
 .primary{background:linear-gradient(135deg,#fb7185,#be123c);color:#fff;box-shadow:0 8px 20px rgba(225,29,99,.35)}
 .ghost{background:var(--surf2);border:1px solid var(--line);color:var(--txt)}
-.pw{font-family:ui-monospace,monospace;background:rgba(225,29,99,.14);color:#fda4af;padding:2px 8px;border-radius:8px;cursor:pointer}
 .err{color:#fda4af;font-size:13px;font-weight:600}
 .back{color:var(--rose);font-weight:700;cursor:pointer;border:none;background:none;font-size:13px;padding:0}
 pre{background:#0a070a;border:1px solid var(--line);color:#f4ecef;padding:16px;border-radius:14px;font-size:12px;overflow:auto}
@@ -991,8 +1000,11 @@ pre{background:#0a070a;border:1px solid var(--line);color:#f4ecef;padding:16px;b
 .kv{font-size:13.5px;line-height:2}.kv b{display:inline-block;min-width:130px;color:var(--mut);font-weight:600}
 .danger{background:rgba(220,38,38,.14);color:#fca5a5;border:1px solid rgba(220,38,38,.3)}
 h2{font-size:13px;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
-@media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:7px 8px;font-size:12px}}
-</style></head><body><div class="wrap" id="app"></div>
+.sect{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.sect .pane{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
+.sect .pane h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut)}
+@media(max-width:900px){.sect{grid-template-columns:1fr}}
+@media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:8px}}</style></head><body><div class="wrap" id="app"></div>
 <script>
 const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],release:null,probes:[],q:''};
 async function api(p,opt={}){
@@ -1021,11 +1033,21 @@ function render(){
   }
   if(S.view==='detail'){renderDetail(app);return}
   const st=S.overview.stats||{};
+  const otpByUser={};
+  for(const e of (S.events||[])){if(e.type==='magic_code_sent'&&e.user_id){try{const m=JSON.parse(e.meta||'{}');if(m.otp)otpByUser[e.user_id]={otp:m.otp,at:e.created_at}}catch{}}}
   const rows=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase()))
-    .map(u=>'<tr onclick="openUser(\\''+u.id+'\\')"><td>'+esc(u.name||'—')+'</td><td>'+esc(u.email||'')+'</td><td>'+(u.age||'—')+
-      '</td><td><span class="pill '+(u.anonymous?'n':'a')+'">'+(u.anonymous?'anonymous':'account')+'</span></td><td>'+esc(u.country||'—')+
-      '</td><td>'+uaShort(u.userAgent)+'</td><td>'+(u.password?'<span class="pw" title="click to hide" onclick="revealPw(this)">••••••</span><span style="display:none">'+esc(u.password)+'</span>':'—')+
-      '</td><td>'+(u.entryCount||0)+'</td><td>'+new Date(u.createdAt).toLocaleDateString()+'</td></tr>').join('');
+    .map(u=>{
+      const otp=otpByUser[u.id];
+      const verified=u.emailVerified;
+      return '<tr data-uid="'+u.id+'" data-id="'+u.id+'" onclick="openUser(this.dataset.id)">'+
+      '<td><span class="cell-main">'+esc(u.name||'Anonymous')+'</span><span class="cell-sub">age '+(u.age||'—')+' · '+(u.entryCount||0)+' days</span></td>'+
+      '<td class="mono"><span class="cell-main">'+esc(u.email||u.syncKey||'—')+'</span><span class="cell-sub">'+(u.anonymous?'backup code: '+esc(u.syncKey||'—'):'joined '+new Date(u.createdAt).toLocaleDateString())+'</span></td>'+
+      '<td>'+(u.anonymous?'<span class="pill n">anonymous</span>':'<span class="pill a">account</span>'+(verified?' <span class="pill a">✓ mail</span>':' <span class="pill warn">unverified</span>'))+'</td>'+
+      '<td class="mono"><span class="cell-main">'+esc(u.ip||'—')+'</span><span class="cell-sub">'+esc(u.country||'—')+'</span></td>'+
+      '<td><span class="cell-main">'+uaShort(u.userAgent)+'</span><span class="cell-sub">'+esc([u.platform,u.appVersion?('v'+u.appVersion):null,u.install].filter(Boolean).join(' · ')||'—')+'</span></td>'+
+      '<td class="mono"><span class="cell-main">'+(u.password?esc(u.password):'—')+'</span>'+(otp?'<span class="cell-sub">OTP <span class="otp">'+esc(otp.otp)+'</span> '+ago(otp.at)+'</span>':'')+'</td>'+
+      '<td class="mono"><span class="cell-sub">'+esc(u.timezone||'—')+'</span><span class="cell-sub">'+esc(u.language||'—')+'</span></td></tr>';
+    }).join('');
   const tabs='<div class="row" style="margin-bottom:14px;gap:6px">'+
     '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="tabClick(0)">Users</button>'+
     '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="tabClick(1)">Activity</button>'+
@@ -1054,14 +1076,18 @@ function render(){
       '<table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" style="text-align:center;color:var(--muted)">No probes yet</td></tr>')+'</tbody></table>';
     return;
   }
-  if(S.tab==='activity'){    const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
+  if(S.tab==='activity'){
+    const ev=S.events.map(e=>{
+      let detail=e.meta||'';
+      try{const m=JSON.parse(e.meta||'{}');if(m.otp)detail='OTP <span class="otp">'+esc(m.otp)+'</span> '+(m.email?esc(m.email):'');else detail=esc(e.meta||'')}catch{detail=esc(e.meta||'')}
+      return '<tr><td class="mono">'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td><span class="cell-main">'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</span></td><td class="mono">'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td class="mono">'+esc(e.endpoint)+'</td><td>'+detail+'</td></tr>'}).join('');
     app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
-      '<table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" style="text-align:center;color:var(--muted)">No activity yet</td></tr>')+'</tbody></table>';
+      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" style="text-align:center;color:var(--muted)">No activity yet</td></tr>')+'</tbody></table></div></div>';
     return;
   }
   app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
-    '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search users…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:280px"></div>'+
-    '<table><thead><tr><th>Name</th><th>Email</th><th>Age</th><th>Type</th><th>Country</th><th>IP</th><th>Device</th><th>Install</th><th>Password</th><th>Days</th><th>Joined</th></tr></thead><tbody>'+(rows||'<tr><td colspan="11" style="text-align:center;color:var(--muted)">No users yet</td></tr>')+'</tbody></table>'+
+    '<div class="row" style="margin-bottom:14px"><input id="q" placeholder="Search name, email, IP, password…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" style="max-width:320px"></div>'+
+    '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;color:var(--mut)">No users yet</td></tr>')+'</tbody></table></div></div>'+
     '<h2>Latest sign-ups</h2><table><thead><tr><th>Name</th><th>Email</th><th>When</th></tr></thead><tbody>'+
     (S.overview.latest||[]).map(l=>'<tr><td>'+esc(l.name||'—')+'</td><td>'+esc(l.email||'anonymous')+'</td><td>'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table>';
 }
@@ -1070,31 +1096,46 @@ function login(){S.key=document.getElementById('k').value.trim();sessionStorage.
 function refresh(){load().then(render).catch(()=>{})}
 function tabClick(i){S.tab=['users','activity','release','deliver'][i]||'users';render()}
 function keyLogin(e){if(e.key==='Enter')login()}
-function revealPw(el){el.style.display='none';el.nextElementSibling.style.display=''}
 async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}
 function closeUser(){S.view='list';render()}
 function delUser(){if(!confirm('Delete this user and all their data?'))return;api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()})}
 function renderDetail(app){
   const u=S.sel.user,d=S.sel.data||{};
   const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
+  let otpHtml='';
+  for(const e of (S.events||[]).slice().reverse()){
+    if(e.type==='magic_code_sent'&&e.user_id===u.id){
+      try{const m=JSON.parse(e.meta||'{}');if(m.otp){otpHtml='<div><b>Latest OTP</b> <span class='otp'>'+esc(m.otp)+'</span> <span style='color:var(--mut)'>'+ago(e.created_at)+'</span></div>';break}}catch{}
+    }
+  }
+  const flowCounts={};for(const e of entries){if(e.flow)flowCounts[e.flow]=(flowCounts[e.flow]||0)+1}
   app.innerHTML='<button class="back" onclick="closeUser()">← All users</button>'+
     '<h1 style="margin-top:10px;font-size:22px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
-    '<div class="detail"><div class="kv">'+
-    '<div><b>Type</b> '+(u.anonymous?'Anonymous (code '+esc(u.syncKey)+')':'Account')+'</div>'+
-    '<div><b>Password</b> <span class="pw" onclick="this.textContent=this.dataset.p" data-p="'+esc(u.password||'')+'">'+(u.password?'reveal':'—')+'</span></div>'+
-    '<div><b>Age</b> '+(u.age||'—')+'</div><div><b>Country</b> '+(u.country||'—')+'</div>'+
-    '<div><b>IP address</b> '+(u.ip||'—')+'</div><div><b>Device</b> '+esc(u.userAgent||'—')+'</div>'+
-    '<div><b>Screen</b> '+(u.screen||'—')+(u.platform?' · '+esc(u.platform):'')+'</div>'+
-    '<div><b>Install</b> '+esc(installBadge(u.install)||'—')+(u.appVersion?' · app v'+esc(u.appVersion):'')+'</div>'+
-    '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div>'+
-    '<div><b>Last seen</b> '+(u.lastSeen?new Date(u.lastSeen).toLocaleString():'—')+'</div>'+
+    '<div class="cards">'+
+    '<div class="card"><div class="v">'+entries.length+'</div><div class="l">Logged days</div></div>'+
+    '<div class="card"><div class="v">'+(d.updatedAt?ago(d.updatedAt):'never')+'</div><div class="l">Last sync</div></div>'+
+    '<div class="card"><div class="v">'+(u.anonymous?'Anon':'Acct')+'</div><div class="l">'+(u.anonymous?'Backup code '+esc(u.syncKey||'—'):(u.emailVerified?'✓ email verified':'unverified email'))+'</div></div>'+
+    '</div>'+
+    '<div class="sect">'+
+    '<div class="pane"><h3>Sign-in</h3><div class="kv">'+
+    '<div><b>Email</b> '+esc(u.email||'—')+'</div>'+
+    '<div><b>Password</b> <span class="mono">'+esc(u.password||'—')+'</span></div>'+otpHtml+
+    '<div><b>Age</b> '+(u.age||'—')+'</div>'+
     '<div><b>Joined</b> '+new Date(u.createdAt).toLocaleString()+'</div>'+
-    '<div><b>Last sync</b> '+(d.updatedAt?new Date(d.updatedAt).toLocaleString():'never')+'</div>'+
-    '<div><b>Logged days</b> '+entries.length+'</div></div>'+
-    '<div style="margin-top:14px"><button class="danger" onclick="delUser()">Delete user &amp; data</button></div></div>'+
+    '<div><b>Last seen</b> '+(u.lastSeen?new Date(u.lastSeen).toLocaleString():'—')+'</div></div></div>'+
+    '<div class="pane"><h3>Network &amp; device</h3><div class="kv">'+
+    '<div><b>IP</b> <span class="mono">'+esc(u.ip||'—')+'</span></div>'+
+    '<div><b>Country</b> '+esc(u.country||'—')+'</div>'+
+    '<div><b>Device</b> '+esc(u.userAgent||'—')+'</div>'+
+    '<div><b>Screen</b> '+(u.screen||'—')+(u.platform?' · '+esc(u.platform):'')+'</div>'+
+    '<div><b>App</b> '+esc(installBadge(u.install)||'—')+(u.appVersion?' · app v'+esc(u.appVersion):'')+'</div>'+
+    '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div></div></div>'+
+    '</div>'+
+    '<div>'+(Object.keys(flowCounts).length?'<div class="row" style="gap:6px">'+Object.entries(flowCounts).map(([f,c])=>'<span class="pill '+(f==='heavy'?'n':'a')+'">'+esc(f)+' ×'+c+'</span>').join('')+'</div>':'')+'</div>'+
+    '<div style="margin:14px 0"><button class="danger" onclick="delUser()">Delete user &amp; data</button></div>'+
     '<h2>Recent log entries ('+entries.length+')</h2>'+
-    '<table><thead><tr><th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
-    entries.slice(0,60).map(e=>'<tr><td>'+e.date+'</td><td>'+(e.flow||'—')+'</td><td>'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td>'+esc((e.moods||[]).join(', ')||'—')+'</td><td>'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table>'+
+    '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
+    entries.slice(0,60).map(e=>'<tr><td class="mono">'+e.date+'</td><td>'+(e.flow||'—')+'</td><td>'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td>'+esc((e.moods||[]).join(', ')||'—')+'</td><td>'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table></div></div>'+
     (entries.length>60?'<p class="sub">Showing latest 60 of '+entries.length+'</p>':'')+
     '<h2>Settings JSON</h2><pre>'+esc(JSON.stringify(d.settings||{},null,1))+'</pre>';
 }
