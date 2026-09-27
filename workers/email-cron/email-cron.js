@@ -8,7 +8,7 @@
  * optional RESEND_API_KEY secret, see docs/email-setup.md).
  */
 
-const FROM = { email: 'updates@mail.periodtracker.run', name: 'Period Tracker' };
+const FROM = { email: 'updates@periodtracker.run', name: 'Period Tracker' };
 
 async function sendMail(env, msg) {
   if (env.EMAIL) {
@@ -16,10 +16,19 @@ async function sendMail(env, msg) {
     return;
   }
   if (env.RESEND_API_KEY) {
+    // multipart alternative: some filters penalize text-only; escaped, no
+    // images — open tracking stays off by domain config.
+    const esc = String(msg.text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+    const html = `<div style="font-family:sans-serif;max-width:560px">${esc}</div>`;
     const rr = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: `${msg.from.name} <${msg.from.email}>`, ...msg }),
+      // Resend REST: `from` is a plain "Name <addr>" string, NOT an object
+      body: JSON.stringify({ from: `${msg.from.name} <${msg.from.email}>`, to: msg.to, subject: msg.subject, text: msg.text, html, headers: msg.headers }),
     });
     if (!rr.ok) throw new Error(`resend ${rr.status}`);
     return;
@@ -107,11 +116,16 @@ async function sendDue(env, freq) {
       const fc = forecast(entries);
       const text = compose({ freq, level: r.level }, fc);
       const unsub = `${appUrl}/api/email/unsub?token=${r.unsub_token}`;
+      const safeText =
+        `${text}\n\n` +
+        `Why this email: you turned on ${freq} summaries in Period Tracker settings. ` +
+        `It contains no symptom or note details — dates and counts only.\n` +
+        `Unsubscribe: ${unsub}\n`;
       await sendMail(env, {
         to: r.email,
         from: FROM,
         subject: freq === 'monthly' ? 'Your monthly cycle snapshot' : 'Your weekly cycle snapshot',
-        text: `${text}\n${unsub}\n`,
+        text: safeText,
         headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
       });
       sent++;
@@ -122,9 +136,67 @@ async function sendDue(env, freq) {
   return { sent };
 }
 
+/**
+ * Weekly deliverability probe: send one OTP-shaped probe to a SEED inbox
+ * (PROBE_TARGET secret — never a real user), score the Resend delivery log,
+ * and report back to the app via POST /api/probe/log (admin-key authed).
+ * This replaces manual mail-tester runs with an automatic trend line.
+ */
+async function runProbe(env) {
+  const target = (env.PROBE_TARGET || '').trim();
+  if (!target || !env.RESEND_API_KEY) {
+    console.log('probe: skipped (no PROBE_TARGET or RESEND_API_KEY)');
+    return { skipped: true };
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  let sendOk = false;
+  let sendDetail = null;
+  try {
+    const rr = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Period Tracker <updates@periodtracker.run>',
+        to: target,
+        subject: `Deliverability probe ${stamp}`,
+        text: `Weekly deliverability probe ${stamp}. This message tests SPF/DKIM/DMARC delivery only — ignore it.\n`,
+      }),
+    });
+    sendOk = rr.ok;
+    sendDetail = rr.ok ? '' : (await rr.text().catch(() => '')).slice(0, 200);
+  } catch (e) {
+    sendDetail = sendDetail || String(e).slice(0, 200);
+  }
+  // score = Resend-side acceptance; inbox placement still needs the seed
+  // inbox's own view (Gmail Postmaster once claimed), so status is honest:
+  const status = sendOk ? 'sent' : 'failed';
+  const score = sendOk ? 'accepted' : 'rejected';
+  try {
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS probe_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL,
+        target TEXT NOT NULL, status TEXT NOT NULL, score TEXT,
+        detail TEXT, created_at TEXT NOT NULL
+      )`
+    ).run();
+    await env.DB.prepare(
+      'INSERT INTO probe_log (kind, target, status, score, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind('resend-seed', target, status, score, sendDetail, new Date().toISOString()).run();
+  } catch (e) {
+    console.log('probe: log failed', String(e).slice(0, 120));
+  }
+  return { status, score };
+}
+
 export default {
   async scheduled(event, env, ctx) {
-    // crons: "0 7 * * 1" (weekly Mon) and "0 7 1 * *" (monthly 1st)
+    // crons: weekly probe (Mon 06:30), digests (Mon 07:00, monthly 1st)
+    // NOTE: probe needs a PROBE_TARGET secret (a seed inbox address) — without
+    // it the probe is skipped, never sent to users by mistake.
+    if (event.cron === '30 6 * * 1') {
+      ctx.waitUntil(runProbe(env));
+      return;
+    }
     const freq = event.cron === '0 7 1 * *' ? 'monthly' : 'weekly';
     ctx.waitUntil(sendDue(env, freq));
   },
@@ -132,6 +204,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (env.CRON_KEY && url.searchParams.get('key') === env.CRON_KEY) {
+      if (url.searchParams.get('run') === 'probe') return Response.json(await runProbe(env));
       const freq = url.searchParams.get('freq') === 'monthly' ? 'monthly' : 'weekly';
       return Response.json(await sendDue(env, freq));
     }

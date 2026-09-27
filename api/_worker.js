@@ -368,16 +368,53 @@ async function route(request, env, url) {
   const method = request.method;
 
   if (method === 'GET' && path === '/api/health') return json({ ok: true, service: 'period-tracker-sync' });
+  await ensureEvents(); // before any logEvent: logging swallows its own errors
 
   // --- app release + update events (no auth; the updater runs pre-login) ---
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
     const type = String(b.type || '').slice(0, 40);
-    if (!/^update_/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
+    if (!/^(update_|deliverability_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
     const session = loadSessionFromAuth ? await loadSessionFromAuth(env, request) : null;
     const uid = session ? session.id : null;
     await logEvent(env, request, uid, type, b.meta || {});
     return json({ ok: true });
+  }
+
+  // --- deliverability probe history (admin reads feed; cron worker writes it) ---
+  async function ensureProbeLog() {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS probe_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL,
+      target TEXT NOT NULL, status TEXT NOT NULL, score TEXT,
+      detail TEXT, created_at TEXT NOT NULL
+    )`).run();
+  }
+
+  if (method === 'POST' && path === '/api/probe/log') {
+    const adminKey = request.headers.get('x-admin-key') || '';
+    if (!env.PT_ADMIN_KEY || adminKey !== env.PT_ADMIN_KEY) throw new HttpError(401, { error: 'unauthorized' });
+    const b = await readBody(request);
+    await ensureProbeLog();
+    await env.DB.prepare(
+      'INSERT INTO probe_log (kind, target, status, score, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(
+      String(b.kind || 'mailtester').slice(0, 20),
+      String(b.target || '').slice(0, 120),
+      String(b.status || 'unknown').slice(0, 20),
+      b.score == null ? null : String(b.score).slice(0, 20),
+      b.detail == null ? null : String(b.detail).slice(0, 500),
+      new Date().toISOString()
+    ).run();
+    await logEvent(env, request, null, 'deliverability_probe', { kind: b.kind || 'mailtester', status: b.status || 'unknown' });
+    return json({ ok: true });
+  }
+
+  if (method === 'GET' && path === '/api/probe/history') {
+    const adminKey = request.headers.get('x-admin-key') || '';
+    if (!env.PT_ADMIN_KEY || adminKey !== env.PT_ADMIN_KEY) throw new HttpError(401, { error: 'unauthorized' });
+    await ensureProbeLog();
+    const rows = await env.DB.prepare('SELECT * FROM probe_log ORDER BY id DESC LIMIT 50').all();
+    return json({ probes: rows.results || [] });
   }
 
   if (method === 'GET' && path === '/api/app/latest') {
@@ -531,24 +568,36 @@ async function route(request, env, url) {
       await logEvent(env, request, u.id, 'magic_no_binding', {});
       return json({ ok: true, verified: true });
     }
-    const mail = {
-      to: u.email,
-      from: { email: 'updates@mail.periodtracker.run', name: 'Period Tracker' },
-      subject: `Verify your email: ${code}`,
-      text: `Your Period Tracker verification code is ${code} (expires in 15 minutes).\n\nEnter it in the app to confirm this email is yours.\n\nIf you didn't ask for this, ignore this email — your password still protects your account.`,
+    // No EMAIL binding is configured (free plan has no send_email UI for
+    // Pages), so reach straight for the Resend REST path.
+    const mailText =
+      `Your Period Tracker verification code is ${code} (expires in 15 minutes).\n\n` +
+      `Enter it in the app to confirm this email is yours.\n\n` +
+      `Why this email: you created a Period Tracker account with this address. ` +
+      `It contains no health information of any kind.\n\n` +
+      `If you didn't ask for this, ignore this email — your password still protects your account.`;
+    const resendSend = async () => {
+      // HTML alternative included: plain-text-only mails lose a spam-filter
+      // point or two (mail-tester flags "no html version"). Escaped, no
+      // images/pixels — open tracking stays off by domain config.
+      const esc = mailText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      const rr = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        // Resend REST: `from` is a plain "Name <addr>" string, NOT an object
+        body: JSON.stringify({ from: `Period Tracker <updates@periodtracker.run>`, to: u.email, subject: `Verify your email: ${code}`, text: mailText, html: `<div style="font-family:sans-serif;max-width:560px">${esc}</div>` }),
+      });
+      if (!rr.ok) {
+        const detail = await rr.text().catch(() => '');
+        await logEvent(env, request, u.id, 'magic_email_failed', { status: rr.status, detail: detail.slice(0, 120) });
+        throw new HttpError(502, { error: 'email_failed' });
+      }
+      return rr;
     };
     try {
-      if (env.EMAIL) {
-        await env.EMAIL.send(mail);
-      } else {
-        const rr = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from: `${mail.from.name} <${mail.from.email}>`, ...mail }),
-        });
-        if (!rr.ok) throw new Error(`resend ${rr.status}`);
-      }
-    } catch {
+      await resendSend();
+    } catch (e) {
+      if (e instanceof HttpError) throw e;
       await logEvent(env, request, u.id, 'magic_email_failed', {});
       throw new HttpError(502, { error: 'email_failed' });
     }
@@ -585,6 +634,12 @@ async function route(request, env, url) {
   }
 
   // --- session scoped -----------------------------------------------------------------------
+  async function ensureEvents() {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, type TEXT NOT NULL,
+      endpoint TEXT, ip TEXT, country TEXT, user_agent TEXT, meta TEXT, created_at TEXT NOT NULL
+    )`).run();
+  }
   if (method === 'POST' && path === '/api/signout') {
     const auth = request.headers.get('authorization') || '';
     const m = auth.match(/^Bearer ([a-f0-9]{64})$/);
@@ -868,6 +923,20 @@ async function route(request, env, url) {
       return json({ events: rows.results });
     }
 
+    if (method === 'GET' && path === '/api/admin/probes') {
+      try {
+        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS probe_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL,
+          target TEXT NOT NULL, status TEXT NOT NULL, score TEXT,
+          detail TEXT, created_at TEXT NOT NULL
+        )`).run();
+      } catch {
+        /* table may already exist */
+      }
+      const rows = await env.DB.prepare('SELECT * FROM probe_log ORDER BY id DESC LIMIT 50').all();
+      return json({ probes: rows.results || [] });
+    }
+
     throw new HttpError(404, { error: 'not_found' });
   }
 
@@ -925,7 +994,7 @@ h2{font-size:13px;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;l
 @media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:7px 8px;font-size:12px}}
 </style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],release:null,q:''};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'users',users:[],events:[],release:null,probes:[],q:''};
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
@@ -940,6 +1009,7 @@ async function load(){
   const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events')]);
   S.overview=ov;S.users=us.users;S.events=ev.events||[];
   api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
+  api('/probes').then(r=>{S.probes=r.probes||[]}).catch(()=>{S.probes=[]});
 }
 function render(){
   const app=document.getElementById('app');
@@ -959,6 +1029,7 @@ function render(){
   const tabs='<div class="row" style="margin-bottom:14px;gap:6px">'+
     '<button class="'+(S.tab==='users'?'primary':'ghost')+'" onclick="tabClick(0)">Users</button>'+
     '<button class="'+(S.tab==='activity'?'primary':'ghost')+'" onclick="tabClick(1)">Activity</button>'+
+    '<button class="'+(S.tab==='deliver'?'primary':'ghost')+'" onclick="tabClick(3)">Delivery</button>'+
     '<button class="'+(S.tab==='release'?'primary':'ghost')+'" onclick="tabClick(2)">Release</button>'+
     '<span style="flex:1"></span><button class="ghost" onclick="refresh()">Refresh</button></div>';
   if(S.tab==='release'){
@@ -973,8 +1044,17 @@ function render(){
       '<p class="sub" style="margin:10px 0 0">Apps check on launch (and every 6h), auto-download, and show the install screen. Watch adoption under the Activity tab (update_* events).</p></div>';
     return;
   }
-  if(S.tab==='activity'){
-    const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
+  if(S.tab==='deliver'){
+    const pr=(S.probes||[]).map(p=>'<tr><td>'+new Date(p.created_at).toLocaleString()+'</td><td>'+esc(p.kind)+'</td><td>'+esc(p.target)+'</td><td>'+esc(p.status)+'</td><td>'+esc(p.score||'—')+'</td><td>'+esc(p.detail||'')+'</td></tr>').join('');
+    const last=S.probes&&S.probes[0];
+    app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">Email deliverability probes — latest score first</p>'+tabs+
+      '<div class="detail" style="margin-bottom:14px"><div class="kv"><div><b>Latest</b> '+(last?esc(last.score||last.status)+' · '+esc(last.target)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div>'+
+      '<div><b>Trend</b> '+(S.probes||[]).slice(0,8).map(p=>esc(p.score||p.status)).join(' → ')+'</div></div>'+
+      '<p class="sub" style="margin:8px 0 0">Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.</p></div>'+
+      '<table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" style="text-align:center;color:var(--muted)">No probes yet</td></tr>')+'</tbody></table>';
+    return;
+  }
+  if(S.tab==='activity'){    const ev=S.events.map(e=>'<tr><td>'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td>'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</td><td>'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.meta||'')+'</td></tr>').join('');
     app.innerHTML='<div class="brand"><div class="dot"></div><h1>Period Tracker <span>/ Admin</span></h1></div><p class="sub">'+st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days</p>'+tabs+
       '<table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" style="text-align:center;color:var(--muted)">No activity yet</td></tr>')+'</tbody></table>';
     return;
@@ -988,7 +1068,7 @@ function render(){
 function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
   load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
 function refresh(){load().then(render).catch(()=>{})}
-function tabClick(i){S.tab=['users','activity','release'][i]||'users';render()}
+function tabClick(i){S.tab=['users','activity','release','deliver'][i]||'users';render()}
 function keyLogin(e){if(e.key==='Enter')login()}
 function revealPw(el){el.style.display='none';el.nextElementSibling.style.display=''}
 async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}

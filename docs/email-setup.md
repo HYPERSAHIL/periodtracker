@@ -41,12 +41,12 @@ bun run build && bunx -y wrangler@latest pages deploy dist --project-name period
 cd workers/email-cron && bunx -y wrangler@latest deploy
 ```
 
-Cron runs weekly Monday 07:00 UTC + monthly 1st. Manual test:
-
-```bash
-curl 'https://periodtracker-email.<you>.workers.dev/?key=...&freq=weekly'
-# (first: `wrangler secret put CRON_KEY` in workers/email-cron)
-```
+Crons: weekly probe Mon 06:30 UTC → digests Mon 07:00 + monthly 1st.
+The probe sends one OTP-shaped mail to the `PROBE_TARGET` seed inbox
+(a Resend test address or a spare inbox you own — never a user) and logs
+`sent/failed` into `probe_log`, visible in Admin → **Delivery** tab.
+Set it with `wrangler secret put PROBE_TARGET` in `workers/email-cron`.
+Manual: `?key=...&run=probe` runs the probe on demand.
 
 ## 4. Optional paid upgrade later
 

@@ -62,3 +62,27 @@ CREATE TABLE IF NOT EXISTS magic_codes (
   ip TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_magic_email ON magic_codes(email);
+
+-- weekly deliverability probes (mail-tester score log, admin feed)
+CREATE TABLE IF NOT EXISTS probe_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  target TEXT NOT NULL,
+  status TEXT NOT NULL,
+  score TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- fire-and-forget request log (auto-created too; kept here for fresh DBs)
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT,
+  type TEXT NOT NULL,
+  endpoint TEXT,
+  ip TEXT,
+  country TEXT,
+  user_agent TEXT,
+  meta TEXT,
+  created_at TEXT NOT NULL
+);
