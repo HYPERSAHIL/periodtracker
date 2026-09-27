@@ -1124,7 +1124,7 @@ function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲
 function themeToggle(){S.dark=S.dark==='dark'?'light':'dark';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
 async function load(){
   const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events')]);
-  S.overview=ov;S.users=us.users;S.events=ev.events||[];
+  S.overview=ov||null;S.users=(us&&us.users)||[];S.events=(ev&&ev.events)||[];
   api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
   api('/probes').then(r=>{S.probes=r.probes||[]}).catch(()=>{S.probes=[]});
   api('/otp').then(r=>{S.otp=r.otp||[]}).catch(()=>{S.otp=[]});
@@ -1151,6 +1151,7 @@ function render(){
     return;
   }
   if(S.view==='detail'){renderDetail(app);return}
+  if(!S.overview){app.innerHTML=shell('Loading','fetching the dashboard…',tabbar(),'<div class="detail"><p class="sub" style="margin:0">Loading…</p></div>');return}
   const st=S.overview.stats||{};
   const sub=st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days';
   // ---- overview ----
