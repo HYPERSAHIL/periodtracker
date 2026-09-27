@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV, mergeImportedEntries, toBackup } from '../lib/storage';
 import { hashPin, randomSaltB64 } from '../lib/crypto';
+import { trackAction } from '../lib/analytics';
 import { tx, txd } from '../lib/i18n';
 import { phaseFor } from '../lib/cycle';
 import type { ShareRow, SharedSummary } from '../lib/cloud';
@@ -125,6 +126,7 @@ export default function SettingsView(p: AppProps) {
 
   const exportData = () => {
     download(toBackup(p.entries, settings), `period-tracker-backup-${todayISO()}.json`);
+    trackAction('export', { format: 'json' });
   };
 
   const importData = async (file: File) => {
@@ -132,10 +134,11 @@ export default function SettingsView(p: AppProps) {
     if (/\.csv$/i.test(file.name)) {
       const csvEntries = parseCSVEntries(text);
       if (csvEntries && Object.keys(csvEntries).length) {
-        const n = Object.keys(csvEntries).length;
-        p.replaceAll(p.settings, mergeImportedEntries(p.entries, csvEntries));
-        setImportMsg(tx(lang, 'CSV imported ✓ ({n} day{s})', { n, s: n === 1 ? '' : 's' }));
-        return;
+      const n = Object.keys(csvEntries).length;
+      p.replaceAll(p.settings, mergeImportedEntries(p.entries, csvEntries));
+      setImportMsg(tx(lang, 'CSV imported ✓ ({n} day{s})', { n, s: n === 1 ? '' : 's' }));
+      trackAction('import', { format: 'csv', days: n });
+      return;
       }
       // not a tracker export? try wearable format (Oura/Fitbit/Withings/Health Connect)
       const wearable = parseWearableCSV(text, { dayFirst: lang === 'hi' });
@@ -145,6 +148,7 @@ export default function SettingsView(p: AppProps) {
       }
       const n = Object.keys(wearable.entries).length;
       p.replaceAll(p.settings, mergeImportedEntries(p.entries, wearable.entries));
+      trackAction('import', { format: 'wearable', days: n });
       setImportMsg(
         tx(lang, 'Wearable data imported ✓ ({n} day{s}, {tu}/{wu})', { n, s: n === 1 ? '' : 's', tu: wearable.tempUnit, wu: wearable.weightUnit })
       );
@@ -158,6 +162,7 @@ export default function SettingsView(p: AppProps) {
       }
       const n = Object.keys(xmlEntries).length;
       p.replaceAll(p.settings, mergeImportedEntries(p.entries, xmlEntries));
+      trackAction('import', { format: 'health-xml', days: n });
       setImportMsg(tx(lang, 'Health data imported ✓ ({n} day{s})', { n, s: n === 1 ? '' : 's' }));
       return;
     }
@@ -168,6 +173,7 @@ export default function SettingsView(p: AppProps) {
     }
     p.replaceAll(parsed.settings, parsed.entries);
     setImportMsg(tx(lang, 'Backup restored ✓'));
+    trackAction('import', { format: 'json' });
   };
 
   const savePin = async () => {
@@ -199,6 +205,7 @@ export default function SettingsView(p: AppProps) {
 
   const setMode = (m: Mode) => {
     // entering pregnancy/postpartum pauses forecasts; leaving resumes them (re-pausable via the toggle)
+    trackAction('mode_change', { mode: m });
     updateSettings({
       mode: m,      predictionsPaused: m === 'pregnant' || m === 'postpartum',
       dueDate: m === 'pregnant' ? settings.dueDate : null,
@@ -684,17 +691,18 @@ export default function SettingsView(p: AppProps) {
                     >
                       {copied === s.token ? tx(lang, 'Copied') : tx(lang, 'Copy link')}
                     </button>
-                    <button
-                      className="btn ghost sm"
-                      onClick={async () => {
-                        try {
-                          await p.shareApi.revoke(s.token);
-                          loadShares();
-                        } catch {
-                          setShareMsg(tx(lang, 'Something went wrong.'));
-                        }
-                      }}
-                    >
+                      <button
+                        className="btn ghost sm"
+                        onClick={async () => {
+                          try {
+                            await p.shareApi.revoke(s.token);
+                            loadShares();
+                            trackAction('share_revoke');
+                          } catch {
+                            setShareMsg(tx(lang, 'Something went wrong.'));
+                          }
+                        }}
+                      >
                       {tx(lang, 'Revoke')}
                     </button>
                   </div>
@@ -721,6 +729,7 @@ export default function SettingsView(p: AppProps) {
               await p.shareApi.create(summary, 30);
               setShareMsg(null);
               loadShares();
+              trackAction('share_create');
             } catch {
               setShareMsg(tx(lang, 'Something went wrong.'));
             }
@@ -802,6 +811,7 @@ export default function SettingsView(p: AppProps) {
                     await p.emailApi.subscribe({ email: emailAddr.trim(), freq: emailFreq, level: emailLevel });
                     setEmailOn(true);
                     setEmailMsg(tx(lang, 'Subscribed ✓'));
+                    trackAction('email_subscribe', { freq: emailFreq, level: emailLevel });
                   } catch {
                     setEmailMsg(tx(lang, 'Please enter a valid email.'));
                   }
@@ -816,6 +826,7 @@ export default function SettingsView(p: AppProps) {
                     await p.emailApi.unsubscribe();
                     setEmailOn(false);
                     setEmailMsg(tx(lang, 'Unsubscribed.'));
+                    trackAction('email_unsubscribe');
                   }}
                 >
                   {tx(lang, 'Unsubscribe')}
@@ -1096,8 +1107,10 @@ function VerifyEmailCard({
                 try {
                   await otpApi.verify(code);
                   setDone(true);
+                  trackAction('otp_verify', { ok: true });
                 } catch (e) {
                   setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+                  trackAction('otp_verify', { ok: false });
                 } finally {
                   setBusy(false);
                 }

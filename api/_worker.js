@@ -370,15 +370,84 @@ async function route(request, env, url) {
   if (method === 'GET' && path === '/api/health') return json({ ok: true, service: 'period-tracker-sync' });
   await ensureEvents(); // before any logEvent: logging swallows its own errors
 
+/** First-party analytics allowlist. Screen names = tab ids, onboarding, report. */
+const ANALYTICS_EVENTS = {
+  session_start: ['appVersion', 'platform'],
+  session_end: ['ms'],
+  page_view: ['screen'],
+  page_time: ['screen', 'ms'],
+  action: [
+    'action', 'hasFlow', 'symptomCount', 'moodCount', 'mode', 'teen', 'irregular',
+    'freq', 'level', 'format', 'days', 'tu', 'wu', 'ok', 'done', 'kicks',
+  ],
+  hover_nav: ['label', 'ms'],
+};
+
+function sanitizeAnalyticsMeta(type, meta) {
+  const allowed = ANALYTICS_EVENTS[type];
+  if (!allowed) return null;
+  const out = {};
+  for (const k of allowed) {
+    const v = meta[k];
+    if (v == null) continue;
+    if (typeof v === 'string') out[k] = v.slice(0, 80);
+    else if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.round(v * 100) / 100;
+    else if (typeof v === 'boolean') out[k] = v;
+  }
+  out.appVersion = typeof meta.appVersion === 'string' ? String(meta.appVersion).slice(0, 20) : 'unknown';
+  return out;
+}
+
+function rateLimitKey(request, userId) {
+  const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || 'none';
+  return `${ip}|${userId || 'anon'}`;
+}
+const analyticsHits = new Map(); // key -> {count, reset}
+
+/** 60 events/min per IP+user. Returns true when allowed. */
+function checkAnalyticsRate(request, userId) {
+  const key = rateLimitKey(request, userId);
+  const t = Date.now();
+  let rec = analyticsHits.get(key);
+  if (!rec || t > rec.reset) {
+    rec = { count: 0, reset: t + 60000 };
+    analyticsHits.set(key, rec);
+  }
+  rec.count += 1;
+  if (analyticsHits.size > 5000) {
+    for (const [k, v] of analyticsHits) {
+      if (t > v.reset) analyticsHits.delete(k);
+      if (analyticsHits.size <= 4000) break;
+    }
+  }
+  return rec.count <= 60;
+}
+
   // --- app release + update events (no auth; the updater runs pre-login) ---
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
-    const type = String(b.type || '').slice(0, 40);
-    if (!/^(update_|deliverability_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
-    const session = loadSessionFromAuth ? await loadSessionFromAuth(env, request) : null;
-    const uid = session ? session.id : null;
-    await logEvent(env, request, uid, type, b.meta || {});
-    return json({ ok: true });
+    const items = Array.isArray(b.events)
+      ? b.events
+      : [{ type: b.type, meta: b.meta }];
+    let accepted = 0;
+    for (const item of items.slice(0, 50)) {
+      const type = String(item.type || '').slice(0, 40);
+      if (!/^(update_|deliverability_|session_|page_|action$|hover_)/.test(type)) continue;
+      let uid = null;
+      try {
+        const session = await loadSessionFromAuth(env, request);
+        uid = session ? session.id : null;
+      } catch {
+        /* anonymous client */
+      }
+      if (!checkAnalyticsRate(request, uid)) continue;
+      const rawMeta = item.meta && typeof item.meta === 'object' ? item.meta : {};
+      const meta = sanitizeAnalyticsMeta(type, rawMeta) ?? (type.startsWith('update_') || type.startsWith('deliverability_') ? rawMeta : null);
+      if (meta == null) continue;
+      await logEvent(env, request, uid, type, meta);
+      accepted += 1;
+    }
+    return json({ ok: true, accepted });
   }
 
   // --- deliverability probe history (admin reads feed; cron worker writes it) ---
@@ -1019,6 +1088,71 @@ async function route(request, env, url) {
       return json({ probes: rows.results || [] });
     }
 
+    if (method === 'GET' && path === '/api/admin/analytics') {
+      const q = url.searchParams;
+      const days = Math.min(90, Math.max(1, parseInt(q.get('days') || '30', 10) || 30));
+      const since = `datetime('now', '-${days} days')`;
+      const count = async (sql, ...binds) => {
+        try {
+          const r = await env.DB.prepare(sql).bind(...binds).first();
+          return r ? r.n : 0;
+        } catch {
+          return 0;
+        }
+      };
+      const perDay = await env.DB.prepare(
+        `SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n FROM events WHERE created_at > ${since} GROUP BY d ORDER BY d`
+      ).all().catch(() => ({ results: [] }));
+      const byType = await env.DB.prepare(
+        `SELECT type, COUNT(*) AS n FROM events WHERE created_at > ${since} GROUP BY type ORDER BY n DESC LIMIT 40`
+      ).all().catch(() => ({ results: [] }));
+      const byScreen = await env.DB.prepare(
+        `SELECT json_extract(meta, '$.screen') AS screen, COUNT(*) AS n FROM events WHERE type = 'page_view' AND created_at > ${since} GROUP BY screen ORDER BY n DESC`
+      ).all().catch(() => ({ results: [] }));
+      const byAction = await env.DB.prepare(
+        `SELECT json_extract(meta, '$.action') AS action, COUNT(*) AS n FROM events WHERE type = 'action' AND created_at > ${since} GROUP BY action ORDER BY n DESC LIMIT 30`
+      ).all().catch(() => ({ results: [] }));
+      const avgTimeRows = await env.DB.prepare(
+        `SELECT json_extract(meta, '$.screen') AS screen, AVG(CAST(json_extract(meta, '$.ms') AS REAL)) AS ms, COUNT(*) AS n FROM events WHERE type = 'page_time' AND created_at > ${since} GROUP BY screen`
+      ).all().catch(() => ({ results: [] }));
+      const avgSessionRows = await env.DB.prepare(
+        `SELECT AVG(CAST(json_extract(meta, '$.ms') AS REAL)) AS ms, COUNT(*) AS n FROM events WHERE type = 'session_end' AND created_at > ${since}`
+      ).all().catch(() => ({ results: [] }));
+      const cohortRows = await env.DB.prepare(
+        `SELECT substr(u.created_at, 1, 10) AS cohort,
+          COUNT(DISTINCT u.id) AS users,
+          COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM events e WHERE e.user_id = u.id AND e.created_at > datetime(u.created_at, '+6 days')) THEN u.id END) AS retained
+         FROM users u WHERE u.created_at > ${since} GROUP BY cohort ORDER BY cohort DESC LIMIT 14`
+      ).all().catch(() => ({ results: [] }));
+      const funnelSteps = ['session_start', 'action', 'page_view'];
+      const funnel = {};
+      for (const t of funnelSteps) {
+        funnel[t] = await count(`SELECT COUNT(DISTINCT user_id) AS n FROM events WHERE type = ? AND created_at > ${since}`, t);
+        if (t === 'action') funnel.action_log_save = await count(`SELECT COUNT(*) AS n FROM events WHERE type = 'action' AND json_extract(meta, '$.action') = 'log_save' AND created_at > ${since}`);
+        if (t === 'page_view') funnel.report_open = await count(`SELECT COUNT(*) AS n FROM events WHERE type = 'action' AND json_extract(meta, '$.action') = 'report_open' AND created_at > ${since}`);
+      }
+      const dauRows = await env.DB.prepare(
+        `SELECT substr(created_at, 1, 10) AS d, COUNT(DISTINCT user_id) AS n FROM events WHERE user_id IS NOT NULL AND created_at > ${since} GROUP BY d ORDER BY d`
+      ).all().catch(() => ({ results: [] }));
+      return json({
+        days,
+        dau: dauRows.results || [],
+        perDay: perDay.results || [],
+        byType: byType.results || [],
+        byScreen: byScreen.results || [],
+        byAction: byAction.results || [],
+        avgTime: avgTimeRows.results || [],
+        avgSession: (avgSessionRows.results || [])[0] || null,
+        cohorts: cohortRows.results || [],
+        funnel,
+        totals: {
+          dau7: await count(`SELECT COUNT(DISTINCT user_id) AS n FROM events WHERE user_id IS NOT NULL AND created_at > datetime('now', '-7 days')`),
+          mau: await count(`SELECT COUNT(DISTINCT user_id) AS n FROM events WHERE user_id IS NOT NULL AND created_at > datetime('now', '-30 days')`),
+          sessions7: await count(`SELECT COUNT(*) AS n FROM events WHERE type = 'session_start' AND created_at > datetime('now', '-7 days')`),
+        },
+      });
+    }
+
     throw new HttpError(404, { error: 'not_found' });
   }
 
@@ -1109,8 +1243,8 @@ button.sm{padding:7px 14px;font-size:12.5px}
 :root[data-pt-admin="light"] thead th{background:#f3e2e8;color:#8a6f76}
 :root[data-pt-admin="light"] pre{background:#fff}</style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],release:null,probes:[],otp:[],q:'',uSort:'joined',uDir:-1,eType:'all',dark:localStorage.getItem('ptAdminTheme')||'dark'};
-const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],release:null,probes:[],otp:[],q:'',uSort:'joined',uDir:-1,eType:'all',aDays:30,analytics:null,dark:localStorage.getItem('ptAdminTheme')||'dark'};
+const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['analytics','Analytics'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
@@ -1128,6 +1262,9 @@ async function load(){
   api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
   api('/probes').then(r=>{S.probes=r.probes||[]}).catch(()=>{S.probes=[]});
   api('/otp').then(r=>{S.otp=r.otp||[]}).catch(()=>{S.otp=[]});
+}
+function loadAnalytics(){
+  api('/analytics?days='+S.aDays).then(r=>{S.analytics=r;if(S.tab==='analytics')render()}).catch(()=>{S.analytics={days:S.aDays};if(S.tab==='analytics')render()});
 }
 function shell(title,sub,tabs,body){return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div><button class="ghost themebtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='dark'?'☀️ light':'🌙 dark')+'</button></div><p class="sub">'+title+' — '+sub+'</p>'+tabs+body}
 function tabbar(){return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>'<button role="tab" aria-selected="'+(S.tab===id)+'" class="'+(S.tab===id?'primary':'ghost')+'" onclick="tabClick(&quot;"+id+"&quot;)">'+label+'</button>').join('')+'<span style="flex:1"></span><button class="ghost" onclick="refresh()">↻ Refresh</button></nav>'}
@@ -1224,6 +1361,50 @@ function render(){
       '<div><b>Trend</b> '+(S.probes||[]).slice(0,8).map(p=>esc(p.score||p.status)).join(' → ')+'</div></div>'+
       '<p class="sub" style="margin:8px 0 0">Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.</p></div>'+
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" class="empty-cell">No probes yet</td></tr>')+'</tbody></table></div></div>');
+    return;
+  }
+  if(S.tab==='analytics'){
+    const A=S.analytics;
+    if(A===undefined||A===null){
+      app.innerHTML=shell('Analytics','product usage across every logged event',tabbar(),
+        '<div class="toolbar"><label class="fld-inline" for="adays">Range</label><select id="adays" onchange="S.aDays=+this.value;S.analytics=null;render();loadAnalytics()">'+
+        [7,14,30,60,90].map(d=>'<option value="'+d+'"'+(S.aDays===d?' selected':'')+'>last '+d+'d</option>').join('')+'</select></div>'+
+        '<div class="tblwrap"><div class="tblscroll"><table><tbody><tr><td class="empty-cell">Loading analytics…</td></tr></tbody></table></div></div>');
+      return;
+    }
+    const bar=(pct)=>'<div class="bar-bg"><div class="bar" style="width:'+Math.max(0,Math.min(100,Math.round(pct)))+'%"></div></div>';
+    const dauMax=Math.max(1,...(A.dau||[]).map(r=>r.n));
+    const dauRows=(A.dau||[]).map(r=>'<div class="freq-row"><div class="name">'+esc(r.d)+'</div>'+bar(r.n/dauMax*100)+'<div class="n">'+r.n+'</div></div>').join('');
+    const maxT=Math.max(1,...(A.byType||[]).map(r=>r.n));
+    const typeRows=(A.byType||[]).map(r=>'<div class="freq-row"><div class="name">'+esc(r.type)+'</div>'+bar(r.n/maxT*100)+'<div class="n">'+r.n+'</div></div>').join('');
+    const maxS=Math.max(1,...(A.byScreen||[]).map(r=>r.n));
+    const screenRows=(A.byScreen||[]).map(r=>'<div class="freq-row"><div class="name">'+esc(r.screen||'?')+'</div>'+bar(r.n/maxS*100)+'<div class="n">'+r.n+'</div></div>').join('');
+    const maxA=Math.max(1,...(A.byAction||[]).map(r=>r.n));
+    const actRows=(A.byAction||[]).map(r=>'<div class="freq-row"><div class="name">'+esc(r.action||'?')+'</div>'+bar(r.n/maxA*100)+'<div class="n">'+r.n+'</div></div>').join('');
+    const avgMs=(ms)=>ms==null?'—':(ms>=60000?(ms/60000).toFixed(1)+'m':Math.round(ms/1000)+'s');
+    const timeRows=(A.avgTime||[]).map(r=>'<tr><td>'+esc(r.screen||'?')+'</td><td class="mono">'+avgMs(r.ms)+'</td><td class="mono">'+r.n+'</td></tr>').join('');
+    const cohortRows=(A.cohorts||[]).map(r=>{
+      const u=+r.users||0,rt=+r.retained||0,pct=u?Math.round(rt/u*100):0;
+      return '<tr><td class="mono">'+esc(r.cohort)+'</td><td class="mono">'+u+'</td><td class="mono">'+rt+'</td><td>'+bar(pct)+'</td><td class="mono">'+pct+'%</td></tr>'}).join('');
+    const F=A.funnel||{};
+    const ss=+F.session_start||0,ac=+F.action||0,pv=+F.page_view||0;
+    const frows=[['Sessions started',ss,100],['Any action',ac,ss?ac/ss*100:0],['Any screen view',pv,ss?pv/ss*100:0],
+      ['Saved a day log',+F.action_log_save||0,ss?(+F.action_log_save||0)/ss*100:0],['Opened report',+F.report_open||0,ss?(+F.report_open||0)/ss*100:0]]
+      .map(([l,n,p])=>'<div class="freq-row"><div class="name">'+l+'</div>'+bar(p)+'<div class="n">'+n+' · '+Math.round(p)+'%</div></div>').join('');
+    const dayMax=Math.max(1,...(A.perDay||[]).map(r=>r.n));
+    const dayRows=(A.perDay||[]).map(r=>'<div class="freq-row"><div class="name">'+esc(r.d)+'</div>'+bar(r.n/dayMax*100)+'<div class="n">'+r.n+'</div></div>').join('');
+    app.innerHTML=shell('Analytics','last '+A.days+' days · every screen, action, hover and session',tabbar(),
+      statCards('<div class="card"><div class="v">'+(A.totals?.dau7??0)+'</div><div class="l">DAU-7 uniq</div></div><div class="card"><div class="v">'+(A.totals?.mau??0)+'</div><div class="l">MAU uniq</div></div><div class="card"><div class="v">'+(A.avgSession?.ms!=null?avgMs(A.avgSession.ms):'—')+'</div><div class="l">Avg session</div></div>')+
+      '<div class="toolbar"><label class="fld-inline" for="adays">Range</label><select id="adays" onchange="S.aDays=+this.value;S.analytics=null;render();loadAnalytics()">'+
+      [7,14,30,60,90].map(d=>'<option value="'+d+'"'+(S.aDays===d?' selected':'')+'>last '+d+'d</option>').join('')+'</select></div>'+
+      '<div class="sect"><div class="pane"><h3>Funnel (unique users)</h3>'+frows+'</div>'+
+      '<div class="pane"><h3>Cohorts · 7-day retention</h3><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Joined</th><th>Users</th><th>Kept</th><th></th><th>%</th></tr></thead><tbody>'+(cohortRows||'<tr><td colspan="5" class="empty-cell">No cohorts yet</td></tr>')+'</tbody></table></div></div></div></div>'+
+      '<div class="sect"><div class="pane"><h3>Screens (views)</h3>'+(screenRows||'<p class="sub">No views yet</p>')+'</div>'+
+      '<div class="pane"><h3>Actions (taps)</h3>'+(actRows||'<p class="sub">No actions yet</p>')+'</div></div>'+
+      '<div class="sect"><div class="pane"><h3>Daily actives (unique users)</h3>'+(dauRows||'<p class="sub">No activity yet</p>')+'</div>'+
+      '<div class="pane"><h3>Events per day (volume)</h3>'+(dayRows||'<p class="sub">No activity yet</p>')+'</div></div>'+
+      '<div class="sect"><div class="pane"><h3>Avg time per screen</h3><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Screen</th><th>Avg</th><th>Samples</th></tr></thead><tbody>'+(timeRows||'<tr><td colspan="3" class="empty-cell">No samples yet</td></tr>')+'</tbody></table></div></div></div>'+
+      '<div class="pane"><h3>Event mix</h3>'+(typeRows||'<p class="sub">No events yet</p>')+'</div></div>');
     return;
   }
   if(S.tab==='otp'){

@@ -3,6 +3,7 @@ import { Mode, MODE_INFO, METHOD_INFO, ContraceptionMethod, Settings } from '../
 import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Lang, tx, txd } from '../lib/i18n';
+import { trackAction } from '../lib/analytics';
 import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
 import PhonePreview from './PhonePreview';
@@ -33,6 +34,7 @@ export default function Onboarding({
   const totalSteps = accountStep + 1;
 
   const finish = () => {
+    trackAction('onboarding_complete', { mode, teen, irregular });
     updateSettings({
       onboarded: true,
       mode,

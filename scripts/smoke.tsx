@@ -27,6 +27,10 @@ globalThis.localStorage = {
 globalThis.sessionStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 // @ts-expect-error shim
 globalThis.navigator = { language: 'en-US' };
+// @ts-expect-error shim
+globalThis.window = globalThis;
+// @ts-expect-error shim
+globalThis.document = { visibilityState: 'visible', addEventListener: () => {}, removeEventListener: () => {} };
 
 function seed(lang: 'en' | 'hi', onboarded: boolean) {
   store.clear();

@@ -4,6 +4,7 @@ import { frequency, regularity } from '../lib/cycle';
 import { episodeSummary, trackingCompleteness, windowStats } from '../lib/stats';
 import { entriesToCSV, entriesToFHIR } from '../lib/storage';
 import { tx, txd } from '../lib/i18n';
+import { trackAction } from '../lib/analytics';
 import { prettyDate } from '../lib/date';
 import { todayISO } from '../lib/date';
 import { FLOWS } from '../types';
@@ -74,6 +75,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
             window.setTimeout(() => {
               document.title = prev;
             }, 500);
+            trackAction('export', { format: 'pdf' });
           }}>🖨️ {tx(lang, 'Print / save as PDF')}</button>
           <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => {
             const blob = new Blob([entriesToCSV(p.entries)], { type: 'text/csv' });
@@ -83,6 +85,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
             a.download = `period-tracker-${todayISO()}.csv`;
             a.click();
             URL.revokeObjectURL(url);
+            trackAction('export', { format: 'csv' });
           }}>{tx(lang, 'Export CSV')}</button>
           <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => {
             const blob = new Blob([entriesToFHIR(p.entries)], { type: 'application/json' });
@@ -92,6 +95,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
             a.download = `period-tracker-fhir-${todayISO()}.json`;
             a.click();
             URL.revokeObjectURL(url);
+            trackAction('export', { format: 'fhir' });
           }}>{tx(lang, 'Export FHIR')}</button>
         </div>
       </div>
