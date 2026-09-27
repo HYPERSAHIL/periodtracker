@@ -4,7 +4,6 @@ import { babySize, pregnancyInfo, TRIMESTER_INFO } from '../lib/pregnancy';
 import { PREG_TIPS } from '../lib/content';
 import { prettyDate, todayISO, toISO } from '../lib/date';
 import { tx } from '../lib/i18n';
-import { trackAction } from '../lib/analytics';
 import type { ApptItem, KickSession } from '../types';
 
 const defaultAppts = (lang: string): ApptItem[] => [
@@ -45,16 +44,12 @@ export default function PregnancyScreen(p: AppProps) {
     p.updateSettings({ kickLog: next.sessions, activeKick: next.active });
   };
 
-  const toggleAppt = (id: number) => {
-    const target = appts.find((a) => a.id === id);
-    if (target) trackAction('appt_toggle', { done: !target.done });
+  const toggleAppt = (id: number) =>
     p.updateSettings({ apptList: appts.map((a) => (a.id === id ? { ...a, done: !a.done } : a)) });
-  };
 
   const addAppt = () => {
     const text = apptText.trim().slice(0, 120);
     if (!text) return;
-    trackAction('appt_add');
     p.updateSettings({ apptList: [...appts, { id: Date.now(), text, done: false }] });
     setApptText('');
   };
@@ -148,13 +143,9 @@ export default function PregnancyScreen(p: AppProps) {
               className="btn primary"
               style={{ width: '100%', padding: '18px 0', fontSize: 17 }}
               onClick={() =>
-                updateKicks((prev) => {
-                  if (!prev.active) return prev;
-                  const kicks = [...prev.active.kicks, Date.now()];
-                  if (kicks.length === 1) trackAction('kick_start');
-                  if (kicks.length === 10) trackAction('kick_to10');
-                  return { ...prev, active: { ...prev.active, kicks } };
-                })
+                updateKicks((prev) =>
+                  prev.active ? { ...prev, active: { ...prev.active, kicks: [...prev.active.kicks, Date.now()] } } : prev
+                )
               }
             >
               👶 {tx(lang, 'Tap — kick!')}
@@ -163,14 +154,14 @@ export default function PregnancyScreen(p: AppProps) {
               className="btn ghost"
               style={{ width: '100%', marginTop: 10 }}
               onClick={() =>
-                updateKicks((prev) => {
-                  if (!prev.active) return prev;
-                  trackAction('kick_end', { kicks: prev.active.kicks.length });
-                  return {
-                    sessions: [{ ...prev.active, endedAt: Date.now() }, ...prev.sessions].slice(0, 20),
-                    active: null,
-                  };
-                })
+                updateKicks((prev) =>
+                  prev.active
+                    ? {
+                        sessions: [{ ...prev.active, endedAt: Date.now() }, ...prev.sessions].slice(0, 20),
+                        active: null,
+                      }
+                    : prev
+                )
               }
             >
               {tx(lang, 'End & save session')}

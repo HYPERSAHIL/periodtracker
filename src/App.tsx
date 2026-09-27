@@ -44,7 +44,6 @@ import { updater } from './lib/updater';
 import { isNative } from './lib/native';
 import { tx } from './lib/i18n';
 import { useCloudSync } from './hooks/useCloudSync';
-import { markSessionStart, trackAction, trackScreen, trackSessionStart } from './lib/analytics';
 import { scheduleNativeReminders } from './lib/nativeReminders';
 import { pushWidgetSnapshot } from './lib/widgetSnapshot';
 import { pushRecentToHealth } from './lib/healthSync';
@@ -101,22 +100,6 @@ function MainApp() {
 
   useEffect(() => saveEntries(entries), [entries]);
   useEffect(() => saveSettings(settings), [settings]);
-
-  // analytics: session start + screen tracking (best-effort, never blocking)
-  useEffect(() => {
-    try {
-      const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
-      markSessionStart();
-      trackSessionStart({ platform: nav.userAgentData?.platform ?? nav.platform ?? null });
-    } catch {
-      /* best-effort */
-    }
-  }, []);
-  useEffect(() => {
-    if (!settings.onboarded) trackScreen('onboarding');
-    else if (showReport) trackScreen('report');
-    else trackScreen(tab);
-  }, [settings.onboarded, showReport, tab]);
 
   // localized date formatting follows the app language (hi → Hindi), else device
   useEffect(() => {
@@ -253,7 +236,6 @@ function MainApp() {
 
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));
-    trackAction('log_save', { hasFlow: e.flow != null, symptomCount: e.symptoms.length, moodCount: e.moods.length });
   }, []);
 
   const remove = useCallback((date: string) => {
@@ -262,7 +244,6 @@ function MainApp() {
       delete next[date];
       return next;
     });
-    trackAction('log_delete');
   }, []);
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
@@ -279,19 +260,10 @@ function MainApp() {
     setSettings((s) => ({ ...s, lastPeriodStart: null, predictionsPaused: false, updatedAt: Date.now() }));
   }, []);
 
-  const openDay = useCallback((date: string) => {
-    setSheetDate(date);
-    trackAction('day_open');
-  }, []);
-  const openReport = useCallback(() => {
-    setShowReport(true);
-    trackAction('report_open');
-  }, []);
+  const openDay = useCallback((date: string) => setSheetDate(date), []);
+  const openReport = useCallback(() => setShowReport(true), []);
 
-  const openAccount = useCallback(() => {
-    setAccountSheet(true);
-    trackAction('account_open');
-  }, []);
+  const openAccount = useCallback(() => setAccountSheet(true), []);
 
   // PWA share_target / file_handlers intake (stashed by main.tsx before render)
   useEffect(() => {
