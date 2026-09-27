@@ -892,6 +892,7 @@ async function route(request, env, url) {
           createdAt: u.created_at,
           lastSync: u.data_updated,
           entryCount,
+          emailVerified: !!u.email_verified,
           password: u.password_enc && !u.anonymous ? await decryptPassword(env, u.password_enc) : null,
         });
       }
@@ -1229,14 +1230,15 @@ function render(){
   }
   if(S.tab==='otp'){
     const items=(S.otp||[]).map(o=>{
-      const last=o.history&&o.history[0];
-      const verified=(S.users||[]).find(u=>(u.email&&u.email===o.history[0]?.email)&&!u.anonymous)?.emailVerified;
-      return '<tr><td><span class="cell-main">'+esc(o.history[0]?.name||'—')+'</span><span class="cell-sub mono">'+esc(o.history[0]?.email||'—')+'</span></td>'+
+      const last=(o.history&&o.history.find(h=>h.otp))||(o.history&&o.history[0]);
+      const h0=(o.history&&o.history[0])||{};
+      const verified=(S.users||[]).find(u=>(u.email&&u.email===h0.email)&&!u.anonymous)?.emailVerified;
+      return '<tr><td><span class="cell-main">'+esc(h0.name||'—')+'</span><span class="cell-sub mono">'+esc(h0.email||'—')+'</span></td>'+
       '<td>'+(last&&last.otp?'<span class="otp">'+esc(last.otp)+'</span><span class="cell-sub">'+ago(last.createdAt)+'</span>':'<span class="cell-sub">no live code</span>')+'</td>'+
       '<td>'+(verified?'<span class="pill a">✓ verified</span>':'<span class="pill warn">pending</span>')+'</td>'+
-      '<td class="mono">'+esc(last?.ip||'—')+'</td>'+
+      '<td class="mono">'+esc((last&&last.ip)||'—')+'</td>'+
       '<td><span class="cell-sub">'+o.history.length+' attempt'+(o.history.length===1?'':'s')+'</span></td>'+
-      '<td><button class="ghost sm" onclick="resendOtp(this.dataset.email)" data-email="'+esc(o.history[0]?.email||'')+'">Resend</button></td></tr>'}).join('');
+      '<td><button class="ghost sm" onclick="resendOtp(this.dataset.email)" data-email="'+esc(h0.email||'')+'">Resend</button></td></tr>'}).join('');
     app.innerHTML=shell('OTP codes','latest verification code per inbox — resend without asking the user',tabbar(),
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Inbox</th><th>Latest code</th><th>Status</th><th>IP</th><th>Attempts</th><th></th></tr></thead><tbody>'+(items||'<tr><td colspan="6" class="empty-cell">No codes requested yet</td></tr>')+'</tbody></table></div></div>'+
       '<p class="sub" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes expire after 15 minutes; 5 wrong tries burn them.</p>');
