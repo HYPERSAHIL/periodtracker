@@ -996,11 +996,14 @@ async function route(request, env, url) {
         return { createdAt: e.created_at, name: e.name, email: e.email, userId: e.user_id, ip: e.ip, otp };
       });
       // collapse to one row per user: latest code + attempt + outcome history
+      // (latest row overall carries name/email/ip; the live code may sit one
+      // row back when a newer code-less magic_request was logged after the send)
       const seen = new Map();
       for (const it of items) {
         const key = it.email || it.userId || 'unknown';
         if (!seen.has(key)) seen.set(key, { ...it, history: [] });
         const g = seen.get(key);
+        if (!g.otp && it.otp) { g.otp = it.otp; g.createdAt = it.createdAt; g.ip = it.ip || g.ip; }
         g.history.push(it);
       }
       return json({ otp: [...seen.values()] });
