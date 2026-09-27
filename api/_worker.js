@@ -1105,7 +1105,7 @@ function renderDetail(app){
   let otpHtml='';
   for(const e of (S.events||[]).slice().reverse()){
     if(e.type==='magic_code_sent'&&e.user_id===u.id){
-      try{const m=JSON.parse(e.meta||'{}');if(m.otp){otpHtml='<div><b>Latest OTP</b> <span class='otp'>'+esc(m.otp)+'</span> <span style='color:var(--mut)'>'+ago(e.created_at)+'</span></div>';break}}catch{}
+      try{const m=JSON.parse(e.meta||'{}');if(m.otp){otpHtml='<div><b>Latest OTP</b> <span class="otp">'+esc(m.otp)+'</span> <span>'+ago(e.created_at)+'</span></div>';break}}catch{}
     }
   }
   const flowCounts={};for(const e of entries){if(e.flow)flowCounts[e.flow]=(flowCounts[e.flow]||0)+1}
