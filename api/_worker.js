@@ -802,6 +802,19 @@ async function route(request, env, url, rid = null) {
         /* verification error counts as unverified */
       }
     }
+    // svix echo-back: log exactly what arrived so a signature mismatch can be
+    // diagnosed from the feed instead of guessed at
+    if (!verified && (type || svixId)) {
+      await logEvent(env, request, null, 'hook_sig_debug', {
+        svixId: svixId || null,
+        ts: ts || null,
+        sigLen: sig.length,
+        sigHead: sig.slice(0, 24),
+        rawLen: raw.length,
+        rawHead: raw.slice(0, 80),
+        hasSecret: !!secretRaw,
+      });
+    }
     if (!verified) {
       await logEvent(env, request, null, 'hook_bad', { path, type: type.slice(0, 40), reason: 'bad_signature' });
       return json({ ok: true });
