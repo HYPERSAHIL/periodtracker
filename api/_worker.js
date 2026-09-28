@@ -776,19 +776,27 @@ async function route(request, env, url, rid = null) {
     const svixId = request.headers.get('svix-id') || '';
     const ts = request.headers.get('svix-timestamp') || '';
     let verified = false;
-    if (env.RESEND_WEBHOOK_SECRET && sig && svixId && ts) {
+    const secretRaw = (env.RESEND_WEBHOOK_SECRET || '').replace(/^whsec_/, '');
+    const tryKeys = [secretRaw, (() => { try { return atob(secretRaw.replace(/-/g, '+').replace(/_/g, '/')); } catch { return null; } })()].filter(Boolean);
+    const tryPayloads = [`${svixId}.${ts}.${raw}`, `${svixId}.${ts};${raw}`];
+    if (secretRaw && sig && svixId && ts) {
       try {
-        const key = await crypto.subtle.importKey(
-          'raw', te.encode(env.RESEND_WEBHOOK_SECRET.replace(/^whsec_/, '')),
-          { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
-        );
-        const signed = te.encode(`${svixId}.${ts}.${raw}`);
         const parts = sig.split(' ').map((p) => p.split(','));
-        for (const kv of parts) {
-          const v = kv.find((x) => x.startsWith('v1,'));
-          if (!v) continue;
-          const mac = Uint8Array.from(atob(v.slice(3).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-          if (await crypto.subtle.verify('HMAC', key, mac, signed)) { verified = true; break; }
+        outer:
+        for (const k of tryKeys) {
+          const key = await crypto.subtle.importKey(
+            'raw', te.encode(k),
+            { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
+          );
+          for (const payload of tryPayloads) {
+            const signed = te.encode(payload);
+            for (const kv of parts) {
+              const v = kv.find((x) => x.startsWith('v1,'));
+              if (!v) continue;
+              const mac = Uint8Array.from(atob(v.slice(3).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+              if (await crypto.subtle.verify('HMAC', key, mac, signed)) { verified = true; break outer; }
+            }
+          }
         }
       } catch {
         /* verification error counts as unverified */
