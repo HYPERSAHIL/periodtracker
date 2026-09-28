@@ -760,12 +760,58 @@ async function route(request, env, url, rid = null) {
   }
 
   // --- Resend delivery webhooks (delivery lifecycle lands in the feed) -------------------------------
-  // Register https://periodtracker.run/api/hooks/resend in the Resend dashboard
-  // and set RESEND_WEBHOOK_SECRET. Verification is lax by design: wrong-shaped
-  // payloads still get logged as hook_bad for review — only 200s stop retries.
+  // Webhook registered in Resend for https://periodtracker.run/api/hooks/resend.
+  // HMAC-checked against RESEND_WEBHOOK_SECRET; bad signatures are logged as
+  // hook_bad and answered 200 so Resend stops retrying junk.
   if (method === 'POST' && path === '/api/hooks/resend') {
-    const b = await readBody(request);
+    const raw = await request.text();
+    let b = {};
+    try {
+      b = JSON.parse(raw || '{}');
+    } catch {
+      /* fall through to hook_bad */
+    }
     const type = String(b.type || '');
+    const sig = request.headers.get('svix-signature') || '';
+    const svixId = request.headers.get('svix-id') || '';
+    const ts = request.headers.get('svix-timestamp') || '';
+    let verified = false;
+    if (env.RESEND_WEBHOOK_SECRET && sig && svixId && ts) {
+      try {
+        const key = await crypto.subtle.importKey(
+          'raw', te.encode(env.RESEND_WEBHOOK_SECRET.replace(/^whsec_/, '')),
+          { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
+        );
+        const signed = te.encode(`${svixId}.${ts}.${raw}`);
+        const parts = sig.split(' ').map((p) => p.split(','));
+        for (const kv of parts) {
+          const v = kv.find((x) => x.startsWith('v1,'));
+          if (!v) continue;
+          const mac = Uint8Array.from(atob(v.slice(3).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+          if (await crypto.subtle.verify('HMAC', key, mac, signed)) { verified = true; break; }
+        }
+      } catch {
+        /* verification error counts as unverified */
+      }
+    }
+    if (!verified) {
+      await logEvent(env, request, null, 'hook_bad', { path, type: type.slice(0, 40), reason: 'bad_signature' });
+      return json({ ok: true });
+    }
+    // dedupe: Resend/Svix retries carry the same svix-id
+    try {
+      await env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS hook_seen (svix_id TEXT PRIMARY KEY, created_at TEXT NOT NULL)'
+      ).run();
+      const seen = await env.DB.prepare('SELECT svix_id FROM hook_seen WHERE svix_id = ?').bind(svixId).first();
+      if (seen) {
+        await logEvent(env, request, null, 'hook_dup', { svixId });
+        return json({ ok: true });
+      }
+      await env.DB.prepare('INSERT INTO hook_seen (svix_id, created_at) VALUES (?, ?)').bind(svixId, new Date().toISOString()).run();
+    } catch {
+      /* dedupe table failure must not block the webhook */
+    }
     const data = b.data && typeof b.data === 'object' ? b.data : {};
     const detail = {
       to: Array.isArray(data.to) ? data.to.slice(0, 3) : data.to ?? null,
