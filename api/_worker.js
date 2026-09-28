@@ -807,14 +807,22 @@ async function route(request, env, url, rid = null) {
     // svix echo-back: log exactly what arrived so a signature mismatch can be
     // diagnosed from the feed instead of guessed at
     if (!verified) {
+      // one HMAC candidate preview (raw-secret, dot payload) so the feed shows
+      // whether we're even in the right neighborhood — no secret material logged
+      let preview = null;
+      try {
+        const k = await crypto.subtle.importKey('raw', te.encode(secretRaw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const mac = await crypto.subtle.sign('HMAC', k, te.encode(`${svixId}.${ts}.${raw}`));
+        preview = btoa(String.fromCharCode(...new Uint8Array(mac))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '').slice(0, 12);
+      } catch { /* preview is best-effort */ }
       await logEvent(env, request, null, 'hook_sig_debug', {
         svixId: svixId || null,
         ts: ts || null,
-        sigLen: sig.length,
         sigHead: sig.slice(0, 24),
+        sigTail: sig.slice(-8),
         rawLen: raw.length,
         rawHead: raw.slice(0, 80),
-        hasSecret: !!secretRaw,
+        preview,
       });
     }
     if (!verified) {
