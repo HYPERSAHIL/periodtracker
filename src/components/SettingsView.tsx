@@ -653,7 +653,7 @@ export default function SettingsView(p: AppProps) {
       <div className="card">
         <h3>{tx(lang, 'Partner share')}</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
-          {tx(lang, 'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history — ever. Links expire automatically.')}
+          {tx(lang, 'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history — ever. Links never expire.')}
         </p>
         {shares === null ? (
           <p className="hint">{tx(lang, 'Loading')}</p>
@@ -666,7 +666,9 @@ export default function SettingsView(p: AppProps) {
                 <div key={s.token} className="set-row">
                   <div>
                     <div className="d" style={{ fontFamily: 'monospace', fontSize: 12 }}>
-                      {tx(lang, 'Expires {date}', { date: prettyDate(s.expires_at.slice(0, 10), { withYear: true }) })}
+                      {s.expires_at.slice(0, 4) >= '9999'
+                        ? tx(lang, 'Never expires')
+                        : tx(lang, 'Expires {date}', { date: prettyDate(s.expires_at.slice(0, 10), { withYear: true }) })}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -726,7 +728,7 @@ export default function SettingsView(p: AppProps) {
             }
           }}
         >
-          {tx(lang, 'Create 30-day link')}
+          {tx(lang, 'Create link')}
         </button>
         <div style={{ marginTop: 10 }}>
           {(

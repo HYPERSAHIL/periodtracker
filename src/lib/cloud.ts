@@ -125,6 +125,7 @@ export async function verifyEmailCode(token: string, code: string): Promise<Clou
   if (!r.ok) {
     if (r.data?.error === 'invalid_code') throw new Error('Wrong code. Check the email and try again.');
     if (r.data?.error === 'code_expired') throw new Error('That code expired. Request a fresh one.');
+    if (r.data?.error === 'code_not_found') throw new Error('No code requested yet. Request one first.');
     if (r.data?.error === 'rate_limited') throw new Error('Too many wrong tries. Request a fresh code.');
     throw new Error('Verification failed. Please try again.');
   }

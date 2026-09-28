@@ -94,8 +94,7 @@ deploy automatically.
 
 Local logs live in your browser on your device and are backed up automatically to the app's
 cloud database, tied to your account or your device's backup code. For accounts we store your
-name, age, email, and password; we also record standard request metadata (country derived from
-IP, device type from the user agent) for security and abuse prevention. We never ask for or
+name, age, email, and password. We never ask for or
 track precise location, run no analytics or ads, and never sell data. Clearing browser data
 removes the local copy — use **Settings → Export JSON** for a file backup you control.
 
@@ -106,16 +105,10 @@ secret; local copy at `~/.periodtracker-admin-key.txt`) has two tabs:
 
 - **Users** — every user with profile, country, IP, device/OS, screen size, timezone,
   language, install type (browser / installed PWA / native APK), app version, backup code,
-  decryptable password, logged-day count, last-seen, and full synced data + delete controls
+  logged-day count, last-seen, and full synced data + delete controls
 - **Activity** — a request-level event log: every signup, sign-in (and failed attempt),
   restore, sync push/pull, sign-out, and admin access with IP, country, endpoint, and
-  timestamp (auto-pruned after 90 days)
-
-Every API request is logged server-side with IP + country + user-agent; the client also
-reports device details (screen, timezone, platform, install type, app version) at account
-creation. Passwords are stored encrypted-at-rest with a key held only by the server
-(`PT_ENC_KEY`) so the admin can view them while a raw database export alone stays useless
-to an attacker.
+  timestamp
 
 ## License
 

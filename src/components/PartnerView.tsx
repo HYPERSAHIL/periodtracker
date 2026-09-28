@@ -46,9 +46,15 @@ export default function PartnerView({
             </strong>
           </div>
           <p className="hint">
-            {tx(lang, 'Shared read-only snapshot. Symptoms, notes and history are never shared. Link expires {date}.', {
-              date: prettyDate(expiresAt.slice(0, 10), { withYear: true }),
-            })}
+            {expiresAt.slice(0, 4) >= '9999'
+              ? tx(lang, 'Shared read-only snapshot. Symptoms, notes and history are never shared. Link never expires.')
+              : tx(
+                  lang,
+                  'Shared read-only snapshot. Symptoms, notes and history are never shared. Link expires {date}.',
+                  {
+                    date: prettyDate(expiresAt.slice(0, 10), { withYear: true }),
+                  }
+                )}
           </p>
         </div>
       </main>

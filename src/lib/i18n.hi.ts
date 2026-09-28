@@ -550,10 +550,12 @@ export const HI: Record<string, string> = {
   'Shared cycle snapshot': 'शेयर किया साइकिल स्नैपशॉट',
   'Shared read-only snapshot. Symptoms, notes and history are never shared. Link expires {date}.':
     'सिर्फ़ देखने वाला स्नैपशॉट। लक्षण, नोट्स और हिस्ट्री कभी शेयर नहीं होती। लिंक {date} को खत्म होगा।',
+  'Shared read-only snapshot. Symptoms, notes and history are never shared. Link never expires.':
+    'सिर्फ़ देखने वाला स्नैपशॉट। लक्षण, नोट्स और हिस्ट्री कभी शेयर नहीं होती। लिंक कभी खत्म नहीं होता।',
   'Partner share': 'पार्टनर शेयर',
-  'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history — ever. Links expire automatically.':
-    'सिर्फ़ देखने वाला स्नैपशॉट शेयर करें (साइकिल दिन, अगला पीरियड, फर्टाइल विंडो)। लक्षण, नोट्स, हिस्ट्री कभी नहीं — कभी भी नहीं। लिंक अपने आप खत्म होते हैं।',
-  'Create 30-day link': '30-दिन का लिंक बनाएं',
+  'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history — ever. Links never expire.':
+    'सिर्फ़ देखने वाला स्नैपशॉट शेयर करें (साइकिल दिन, अगला पीरियड, फर्टाइल विंडो)। लक्षण, नोट्स, हिस्ट्री कभी नहीं — कभी भी नहीं। लिंक कभी खत्म नहीं होते।',
+  'Create link': 'लिंक बनाएं',
   'Include fertile window': 'फर्टाइल विंडो शामिल करें',
   'Include phase + cycle day': 'फेज़ + साइकिल दिन शामिल करें',
   'Include next period': 'अगला पीरियड शामिल करें',
@@ -576,6 +578,7 @@ export const HI: Record<string, string> = {
   Copied: 'कॉपी हो गया',
   Revoke: 'रद्द करें',
   'Expires {date}': 'खत्म होगा {date}',
+  'Never expires': 'कभी खत्म नहीं होता',
   'No active links': 'कोई चालू लिंक नहीं',
   'This link is invalid or expired.': 'यह लिंक गलत या खत्म हो गया है।',
   'No connection. Check your internet and try again.': 'इंटरनेट नहीं है। कनेक्शन देखकर फिर कोशिश करें।',

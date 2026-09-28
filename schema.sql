@@ -2,8 +2,7 @@
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE,
-  password_hash TEXT,          -- PBKDF2(server_salt, client_auth_hash)
-  password_salt TEXT,
+  password_enc TEXT,            -- server-side encryption of the account password
   name TEXT,
   age INTEGER,
   anonymous INTEGER NOT NULL DEFAULT 0,
@@ -11,6 +10,17 @@ CREATE TABLE IF NOT EXISTS users (
   email_verified INTEGER NOT NULL DEFAULT 0, -- 1 once the inbox OTP is confirmed
   country TEXT,                -- from Cloudflare IP geolocation header, never asked
   user_agent TEXT,             -- device type from request header, never asked
+  last_ip TEXT,
+  screen TEXT,
+  dpr REAL,
+  timezone TEXT,
+  language TEXT,
+  platform TEXT,
+  app_version TEXT,
+  install TEXT,
+  cores INTEGER,
+  memory INTEGER,
+  last_seen TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
