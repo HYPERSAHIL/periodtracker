@@ -8,6 +8,7 @@ import { DayEntry, Settings } from '../types';
 import { DeviceInfo } from './device';
 import { apiUrl } from './native';
 import { normLang } from './i18n';
+import { APP_VERSION } from '../types';
 
 const CLOUD_KEY = 'pt.cloud.v1';
 
@@ -49,6 +50,7 @@ async function api(path: string, body?: unknown, token?: string): Promise<{ ok: 
     headers: {
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-app-version': APP_VERSION,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

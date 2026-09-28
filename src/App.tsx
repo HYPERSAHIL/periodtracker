@@ -41,6 +41,7 @@ import type { CloudUser } from './lib/cloud';
 import { loadSession } from './lib/cloud';
 import { fetchShared, type EmailSub, type SharedSummary, type ShareRow } from './lib/cloud';
 import { updater } from './lib/updater';
+import { track } from './lib/beacon';
 import { isNative } from './lib/native';
 import { tx } from './lib/i18n';
 import { useCloudSync } from './hooks/useCloudSync';
@@ -233,6 +234,24 @@ function MainApp() {
     if (isNative() && settings.onboarded) pushRecentToHealth(entries);
     return () => updater.stop();
   }, [settings, stats, entries]);
+
+  // one-shot funnel beacons (each fires at most once per device)
+  useEffect(() => {
+    const seen = new Set(JSON.parse(localStorage.getItem('pt.funnel') || '[]') as string[]);
+    const fire = (type: string) => {
+      if (seen.has(type)) return;
+      seen.add(type);
+      localStorage.setItem('pt.funnel', JSON.stringify([...seen]));
+      track(type);
+    };
+    if (settings.onboarded) fire('onboarding_completed');
+    if (settings.reminders) fire('reminder_enabled');
+    if (Object.keys(entries).length > 0) fire('first_entry_saved');
+  }, [settings.onboarded, settings.reminders, entries]);
+
+  useEffect(() => {
+    if (showReport) track('report_opened');
+  }, [showReport]);
 
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));

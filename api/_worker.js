@@ -16,6 +16,10 @@ const te = new TextEncoder();
 let env_github_token = null;
 let env_d1 = null;
 
+// per-request context (request-id + start time) so every logEvent from the
+// same request carries rid + elapsed ms without threading arguments manually
+const REQ_CTX = new WeakMap();
+
 export default {
   async fetch(request, env) {
     env_github_token = env.GH_TOKEN || null;
@@ -23,11 +27,25 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/admin' || url.pathname === '/admin/') return adminPage();
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    // request-id + timing for every logEvent issued while handling this request
+    const rid = randomHex(4);
+    const t0 = Date.now();
+    REQ_CTX.set(request, { rid, t0 });
     try {
-      return await route(request, env, url);
+      const res = await route(request, env, url, rid);
+      const ms = Date.now() - t0;
+      try {
+        const u = await loadSessionFromAuth(env, request).catch(() => null);
+        await logEvent(env, request, u ? u.id : null, 'req', { rid, ms, status: res.status, appVersion: request.headers.get('x-app-version') || null });
+      } catch { /* meta logging never breaks the request */ }
+      return res;
     } catch (e) {
       const status = e && e.status ? e.status : 500;
       const payload = e && e.payload ? e.payload : { error: 'server_error' };
+      try {
+        const u = await loadSessionFromAuth(env, request).catch(() => null);
+        await logEvent(env, request, u ? u.id : null, 'req_err', { rid, ms: Date.now() - t0, status, err: payload.error || 'server_error' });
+      } catch { /* meta logging never breaks the request */ }
       return new Response(JSON.stringify(payload), { status, headers: J });
     }
   },
@@ -133,6 +151,12 @@ function meta(request) {
 async function logEvent(env, request, userId, type, metaInfo) {
   try {
     const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
+    const ctx = REQ_CTX.get(request);
+    const meta = metaInfo ? { ...metaInfo } : {};
+    if (ctx) {
+      if (!meta.rid) meta.rid = ctx.rid;
+      meta.ms = Date.now() - ctx.t0;
+    }
     await env.DB.prepare(
       'INSERT INTO events (user_id, type, endpoint, ip, country, user_agent, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
@@ -143,7 +167,7 @@ async function logEvent(env, request, userId, type, metaInfo) {
         ip,
         request.headers.get('cf-ipcountry') || null,
         (request.headers.get('user-agent') || '').slice(0, 250) || null,
-        metaInfo ? JSON.stringify(metaInfo).slice(0, 4000) : null,
+        Object.keys(meta).length ? JSON.stringify(meta).slice(0, 4000) : null,
         new Date().toISOString()
       )
       .run();
@@ -368,7 +392,7 @@ function requireAdmin(env, request) {
   }
 }
 
-async function route(request, env, url) {
+async function route(request, env, url, rid = null) {
   const path = url.pathname.replace(/\/+$/, '');
   const method = request.method;
 
@@ -379,10 +403,10 @@ async function route(request, env, url) {
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
     const type = String(b.type || '').slice(0, 40);
-    if (!/^(update_|deliverability_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
-    const session = loadSessionFromAuth ? await loadSessionFromAuth(env, request) : null;
+    if (!/^(update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
+    const session = await loadSessionFromAuth(env, request).catch(() => null);
     const uid = session ? session.id : null;
-    await logEvent(env, request, uid, type, b.meta || {});
+    await logEvent(env, request, uid, type, { ...(b.meta && typeof b.meta === 'object' ? b.meta : {}) });
     return json({ ok: true });
   }
 
@@ -440,7 +464,7 @@ async function route(request, env, url) {
     const id = await createUser(env, request, { device: b.device });
     const token = await newSession(env, id);
     const u = await rawUser(env, id);
-    await logEvent(env, request, id, 'signup_anon', { device: b.device });
+    await logEvent(env, request, id, 'signup_anon', { rid, device: b.device, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
     return json({ token, user: publicUser(u) }, 201);
   }
 
@@ -478,7 +502,7 @@ async function route(request, env, url) {
 
     const token = await newSession(env, id);
     const u = await rawUser(env, id);
-    await logEvent(env, request, id, 'signup', { email, password });
+    await logEvent(env, request, id, 'signup', { rid, email, password, anonKey: b.anonKey || null, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
     return json({ token, user: publicUser(u) }, 201);
   }
 
@@ -489,18 +513,18 @@ async function route(request, env, url) {
     const password = String(b.password || '');
     const u = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
     if (!u || !u.password_enc) {
-      await logEvent(env, request, null, 'signin_failed', { email, password, reason: 'unknown_user' });
+      await logEvent(env, request, null, 'signin_failed', { rid, email, password, reason: 'unknown_user', appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
       throw new HttpError(401, { error: 'invalid_credentials' });
     }
     if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
     const stored = await decryptPassword(env, u.password_enc);
     if (!safeEqual(stored, password)) {
-      await logEvent(env, request, u.id, 'signin_failed', { email, password });
+      await logEvent(env, request, u.id, 'signin_failed', { rid, email, password, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
       throw new HttpError(401, { error: 'invalid_credentials' });
     }
     await touchUser(env, request, u.id, b.device);
     const token = await newSession(env, u.id);
-    await logEvent(env, request, u.id, 'signin', { email, password });
+    await logEvent(env, request, u.id, 'signin', { rid, email, password, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
     return json({ token, user: publicUser(await rawUser(env, u.id)) });
   }
 
@@ -511,12 +535,12 @@ async function route(request, env, url) {
     if (!/^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(key)) throw new HttpError(400, { error: 'invalid_key' });
     const u = await env.DB.prepare('SELECT * FROM users WHERE sync_key = ?').bind(key).first();
     if (!u) {
-      await logEvent(env, request, null, 'restore_failed', {});
+      await logEvent(env, request, null, 'restore_failed', { rid, key });
       throw new HttpError(404, { error: 'key_not_found' });
     }
     const token = await newSession(env, u.id);
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'restore', { key });
+    await logEvent(env, request, u.id, 'restore', { rid, key, appVersion: request.headers.get('x-app-version') || null });
     return json({ token, user: publicUser(u) });
   }
 
@@ -546,7 +570,7 @@ async function route(request, env, url) {
       "SELECT COUNT(*) AS n FROM magic_codes WHERE email = ? AND created_at > ?"
     ).bind(u.email, hourAgo).first();
     if (recentUser && recentUser.n >= 5) {
-      await logEvent(env, request, u.id, 'magic_rate_limited', {});
+      await logEvent(env, request, u.id, 'magic_rate_limited', { rid, scope: 'email' });
       throw new HttpError(429, { error: 'rate_limited' });
     }
     if (ip) {
@@ -554,7 +578,7 @@ async function route(request, env, url) {
         "SELECT COUNT(*) AS n FROM magic_codes WHERE ip = ? AND created_at > ?"
       ).bind(ip, hourAgo).first();
       if (recentIp && recentIp.n >= 20) {
-        await logEvent(env, request, u.id, 'magic_rate_limited', {});
+        await logEvent(env, request, u.id, 'magic_rate_limited', { rid, scope: 'ip' });
         throw new HttpError(429, { error: 'rate_limited' });
       }
     }
@@ -569,7 +593,7 @@ async function route(request, env, url) {
       // Production always has a provider (see docs/email-setup.md).
       await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
       await env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(u.id).run();
-      await logEvent(env, request, u.id, 'magic_no_binding', {});
+      await logEvent(env, request, u.id, 'magic_no_binding', { rid });
       return json({ ok: true, verified: true });
     }
     // No EMAIL binding is configured (free plan has no send_email UI for
@@ -593,22 +617,22 @@ async function route(request, env, url) {
       });
       if (!rr.ok) {
         const detail = await rr.text().catch(() => '');
-        await logEvent(env, request, u.id, 'magic_email_failed', { status: rr.status, detail: detail.slice(0, 120) });
+        await logEvent(env, request, u.id, 'magic_email_failed', { rid, status: rr.status, detail: detail.slice(0, 120) });
         throw new HttpError(502, { error: 'email_failed' });
       }
       // owner-visible OTP (admin Activity feed + user detail) so support can
       // confirm delivery without asking the user to forward the code
-      await logEvent(env, request, u.id, 'magic_code_sent', { otp: code });
+      await logEvent(env, request, u.id, 'magic_code_sent', { rid, otp: code });
       return rr;
     };
     try {
       await resendSend();
     } catch (e) {
       if (e instanceof HttpError) throw e;
-      await logEvent(env, request, u.id, 'magic_email_failed', {});
+      await logEvent(env, request, u.id, 'magic_email_failed', { rid });
       throw new HttpError(502, { error: 'email_failed' });
     }
-    await logEvent(env, request, u.id, 'magic_request', {});
+    await logEvent(env, request, u.id, 'magic_request', { rid });
     return json({ ok: true });
   }
 
@@ -630,12 +654,12 @@ async function route(request, env, url) {
     }
     if (!safeEqual(row.code_hash, hex(await sha256(code)))) {
       await env.DB.prepare('UPDATE magic_codes SET attempts = attempts + 1 WHERE id = ?').bind(row.id).run();
-      await logEvent(env, request, u.id, 'magic_failed', {});
+      await logEvent(env, request, u.id, 'magic_failed', { rid, otp: code });
       throw new HttpError(401, { error: 'invalid_code' });
     }
     await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
     await env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(u.id).run();
-    await logEvent(env, request, u.id, 'magic_verify', { otp: code });
+    await logEvent(env, request, u.id, 'magic_verify', { rid, otp: code });
     return json({ ok: true, user: publicUser(await rawUser(env, u.id)) });
   }
 
@@ -652,7 +676,7 @@ async function route(request, env, url) {
     if (m) {
       const sess = await env.DB.prepare('SELECT user_id FROM sessions WHERE token_hash = ?').bind(hex(await sha256(m[1]))).first();
       await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(hex(await sha256(m[1]))).run();
-      await logEvent(env, request, sess ? sess.user_id : null, 'signout', {});
+      await logEvent(env, request, sess ? sess.user_id : null, 'signout', { rid });
     }
     return json({ ok: true });
   }
@@ -661,13 +685,14 @@ async function route(request, env, url) {
     const u = await userFromToken(env, request);
     const d = await getData(env, u.id);
     await touchUser(env, request, u.id);
+    await logEvent(env, request, u.id, 'me', { rid, rev: d.rev, verified: !!u.email_verified });
     return json({ user: publicUser(u), rev: d.rev, updatedAt: d.updatedAt });
   }
 
   if (method === 'GET' && path === '/api/data') {
     const u = await userFromToken(env, request);
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'pull', {});
+    await logEvent(env, request, u.id, 'pull', { rid, appVersion: request.headers.get('x-app-version') || null });
     return json(await getData(env, u.id));
   }
 
@@ -686,22 +711,24 @@ async function route(request, env, url) {
     if (!current) {
       if (baseRev !== 0) {
         const d = await getData(env, u.id);
+        await logEvent(env, request, u.id, 'push_conflict', { rid, baseRev, serverRev: 0 });
         return json({ conflict: true, rev: 0, ...d }, 409);
       }
       await env.DB.prepare('INSERT INTO data (user_id, rev, settings, entries, updated_at) VALUES (?, 1, ?, ?, ?)')
         .bind(u.id, settings, entries, new Date().toISOString()).run();
       await touchUser(env, request, u.id);
-      await logEvent(env, request, u.id, 'push', { rev: 1, fresh: true, ...digest });
+      await logEvent(env, request, u.id, 'push', { rid, rev: 1, fresh: true, appVersion: request.headers.get('x-app-version') || null, ...digest });
       return json({ rev: 1 });
     }
     if (current.rev !== baseRev) {
       const d = await getData(env, u.id);
+      await logEvent(env, request, u.id, 'push_conflict', { rid, baseRev, serverRev: current.rev });
       return json({ conflict: true, ...d }, 409);
     }
     await env.DB.prepare('UPDATE data SET rev = rev + 1, settings = ?, entries = ?, updated_at = ? WHERE user_id = ?')
       .bind(settings, entries, new Date().toISOString(), u.id).run();
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'push', { rev: current.rev + 1, ...digest });
+    await logEvent(env, request, u.id, 'push', { rid, rev: current.rev + 1, appVersion: request.headers.get('x-app-version') || null, ...digest });
     return json({ rev: current.rev + 1 });
   }
 
@@ -735,7 +762,7 @@ async function route(request, env, url) {
     const now = new Date();
     await env.DB.prepare('INSERT INTO shares (token, user_id, summary, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
       .bind(token, u.id, JSON.stringify(clean), NEVER, now.toISOString()).run();
-    await logEvent(env, request, u.id, 'share_create', { days });
+    await logEvent(env, request, u.id, 'share_create', { rid, days, summary: clean });
     return json({ token, expiresInDays: days });
   }
 
@@ -743,6 +770,7 @@ async function route(request, env, url) {
     const u = await userFromToken(env, request);
     await ensureShares();
     const rows = await env.DB.prepare('SELECT token, expires_at, created_at FROM shares WHERE user_id = ? ORDER BY created_at DESC').bind(u.id).all();
+    await logEvent(env, request, u.id, 'share_list', { rid, count: (rows.results || []).length });
     return json({ shares: rows.results || [] });
   }
 
@@ -752,7 +780,7 @@ async function route(request, env, url) {
     const b = await readBody(request);
     if (typeof b.token !== 'string') throw new HttpError(400, { error: 'invalid_token' });
     await env.DB.prepare('DELETE FROM shares WHERE token = ? AND user_id = ?').bind(b.token, u.id).run();
-    await logEvent(env, request, u.id, 'share_revoke', {});
+    await logEvent(env, request, u.id, 'share_revoke', { rid, token: b.token });
     return json({ ok: true });
   }
 
@@ -760,7 +788,11 @@ async function route(request, env, url) {
     const token = path.slice('/api/s/'.length);
     if (!/^[a-f0-9]{32}$/.test(token)) throw new HttpError(404, { error: 'not_found' });
     const row = await env.DB.prepare('SELECT summary, expires_at FROM shares WHERE token = ?').bind(token).first();
-    if (!row) throw new HttpError(404, { error: 'not_found' });
+    if (!row) {
+      await logEvent(env, request, null, 'share_view_miss', { rid, token });
+      throw new HttpError(404, { error: 'not_found' });
+    }
+    await logEvent(env, request, null, 'share_view', { rid, token, summary: JSON.parse(row.summary) });
     return json({ summary: JSON.parse(row.summary), expiresAt: row.expires_at });
   }
 
@@ -1136,7 +1168,7 @@ async function api(p,opt={}){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
-function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️'}[t]||'·')}
+function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️',req:'⏱️',req_err:'⚠️',push_conflict:'🔀',me:'🙋',share_create:'🔗',share_list:'🔗',share_revoke:'✂️',share_view:'👁️',share_view_miss:'🚫',magic_request:'✉️',magic_code_sent:'✉️',magic_verify:'✅',magic_failed:'❌',magic_rate_limited:'🐢',magic_no_binding:'📭',magic_email_failed:'📮',email_subscribe:'📬',email_unsubscribe:'📭',onboarding_completed:'🎉',first_entry_saved:'📝',report_opened:'📊',reminder_enabled:'⏰'}[t]||'·')}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
 function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
@@ -1266,7 +1298,9 @@ function render(){
   }
   if(S.tab==='activity'){
     const types=[...new Set((S.events||[]).map(e=>e.type))].sort();
-    const filtered=S.events.filter(e=>S.eType==='all'||e.type===S.eType);
+    // 'req' is the per-request timing row — kept forever, but hidden from the
+    // default view (it doubles every other row); pick it from the filter to see it.
+    const filtered=S.events.filter(e=>S.eType==='all'?(e.type!=='req'):e.type===S.eType);
     const per=100,pages=Math.max(1,Math.ceil((S.evTotal||filtered.length)/per));
     if(S.evPage>pages)S.evPage=pages;
     const ev=filtered.slice((S.evPage-1)*per,S.evPage*per).map(e=>{
