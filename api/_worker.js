@@ -784,6 +784,10 @@ async function route(request, env, url, rid = null) {
     if (secretRaw && sig && svixId && ts) {
       try {
         const parts = sig.split(' ').map((p) => p.split(','));
+        const toBytes = (s) => {
+          const std = s.replace(/-/g, '+').replace(/_/g, '/');
+          return Uint8Array.from(atob(std + '='.repeat((4 - (std.length % 4)) % 4)), (c) => c.charCodeAt(0));
+        };
         outer:
         for (const k of tryKeys) {
           const key = await crypto.subtle.importKey(
@@ -795,7 +799,12 @@ async function route(request, env, url, rid = null) {
             for (const kv of parts) {
               const v = kv.find((x) => x.startsWith('v1,'));
               if (!v) continue;
-              const mac = Uint8Array.from(atob(v.slice(3).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+              let mac;
+              try {
+                mac = toBytes(v.slice(3));
+              } catch {
+                continue;
+              }
               if (await crypto.subtle.verify('HMAC', key, mac, signed)) { verified = true; break outer; }
             }
           }
