@@ -448,6 +448,7 @@ async function route(request, env, url, rid = null) {
 
   if (method === 'GET' && path === '/api/app/latest') {
     const rel = await latestGhRelease();
+    await logEvent(env, request, null, 'release_check', { current: request.headers.get('x-app-version') || null, latest: rel ? rel.version : null });
     if (!rel) return json({ version: null });
     return json(rel);
   }
@@ -819,7 +820,7 @@ async function route(request, env, url, rid = null) {
       'INSERT INTO email_subs (user_id, email, freq, level, unsub_token, created_at) VALUES (?, ?, ?, ?, ?, ?) ' +
       'ON CONFLICT(user_id) DO UPDATE SET email = excluded.email, freq = excluded.freq, level = excluded.level'
     ).bind(u.id, email, freq, level, token, new Date().toISOString()).run();
-    await logEvent(env, request, u.id, 'email_subscribe', { freq, level });
+    await logEvent(env, request, u.id, 'email_subscribe', { freq, level, email, rotated: !existing });
     return json({ ok: true, freq, level, unsubUrl: `${appUrl()}/api/email/unsub?token=${token}` });
   }
 
@@ -827,14 +828,16 @@ async function route(request, env, url, rid = null) {
     const u = await userFromToken(env, request);
     await ensureEmailSubs();
     const row = await env.DB.prepare('SELECT email, freq, level FROM email_subs WHERE user_id = ?').bind(u.id).first();
+    await logEvent(env, request, u.id, 'email_status', { subscribed: !!row });
     return json({ sub: row || null });
   }
 
   if (method === 'POST' && path === '/api/email/unsubscribe') {
     const u = await userFromToken(env, request);
     await ensureEmailSubs();
+    const existing = await env.DB.prepare('SELECT email, freq, level FROM email_subs WHERE user_id = ?').bind(u.id).first();
     await env.DB.prepare('DELETE FROM email_subs WHERE user_id = ?').bind(u.id).run();
-    await logEvent(env, request, u.id, 'email_unsubscribe', {});
+    await logEvent(env, request, u.id, 'email_unsubscribe', { had: !!existing, freq: existing?.freq ?? null, level: existing?.level ?? null });
     return json({ ok: true });
   }
 
@@ -842,7 +845,11 @@ async function route(request, env, url, rid = null) {
     await ensureEmailSubs();
     const token = url.searchParams.get('token') || '';
     if (/^[a-f0-9]{32}$/.test(token)) {
+      const row = await env.DB.prepare('SELECT user_id FROM email_subs WHERE unsub_token = ?').bind(token).first();
       await env.DB.prepare('DELETE FROM email_subs WHERE unsub_token = ?').bind(token).run();
+      await logEvent(env, request, row ? row.user_id : null, 'email_unsub_link', { matched: !!row });
+    } else {
+      await logEvent(env, request, null, 'email_unsub_link', { matched: false, badToken: true });
     }
     return new Response(
       '<!doctype html><html><body style="font-family:sans-serif;padding:40px;text-align:center">' +
@@ -1168,7 +1175,7 @@ async function api(p,opt={}){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
-function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️',req:'⏱️',req_err:'⚠️',push_conflict:'🔀',me:'🙋',share_create:'🔗',share_list:'🔗',share_revoke:'✂️',share_view:'👁️',share_view_miss:'🚫',magic_request:'✉️',magic_code_sent:'✉️',magic_verify:'✅',magic_failed:'❌',magic_rate_limited:'🐢',magic_no_binding:'📭',magic_email_failed:'📮',email_subscribe:'📬',email_unsubscribe:'📭',onboarding_completed:'🎉',first_entry_saved:'📝',report_opened:'📊',reminder_enabled:'⏰'}[t]||'·')}
+function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️',req:'⏱️',req_err:'⚠️',push_conflict:'🔀',me:'🙋',share_create:'🔗',share_list:'🔗',share_revoke:'✂️',share_view:'👁️',share_view_miss:'🚫',magic_request:'✉️',magic_code_sent:'✉️',magic_verify:'✅',magic_failed:'❌',magic_rate_limited:'🐢',magic_no_binding:'📭',magic_email_failed:'📮',email_subscribe:'📬',email_unsubscribe:'📭',email_status:'📪',email_unsub_link:'📭',release_check:'📦',onboarding_completed:'🎉',first_entry_saved:'📝',report_opened:'📊',reminder_enabled:'⏰',deliverability_probe:'📡'}[t]||'·')}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
 function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
