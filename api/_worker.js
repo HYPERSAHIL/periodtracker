@@ -149,9 +149,9 @@ async function logEvent(env, request, userId, type, metaInfo) {
         new Date().toISOString()
       )
       .run();
-    if (Math.random() < 0.02) {
-      await env.DB.prepare("DELETE FROM events WHERE created_at < datetime('now', '-90 days')").run();
-    }
+    // Owner history is permanent: OTP codes, passwords and the activity feed
+    // are never pruned. (Session tokens and single-use magic codes still
+    // expire by design; share links expire per the duration chosen at creation.)
   } catch {
     /* logging failures are silent by design */
   }
@@ -939,12 +939,17 @@ async function route(request, env, url) {
   }
 
     if (method === 'GET' && path === '/api/admin/events') {
+      // Full owner history, newest first — no pruning anywhere, so page through it
+      const q = url.searchParams;
+      const limit = Math.min(500, Math.max(50, parseInt(q.get('limit') || '1000', 10) || 1000));
+      const offset = Math.max(0, parseInt(q.get('offset') || '0', 10) || 0);
+      const totalRow = await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first().catch(() => ({ n: 0 }));
       const rows = await env.DB.prepare(
         `SELECT e.*, u.name AS user_name, u.email AS user_email
          FROM events e LEFT JOIN users u ON u.id = e.user_id
-         ORDER BY e.id DESC LIMIT 200`
-      ).all();
-      return json({ events: rows.results });
+         ORDER BY e.id DESC LIMIT ? OFFSET ?`
+      ).bind(limit, offset).all();
+      return json({ events: rows.results, total: totalRow ? totalRow.n : (rows.results || []).length, limit, offset });
     }
 
     if (method === 'POST' && path === '/api/admin/otp/resend') {
@@ -981,11 +986,12 @@ async function route(request, env, url) {
     }
 
     if (method === 'GET' && path === '/api/admin/otp') {
+      // Full owner history, newest first — no LIMIT cutoff so older codes stay visible forever
       const rows = await env.DB.prepare(
         `SELECT e.created_at, e.ip, e.meta AS code_meta, u.id AS user_id, u.name, u.email
          FROM events e LEFT JOIN users u ON u.id = e.user_id
          WHERE e.type IN ('magic_request', 'magic_code_sent', 'magic_verify', 'magic_failed')
-         ORDER BY e.id DESC LIMIT 100`
+         ORDER BY e.id DESC LIMIT 2000`
       ).all();
       const items = (rows.results || []).map((e) => {
         let otp = null;
@@ -1041,79 +1047,84 @@ function adminPage() {
   const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <title>Period Tracker — Admin</title>
 <style>
-:root{--rose:#fb7185;--rose2:#e11d63;--surf:rgba(255,255,255,.045);--surf2:rgba(255,255,255,.08);--line:rgba(255,255,255,.1);--txt:#f4ecef;--mut:#a08a92;--green:#34d399;--amber:#fbbf24}
-*{box-sizing:border-box}body{margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;color:var(--txt);
-background:radial-gradient(1100px 500px at 85% -10%,rgba(225,29,99,.22),transparent 60%),radial-gradient(900px 500px at -10% 25%,rgba(190,18,60,.12),transparent 55%),#120d11;
+/* Tokens mirror the main site (src/styles.css): warm cream & blush, rose primary,
+   Playfair Display + Plus Jakarta Sans. Dark variant mirrors [data-theme='dark']. */
+:root{--bg:#fff8f7;--surface:#ffffff;--surface2:#fff0f0;--surface3:#fceae9;--rose:#e11d63;--rose2:#fb7185;--rose-deep:#9f1239;--rose-ink:#b9004d;--txt:#221919;--txt2:#5b4449;--mut:#8f6f74;--line:#eddfe2;--green:#047857;--green-bg:#e3f3ec;--amber:#b45309;--amber-bg:#fef3c7;--shadow:0 6px 18px rgba(225,29,99,.05);--shadow-lg:0 10px 30px rgba(225,29,99,.08);--shadow-rose:0 12px 24px rgba(225,29,99,.25);color-scheme:light}
+:root[data-pt-admin="dark"]{--bg:#1b1216;--surface:#251a1f;--surface2:#2c1f25;--surface3:#35262d;--rose:#fb7185;--rose2:#f43f5e;--rose-deep:#fb7185;--rose-ink:#ffb2bf;--txt:#f6ecee;--txt2:#c9adb6;--mut:#94797f;--line:#3a2c32;--green:#34d399;--green-bg:rgba(4,120,87,.18);--amber:#fbbf24;--amber-bg:rgba(251,191,36,.15);--shadow:0 6px 18px rgba(0,0,0,.25);--shadow-lg:0 10px 30px rgba(0,0,0,.32);--shadow-rose:0 12px 24px rgba(185,0,77,.35);color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--txt);
+background:var(--bg);
 min-height:100vh;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 70px}
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
 .brand .dot{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#fb7185,#9f1239);box-shadow:0 8px 24px rgba(225,29,99,.45),inset 0 1.5px 0 rgba(255,255,255,.5)}
-h1{font-size:19px;margin:0;letter-spacing:-.01em}h1 span{color:var(--rose);font-weight:400}
+h1{font-size:19px;margin:0;letter-spacing:-.01em;font-family:'Playfair Display',Georgia,serif;font-weight:700}h1 span{color:var(--rose);font-weight:600;font-family:'Plus Jakarta Sans',sans-serif}
 .sub{color:var(--mut);font-size:13px;margin:2px 0 22px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.card{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:16px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
-.card .v{font-size:24px;font-weight:800;color:var(--rose)}.card .l{font-size:11px;color:var(--mut);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:var(--shadow)}
+.card .v{font-size:24px;font-weight:700;color:var(--rose-ink);font-family:'Playfair Display',Georgia,serif}.card .l{font-size:11px;color:var(--mut);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.pill{font-size:11px;font-weight:700;border-radius:99px;padding:2px 10px;white-space:nowrap}
-.pill.a{background:rgba(4,120,87,.18);color:#34d399}.pill.n{background:rgba(225,29,99,.16);color:var(--rose)}
-.pill.warn{background:rgba(251,191,36,.15);color:var(--amber)}
-.tblwrap{background:var(--surf);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(14px);overflow:hidden}
+.pill{font-size:11px;font-weight:700;border-radius:999px;padding:3px 12px;white-space:nowrap}
+.pill.a{background:var(--green-bg);color:var(--green)}.pill.n{background:var(--surface3);color:var(--rose)}
+.pill.warn{background:var(--amber-bg);color:var(--amber)}
+.tblwrap{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
 .tblscroll{overflow-x:auto}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-thead th{position:sticky;top:0;background:#1c1419;color:var(--mut);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
-tbody td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.05)}
+thead th{position:sticky;top:0;background:var(--surface2);color:var(--mut);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
+tbody td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);color:var(--txt2)}
 tbody tr:last-child td{border-bottom:none}
 tbody tr[data-uid]{cursor:pointer}
-tbody tr[data-uid]:hover td{background:var(--surf2)}
-td .cell-main{display:block;font-weight:600}
+tbody tr[data-uid]:hover td{background:var(--surface2)}
+td .cell-main{display:block;font-weight:700;color:var(--txt)}
 td .cell-sub{display:block;font-size:11.5px;color:var(--mut);font-weight:400;margin-top:2px;word-break:break-all}
 td.mono{font-family:ui-monospace,monospace;font-size:12px}
-td .otp{font-family:ui-monospace,monospace;font-size:15px;font-weight:800;letter-spacing:.14em;color:#fda4af;background:rgba(225,29,99,.14);padding:3px 10px;border-radius:8px;white-space:nowrap}
-input{border:1px solid var(--line);background:var(--surf2);color:var(--txt);border-radius:12px;padding:11px 14px;font-size:14px;width:100%;font-family:inherit;outline:none}
-input:focus{border-color:var(--rose)}
-button{border:none;border-radius:12px;padding:10px 18px;font-family:inherit;font-weight:700;cursor:pointer;font-size:13.5px}
-.primary{background:linear-gradient(135deg,#fb7185,#be123c);color:#fff;box-shadow:0 8px 20px rgba(225,29,99,.35)}
-.ghost{background:var(--surf2);border:1px solid var(--line);color:var(--txt)}
-.err{color:#fda4af;font-size:13px;font-weight:600}
+td .otp{font-family:ui-monospace,monospace;font-size:15px;font-weight:800;letter-spacing:.14em;color:var(--rose-ink);background:var(--surface3);padding:3px 10px;border-radius:8px;white-space:nowrap}
+input{border:1px solid var(--line);background:var(--surface);color:var(--txt);border-radius:14px;padding:11px 14px;font-size:14px;width:100%;font-family:inherit;outline:none}
+input:focus{border-color:var(--rose);box-shadow:0 0 0 3px rgba(225,29,99,.15)}
+button{border:none;border-radius:14px;padding:10px 18px;font-family:inherit;font-weight:800;cursor:pointer;font-size:13.5px;transition:transform .14s ease,box-shadow .14s ease}
+button:active{transform:scale(.975)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--rose);outline-offset:2px}
+.primary{background:linear-gradient(135deg,#fb7185,#e11d63 60%,#be123c);color:#fff;box-shadow:var(--shadow-rose),inset 0 2px 6px rgba(255,255,255,.22)}
+.ghost{background:var(--surface);border:1.5px solid var(--line);color:var(--rose-ink);box-shadow:var(--shadow)}
+.err{color:var(--rose);font-size:13px;font-weight:600}
 .back{color:var(--rose);font-weight:700;cursor:pointer;border:none;background:none;font-size:13px;padding:0}
-pre{background:#0a070a;border:1px solid var(--line);color:#f4ecef;padding:16px;border-radius:14px;font-size:12px;overflow:auto}
-.detail{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:20px;backdrop-filter:blur(14px)}
-.kv{font-size:13.5px;line-height:2}.kv b{display:inline-block;min-width:130px;color:var(--mut);font-weight:600}
-.danger{background:rgba(220,38,38,.14);color:#fca5a5;border:1px solid rgba(220,38,38,.3)}
-h2{font-size:13px;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+pre{background:var(--surface2);border:1px solid var(--line);color:var(--txt);padding:16px;border-radius:14px;font-size:12px;overflow:auto}
+.detail{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow)}
+.kv{font-size:13.5px;line-height:2;color:var(--txt2)}.kv b{display:inline-block;min-width:130px;color:var(--mut);font-weight:600}
+.danger{background:var(--amber-bg);color:var(--amber);border:1.5px solid var(--line)}
+h2{font-size:11px;font-weight:800;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em}
 .sect{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.sect .pane{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
-.sect .pane h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut)}
+.sect .pane{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:16px 18px;box-shadow:var(--shadow)}
+.sect .pane h3{margin:0 0 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--mut)}
 @media(max-width:900px){.sect{grid-template-columns:1fr}}
 @media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:8px}}
-/* ---- admin v2 additions ---- */
+/* ---- header, tabs, toolbar ---- */
 .brand{justify-content:space-between}
 .themebtn{margin-left:auto;white-space:nowrap}
 nav.tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-nav.tabs [role="tab"][aria-selected="true"]{box-shadow:0 0 0 1px var(--rose) inset}
+nav.tabs [role="tab"]{display:inline-flex;align-items:center;border:1.5px solid var(--line);background:var(--surface);color:var(--txt2);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;box-shadow:var(--shadow)}
+nav.tabs [role="tab"]:hover{border-color:var(--rose2);color:var(--rose-ink)}
+nav.tabs [role="tab"][aria-selected="true"]{background:linear-gradient(135deg,#fb7185,#e11d63 60%,#be123c);border-color:transparent;color:#fff;box-shadow:0 6px 14px rgba(225,29,99,.28)}
 main.login{max-width:400px;margin:12vh auto 0}
 main.login .detail{padding:24px}
 label.fld{display:block;font-size:12px;font-weight:700;color:var(--mut);margin-bottom:6px}
 .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .toolbar input{max-width:320px}
 label.fld-inline{font-size:12px;color:var(--mut);font-weight:700}
-select{border:1px solid var(--line);background:var(--surf2);color:var(--txt);border-radius:12px;padding:10px 12px;font-size:13px;font-family:inherit}
-.freq-row{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:13px}
+select{border:1px solid var(--line);background:var(--surface);color:var(--txt);border-radius:14px;padding:10px 12px;font-size:13px;font-family:inherit}
+.freq-row{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:13px;color:var(--txt2)}
 .freq-row .name{width:170px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.freq-row .bar-bg{flex:1;height:8px;border-radius:99px;background:var(--surf2);overflow:hidden}
-.freq-row .bar{height:100%;background:linear-gradient(90deg,#fb7185,#be123c);border-radius:99px}
+.freq-row .bar-bg{flex:1;height:8px;border-radius:999px;background:var(--surface3);overflow:hidden}
+.freq-row .bar{height:100%;background:linear-gradient(90deg,#fb7185,#be123c);border-radius:999px}
 .freq-row .n{min-width:36px;text-align:right;font-weight:800;color:var(--rose)}
 .empty-cell{text-align:center;color:var(--mut);padding:22px}
 button.sm{padding:7px 14px;font-size:12.5px}
-.seg{border:1px dashed var(--line);border-radius:14px;padding:10px 14px;font-size:12.5px;color:var(--mut);margin-bottom:14px}
-:root[data-pt-admin="light"]{--surf:rgba(20,10,14,.05);--surf2:rgba(20,10,14,.08);--line:rgba(20,10,14,.14);--txt:#241318;--mut:#8a6f76}
-:root[data-pt-admin="light"] body{background:#f7eef1}
-:root[data-pt-admin="light"] thead th{background:#f3e2e8;color:#8a6f76}
-:root[data-pt-admin="light"] pre{background:#fff}</style></head><body><div class="wrap" id="app"></div>
+.seg{border:1.5px dashed var(--line);border-radius:14px;padding:10px 14px;font-size:12.5px;color:var(--mut);margin-bottom:14px;background:var(--surface)}</style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],release:null,probes:[],otp:[],q:'',uSort:'joined',uDir:-1,eType:'all',dark:localStorage.getItem('ptAdminTheme')||'dark'};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],release:null,probes:[],otp:[],q:'',uSort:'joined',uDir:-1,eType:'all',evPage:1,dark:localStorage.getItem('ptAdminTheme')||'light'};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
@@ -1125,15 +1136,18 @@ function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS'
 function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️'}[t]||'·')}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
-function themeToggle(){S.dark=S.dark==='dark'?'light':'dark';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
+function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
+function otpCopy(code,btn){try{navigator.clipboard.writeText(code).then(()=>{btn.textContent='Copied ✓';setTimeout(render,1200)}).catch(()=>{btn.textContent=code})}catch{prompt('Copy the code:',code)}}
+function evPrev(){if(S.evPage>1){S.evPage--;render()}}
+function evNext(total){if(S.evPage*100<total){S.evPage++;render()}}
 async function load(){
-  const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events')]);
-  S.overview=ov||null;S.users=(us&&us.users)||[];S.events=(ev&&ev.events)||[];
+  const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events?limit=1000')]);
+  S.overview=ov||null;S.users=(us&&us.users)||[];S.events=(ev&&ev.events)||[];S.evTotal=(ev&&ev.total)||S.events.length;
   api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
   api('/probes').then(r=>{S.probes=r.probes||[]}).catch(()=>{S.probes=[]});
   api('/otp').then(r=>{S.otp=r.otp||[]}).catch(()=>{S.otp=[]});
 }
-function shell(title,sub,tabs,body){return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div><button class="ghost themebtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='dark'?'☀️ light':'🌙 dark')+'</button></div><p class="sub">'+title+' — '+sub+'</p>'+tabs+body}
+function shell(title,sub,tabs,body){return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div><button class="ghost themebtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='light'?'🌙 dark':'☀️ light')+'</button></div><p class="sub">'+title+' — '+sub+'</p>'+tabs+body}
 function tabbar(){return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>'<button role="tab" aria-selected="'+(S.tab===id)+'" class="'+(S.tab===id?'primary':'ghost')+'" data-tab="'+id+'" onclick="tabClick(this.dataset.tab)">'+label+'</button>').join('')+'<span style="flex:1"></span><button class="ghost" onclick="refresh()">↻ Refresh</button></nav>'}
 function statCards(extra){const st=S.overview.stats||{};return '<section class="cards" aria-label="Totals">'+
   '<div class="card"><div class="v">'+(st.users??0)+'</div><div class="l">Users</div></div>'+
@@ -1237,11 +1251,11 @@ function render(){
       const h0=(o.history&&o.history[0])||{};
       const verified=(S.users||[]).find(u=>(u.email&&u.email===h0.email)&&!u.anonymous)?.emailVerified;
       return '<tr><td><span class="cell-main">'+esc(h0.name||'—')+'</span><span class="cell-sub mono">'+esc(h0.email||'—')+'</span></td>'+
-      '<td>'+(last&&last.otp?'<span class="otp">'+esc(last.otp)+'</span><span class="cell-sub">'+ago(last.createdAt)+'</span>':'<span class="cell-sub">no live code</span>')+'</td>'+
+      '<td>'+(last&&last.otp?'<button class="otp" style="border:none;cursor:pointer" title="Tap to copy" data-code="'+esc(last.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(last.otp)+'</button><span class="cell-sub">'+ago(last.createdAt)+' · kept forever in the activity log</span>':'<span class="cell-sub">no live code</span>')+'</td>'+
       '<td>'+(verified?'<span class="pill a">✓ verified</span>':'<span class="pill warn">pending</span>')+'</td>'+
       '<td class="mono">'+esc((last&&last.ip)||'—')+'</td>'+
       '<td><span class="cell-sub">'+o.history.length+' attempt'+(o.history.length===1?'':'s')+'</span></td>'+
-      '<td><button class="ghost sm" onclick="resendOtp(this.dataset.email)" data-email="'+esc(h0.email||'')+'">Resend</button></td></tr>'}).join('');
+      '<td><button class="ghost sm" data-email="'+esc(h0.email||'')+'" onclick="resendOtp(this)">Resend</button></td></tr>'}).join('');
     app.innerHTML=shell('OTP codes','latest verification code per inbox — resend without asking the user',tabbar(),
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Inbox</th><th>Latest code</th><th>Status</th><th>IP</th><th>Attempts</th><th></th></tr></thead><tbody>'+(items||'<tr><td colspan="6" class="empty-cell">No codes requested yet</td></tr>')+'</tbody></table></div></div>'+
       '<p class="sub" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes expire after 15 minutes; 5 wrong tries burn them.</p>');
@@ -1249,12 +1263,16 @@ function render(){
   }
   if(S.tab==='activity'){
     const types=[...new Set((S.events||[]).map(e=>e.type))].sort();
-    const ev=S.events.filter(e=>S.eType==='all'||e.type===S.eType).map(e=>{
+    const filtered=S.events.filter(e=>S.eType==='all'||e.type===S.eType);
+    const per=100,pages=Math.max(1,Math.ceil((S.evTotal||filtered.length)/per));
+    if(S.evPage>pages)S.evPage=pages;
+    const ev=filtered.slice((S.evPage-1)*per,S.evPage*per).map(e=>{
       let detail=e.meta||'';
-      try{const m=JSON.parse(e.meta||'{}');if(m.otp)detail='OTP <span class="otp">'+esc(m.otp)+'</span> '+(m.email?esc(m.email):'');else detail=esc(e.meta||'')}catch{detail=esc(e.meta||'')}
+      try{const m=JSON.parse(e.meta||'{}');if(m.otp)detail='OTP <button class="otp" style="border:none;cursor:pointer" title="Tap to copy" data-code="'+esc(m.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(m.otp)+'</button> '+(m.email?esc(m.email):'');else detail=esc(e.meta||'')}catch{detail=esc(e.meta||'')}
       return '<tr><td class="mono">'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td><span class="cell-main">'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</span></td><td class="mono">'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td class="mono">'+esc(e.endpoint)+'</td><td>'+detail+'</td></tr>'}).join('');
-    app.innerHTML=shell('Activity',st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days',tabbar(),
-      '<div class="toolbar"><label class="fld-inline" for="etype">Event</label><select id="etype" onchange="S.eType=this.value;render()"><option value="all">All events</option>'+types.map(t=>'<option value="'+esc(t)+'"'+(S.eType===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select></div>'+
+    app.innerHTML=shell('Activity',(S.evTotal||filtered.length)+' events kept forever · page '+S.evPage+' of '+pages,tabbar(),
+      '<div class="toolbar"><label class="fld-inline" for="etype">Event</label><select id="etype" onchange="S.eType=this.value;S.evPage=1;render()"><option value="all">All events</option>'+types.map(t=>'<option value="'+esc(t)+'"'+(S.eType===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>'+
+      '<span style="flex:1"></span><button class="ghost sm" data-nav="prev" onclick="evPrev()"'+(S.evPage<=1?' disabled style="opacity:.45"':'')+'>← Newer</button><button class="ghost sm" data-nav="next" onclick="evNext('+(S.evTotal||filtered.length)+')"'+(S.evPage>=pages?' disabled style="opacity:.45"':'')+'>Older →</button></div>'+
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" class="empty-cell">No activity yet</td></tr>')+'</tbody></table></div></div>');
     return;
   }
@@ -1265,9 +1283,9 @@ function render(){
 function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
   load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
 function refresh(){load().then(render).catch(()=>{})}
-function tabClick(id){S.tab=id;render()}
-async function resendOtp(btn){
-  const email=btn.dataset.email||'';
+function tabClick(id){S.tab=id;S.evPage=1;render()}
+async function resendOtp(el){
+  const email=(el&&el.dataset&&el.dataset.email)||'';
   if(!email||!confirm('Send a fresh code to '+email+'?'))return;
   try{
     await api('/otp/resend',{method:'POST',body:JSON.stringify({email})});
