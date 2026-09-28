@@ -777,8 +777,10 @@ async function route(request, env, url, rid = null) {
     const ts = request.headers.get('svix-timestamp') || '';
     let verified = false;
     const secretRaw = (env.RESEND_WEBHOOK_SECRET || '').replace(/^whsec_/, '');
+    // Svix signs with the raw UTF-8 bytes of the base64 secret string (the
+    // secret is used as-given, NOT base64-decoded); try both to be safe.
     const tryKeys = [secretRaw, (() => { try { return atob(secretRaw.replace(/-/g, '+').replace(/_/g, '/')); } catch { return null; } })()].filter(Boolean);
-    const tryPayloads = [`${svixId}.${ts}.${raw}`, `${svixId}.${ts};${raw}`];
+    const tryPayloads = [`${svixId}.${ts}.${raw}`];
     if (secretRaw && sig && svixId && ts) {
       try {
         const parts = sig.split(' ').map((p) => p.split(','));
