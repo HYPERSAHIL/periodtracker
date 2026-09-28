@@ -1,0 +1,46 @@
+- generic [ref=e2]:
+  - generic [ref=e3678]:
+    - heading "Period Tracker / Admin" [level=1] [ref=e3681]
+    - button "🌙 dark" [ref=e3682] [cursor=pointer]
+  - paragraph [ref=e3683]: Delivery — deliverability probes — latest score first
+  - tablist [ref=e3684]:
+    - tab "Overview" [ref=e3685] [cursor=pointer]
+    - tab "Users" [ref=e3686] [cursor=pointer]
+    - tab "OTP codes" [ref=e3687] [cursor=pointer]
+    - tab "Activity" [ref=e3688] [cursor=pointer]
+    - tab "Delivery" [selected] [ref=e3689] [cursor=pointer]
+    - tab "Release" [ref=e3690] [cursor=pointer]
+    - button "↻ Refresh" [ref=e3691] [cursor=pointer]
+  - generic [ref=e3692]:
+    - generic [ref=e3693]:
+      - generic [ref=e3694]:
+        - generic [ref=e3695]: Latest
+        - text: accepted · pubgnewstatevpn99@gmail.com · 27/09/2026, 12:00:54
+      - generic [ref=e3696]:
+        - generic [ref=e3697]: Trend
+        - text: accepted → 10/10
+    - paragraph [ref=e3698]: Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.
+  - table [ref=e3701]:
+    - rowgroup [ref=e3702]:
+      - row [ref=e3703]:
+        - columnheader "When" [ref=e3704]
+        - columnheader "Kind" [ref=e3705]
+        - columnheader "Target" [ref=e3706]
+        - columnheader "Status" [ref=e3707]
+        - columnheader "Score" [ref=e3708]
+        - columnheader "Detail" [ref=e3709]
+    - rowgroup [ref=e3710]:
+      - row [ref=e3711]:
+        - cell "27/09/2026, 12:00:54" [ref=e3712]
+        - cell "resend-seed" [ref=e3713]
+        - cell "pubgnewstatevpn99@gmail.com" [ref=e3714]
+        - cell "sent" [ref=e3715]
+        - cell "accepted" [ref=e3716]
+        - cell [ref=e3717]
+      - row [ref=e3718]:
+        - cell "27/09/2026, 11:00:42" [ref=e3719]
+        - cell "manual-test" [ref=e3720]
+        - cell "admin-check" [ref=e3721]
+        - cell "sent" [ref=e3722]
+        - cell "10/10" [ref=e3723]
+        - cell "verify endpoints live" [ref=e3724]

@@ -1,0 +1,31 @@
+- generic [ref=e2]:
+  - generic [ref=e3725]:
+    - heading "Period Tracker / Admin" [level=1] [ref=e3728]
+    - button "🌙 dark" [ref=e3729] [cursor=pointer]
+  - paragraph [ref=e3730]: Release — APK channel hosted on GitHub Releases
+  - tablist [ref=e3731]:
+    - tab "Overview" [ref=e3732] [cursor=pointer]
+    - tab "Users" [ref=e3733] [cursor=pointer]
+    - tab "OTP codes" [ref=e3734] [cursor=pointer]
+    - tab "Activity" [ref=e3735] [cursor=pointer]
+    - tab "Delivery" [ref=e3736] [cursor=pointer]
+    - tab "Release" [selected] [ref=e3737] [cursor=pointer]
+    - button "↻ Refresh" [ref=e3738] [cursor=pointer]
+  - generic [ref=e3739]:
+    - generic [ref=e3740]:
+      - generic [ref=e3741]:
+        - generic [ref=e3742]: Current version
+        - text: v9.9.9-test
+      - generic [ref=e3743]:
+        - generic [ref=e3744]: APK size
+        - text: 0.0 MB
+      - generic [ref=e3745]:
+        - generic [ref=e3746]: Published
+        - text: 17/08/2026, 03:01:13
+      - generic [ref=e3747]:
+        - generic [ref=e3748]: Notes
+        - text: E2E endpoint test - safe to delete
+    - heading "Publish a new release" [level=2] [ref=e3749]
+    - paragraph [ref=e3750]: "On your computer, from the repo folder:"
+    - generic [ref=e3751]: gh release create v2.6.0 ./periodtracker.apk --title v2.6.0 --notes "What changed"
+    - paragraph [ref=e3752]: Apps check on launch (and every 6h), auto-download, and show the install screen. Watch adoption under the Activity tab (update_* events).

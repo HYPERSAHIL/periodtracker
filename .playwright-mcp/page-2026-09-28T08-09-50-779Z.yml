@@ -1,0 +1,109 @@
+- generic [ref=e2]:
+  - generic [ref=e13]:
+    - heading "Period Tracker / Admin" [level=1] [ref=e16]
+    - button "🌙 dark" [ref=e17] [cursor=pointer]
+  - paragraph [ref=e18]: Overview — health of the product at a glance
+  - tablist [ref=e19]:
+    - tab "Overview" [selected] [ref=e20] [cursor=pointer]
+    - tab "Users" [ref=e21] [cursor=pointer]
+    - tab "OTP codes" [ref=e22] [cursor=pointer]
+    - tab "Activity" [ref=e23] [cursor=pointer]
+    - tab "Delivery" [ref=e24] [cursor=pointer]
+    - tab "Release" [ref=e25] [cursor=pointer]
+    - button "↻ Refresh" [ref=e26] [cursor=pointer]
+  - region "Totals" [ref=e27]:
+    - generic [ref=e28]:
+      - generic [ref=e29]: "17"
+      - generic [ref=e30]: Users
+    - generic [ref=e31]:
+      - generic [ref=e32]: "9"
+      - generic [ref=e33]: Accounts
+    - generic [ref=e34]:
+      - generic [ref=e35]: "8"
+      - generic [ref=e36]: Anonymous
+    - generic [ref=e37]:
+      - generic [ref=e38]: "8"
+      - generic [ref=e39]: Sign-ups 7d
+    - generic [ref=e40]:
+      - generic [ref=e41]: "193"
+      - generic [ref=e42]: Events 24h
+    - generic [ref=e43]:
+      - generic [ref=e44]: 1→1
+      - generic [ref=e45]: OTP sent→verified
+    - generic [ref=e46]:
+      - generic [ref=e47]: "1"
+      - generic [ref=e48]: Email subs
+    - generic [ref=e49]:
+      - generic [ref=e50]: "0"
+      - generic [ref=e51]: Active shares
+  - generic [ref=e52]:
+    - generic [ref=e53]:
+      - heading "Event mix (all time in feed)" [level=3] [ref=e54]
+      - generic [ref=e55]:
+        - generic [ref=e56]: 🛠️ admin
+        - generic [ref=e59]: "177"
+      - generic [ref=e60]:
+        - generic [ref=e61]: ⬇️ pull
+        - generic [ref=e63]: "31"
+      - generic [ref=e64]:
+        - generic [ref=e65]: ⬆️ push
+        - generic [ref=e67]: "29"
+      - generic [ref=e68]:
+        - generic [ref=e69]: 🆕 signup
+        - generic [ref=e71]: "9"
+      - generic [ref=e72]:
+        - generic [ref=e73]: · magic_email_failed
+        - generic [ref=e75]: "6"
+      - generic [ref=e76]:
+        - generic [ref=e77]: 👤 signup_anon
+        - generic [ref=e79]: "6"
+      - generic [ref=e80]:
+        - generic [ref=e81]: · magic_request
+        - generic [ref=e83]: "5"
+      - generic [ref=e84]:
+        - generic [ref=e85]: · magic_no_binding
+        - generic [ref=e87]: "3"
+    - generic [ref=e88]:
+      - heading "Deliverability" [level=3] [ref=e89]
+      - generic [ref=e91]:
+        - generic [ref=e92]: Latest probe
+        - text: no probes yet
+      - paragraph [ref=e93]: Full history under the Delivery tab.
+  - heading "Latest sign-ups" [level=2] [ref=e94]
+  - table [ref=e97]:
+    - rowgroup [ref=e98]:
+      - row [ref=e99]:
+        - columnheader "User" [ref=e100]
+        - columnheader "Type" [ref=e101]
+        - columnheader "When" [ref=e102]
+    - rowgroup [ref=e103]:
+      - row [ref=e104]:
+        - cell "Admin Test admintest1@srv1.mail-tester.com" [ref=e105]:
+          - generic [ref=e106]: Admin Test
+          - generic [ref=e107]: admintest1@srv1.mail-tester.com
+        - cell "account" [ref=e108]
+        - cell "27/09/2026, 11:51:31" [ref=e109]
+      - row [ref=e110]:
+        - cell "Someone pubgnewstatevpn9.9@gmail.com" [ref=e111]:
+          - generic [ref=e112]: Someone
+          - generic [ref=e113]: pubgnewstatevpn9.9@gmail.com
+        - cell "account" [ref=e114]
+        - cell "27/09/2026, 10:27:17" [ref=e115]
+      - row [ref=e116]:
+        - cell "Mail Tester test-oah5v9uec@srv1.mail-tester.com" [ref=e117]:
+          - generic [ref=e118]: Mail Tester
+          - generic [ref=e119]: test-oah5v9uec@srv1.mail-tester.com
+        - cell "account" [ref=e120]
+        - cell "27/09/2026, 08:48:40" [ref=e121]
+      - row [ref=e122]:
+        - cell "Mail Tester test-2p75dikjx@srv1.mail-tester.com" [ref=e123]:
+          - generic [ref=e124]: Mail Tester
+          - generic [ref=e125]: test-2p75dikjx@srv1.mail-tester.com
+        - cell "account" [ref=e126]
+        - cell "27/09/2026, 08:35:18" [ref=e127]
+      - row [ref=e128]:
+        - cell "Test Two pubgnewstatevpn99+otp2@gmail.com" [ref=e129]:
+          - generic [ref=e130]: Test Two
+          - generic [ref=e131]: pubgnewstatevpn99+otp2@gmail.com
+        - cell "account" [ref=e132]
+        - cell "26/09/2026, 22:13:21" [ref=e133]

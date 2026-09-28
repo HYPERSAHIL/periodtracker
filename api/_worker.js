@@ -852,7 +852,7 @@ async function route(request, env, url) {
           token TEXT PRIMARY KEY, user_id TEXT NOT NULL, summary TEXT NOT NULL,
           expires_at TEXT NOT NULL, created_at TEXT NOT NULL
         )`).run();
-        const d = await env.DB.prepare("SELECT COUNT(*) AS n FROM shares WHERE expires_at > datetime('now')").first();
+        const d = await env.DB.prepare('SELECT COUNT(*) AS n FROM shares').first();
         activeShares = d ? d.n : 0;
       } catch { /* ignore */ }
       const latest = await env.DB.prepare('SELECT name, email, created_at FROM users ORDER BY created_at DESC LIMIT 5').all();
