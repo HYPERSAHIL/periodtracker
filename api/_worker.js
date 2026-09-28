@@ -804,7 +804,7 @@ async function route(request, env, url, rid = null) {
     }
     // svix echo-back: log exactly what arrived so a signature mismatch can be
     // diagnosed from the feed instead of guessed at
-    if (!verified && (type || svixId)) {
+    if (!verified) {
       await logEvent(env, request, null, 'hook_sig_debug', {
         svixId: svixId || null,
         ts: ts || null,
