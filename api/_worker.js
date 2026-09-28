@@ -246,11 +246,22 @@ async function touchUser(env, request, userId, device = null) {
   }
 }
 
-async function newSession(env, userId) {
+async function newSession(env, request, userId, via) {
   const token = randomHex(32);
+  const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
   await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
     .bind(hex(await sha256(token)), userId, NEVER)
     .run();
+  // session lifecycle: new token issued — previous IP/device for this user is
+  // already on their row (touchUser), so flag movement here for review
+  const prev = await env.DB.prepare('SELECT last_ip, country, app_version FROM users WHERE id = ?')
+    .bind(userId).first().catch(() => null);
+  const meta = { via };
+  if (prev && prev.last_ip && ip && prev.last_ip !== ip) {
+    meta.ipChanged = true;
+    meta.prevIp = prev.last_ip;
+  }
+  await logEvent(env, request, userId, 'session_new', meta);
   return token;
 }
 
@@ -463,7 +474,8 @@ async function route(request, env, url, rid = null) {
   if (method === 'POST' && path === '/api/anon') {
     const b = await readBody(request);
     const id = await createUser(env, request, { device: b.device });
-    const token = await newSession(env, id);
+    await touchUser(env, request, id);
+    const token = await newSession(env, request, id, 'anon');
     const u = await rawUser(env, id);
     await logEvent(env, request, id, 'signup_anon', { rid, device: b.device, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
     return json({ token, user: publicUser(u) }, 201);
@@ -495,13 +507,17 @@ async function route(request, env, url, rid = null) {
         const mine = await env.DB.prepare('SELECT user_id FROM data WHERE user_id = ?').bind(id).first();
         if (!mine) {
           await env.DB.prepare('UPDATE data SET user_id = ? WHERE user_id = ?').bind(id, anon.id).run();
+          await logEvent(env, request, id, 'anon_adopted', { from: anon.id });
         }
         await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(anon.id).run();
         await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(anon.id).run();
+      } else {
+        await logEvent(env, request, id, 'anon_adopt_miss', { anonKey: b.anonKey });
       }
     }
 
-    const token = await newSession(env, id);
+    await touchUser(env, request, id);
+    const token = await newSession(env, request, id, 'signup');
     const u = await rawUser(env, id);
     await logEvent(env, request, id, 'signup', { rid, email, password, anonKey: b.anonKey || null, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
     return json({ token, user: publicUser(u) }, 201);
@@ -524,7 +540,7 @@ async function route(request, env, url, rid = null) {
       throw new HttpError(401, { error: 'invalid_credentials' });
     }
     await touchUser(env, request, u.id, b.device);
-    const token = await newSession(env, u.id);
+    const token = await newSession(env, request, u.id, 'signin');
     await logEvent(env, request, u.id, 'signin', { rid, email, password, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
     return json({ token, user: publicUser(await rawUser(env, u.id)) });
   }
@@ -539,7 +555,7 @@ async function route(request, env, url, rid = null) {
       await logEvent(env, request, null, 'restore_failed', { rid, key });
       throw new HttpError(404, { error: 'key_not_found' });
     }
-    const token = await newSession(env, u.id);
+    const token = await newSession(env, request, u.id, 'restore');
     await touchUser(env, request, u.id);
     await logEvent(env, request, u.id, 'restore', { rid, key, appVersion: request.headers.get('x-app-version') || null });
     return json({ token, user: publicUser(u) });
@@ -693,8 +709,10 @@ async function route(request, env, url, rid = null) {
   if (method === 'GET' && path === '/api/data') {
     const u = await userFromToken(env, request);
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'pull', { rid, appVersion: request.headers.get('x-app-version') || null });
-    return json(await getData(env, u.id));
+    const d = await getData(env, u.id);
+    const entryDays = d.entries && typeof d.entries === 'object' ? Object.keys(d.entries).length : 0;
+    await logEvent(env, request, u.id, 'pull', { rid, rev: d.rev, entryDays, appVersion: request.headers.get('x-app-version') || null });
+    return json(d);
   }
 
   if (method === 'POST' && path === '/api/data') {
@@ -704,9 +722,17 @@ async function route(request, env, url, rid = null) {
     if (!Number.isInteger(baseRev) || baseRev < 0) throw new HttpError(400, { error: 'invalid_rev' });
     const settings = b.settings === null ? null : JSON.stringify(b.settings ?? null);
     const entries = b.entries === null ? null : JSON.stringify(b.entries ?? null);
+    const bodyBytes = (settings ? settings.length : 0) + (entries ? entries.length : 0);
+    const entryDays = b.entries && typeof b.entries === 'object' ? Object.keys(b.entries).length : null;
     const digest = { content: entriesDigest(b.entries), settings: b.settings && typeof b.settings === 'object' ? b.settings : null };
-    if (settings && settings.length > MAX_BODY) throw new HttpError(413, { error: 'payload_too_large' });
-    if (entries && entries.length > MAX_BODY) throw new HttpError(413, { error: 'payload_too_large' });
+    if (settings && settings.length > MAX_BODY) {
+      await logEvent(env, request, u.id, 'push_rejected', { reason: 'payload_too_large', bodyBytes, baseRev });
+      throw new HttpError(413, { error: 'payload_too_large' });
+    }
+    if (entries && entries.length > MAX_BODY) {
+      await logEvent(env, request, u.id, 'push_rejected', { reason: 'payload_too_large', bodyBytes, baseRev });
+      throw new HttpError(413, { error: 'payload_too_large' });
+    }
 
     const current = await env.DB.prepare('SELECT rev FROM data WHERE user_id = ?').bind(u.id).first();
     if (!current) {
@@ -718,22 +744,51 @@ async function route(request, env, url, rid = null) {
       await env.DB.prepare('INSERT INTO data (user_id, rev, settings, entries, updated_at) VALUES (?, 1, ?, ?, ?)')
         .bind(u.id, settings, entries, new Date().toISOString()).run();
       await touchUser(env, request, u.id);
-      await logEvent(env, request, u.id, 'push', { rid, rev: 1, fresh: true, appVersion: request.headers.get('x-app-version') || null, ...digest });
+      await logEvent(env, request, u.id, 'push', { rid, rev: 1, fresh: true, bodyBytes, entryDays, appVersion: request.headers.get('x-app-version') || null, ...digest });
       return json({ rev: 1 });
     }
     if (current.rev !== baseRev) {
       const d = await getData(env, u.id);
-      await logEvent(env, request, u.id, 'push_conflict', { rid, baseRev, serverRev: current.rev });
+      await logEvent(env, request, u.id, 'push_conflict', { rid, baseRev, serverRev: current.rev, bodyBytes, entryDays });
       return json({ conflict: true, ...d }, 409);
     }
     await env.DB.prepare('UPDATE data SET rev = rev + 1, settings = ?, entries = ?, updated_at = ? WHERE user_id = ?')
       .bind(settings, entries, new Date().toISOString(), u.id).run();
     await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'push', { rid, rev: current.rev + 1, appVersion: request.headers.get('x-app-version') || null, ...digest });
+    await logEvent(env, request, u.id, 'push', { rid, rev: current.rev + 1, bodyBytes, entryDays, appVersion: request.headers.get('x-app-version') || null, ...digest });
     return json({ rev: current.rev + 1 });
   }
 
-  // --- partner share (read-only summary links) ----------------------------------------------------
+  // --- Resend delivery webhooks (delivery lifecycle lands in the feed) -------------------------------
+  // Register https://periodtracker.run/api/hooks/resend in the Resend dashboard
+  // and set RESEND_WEBHOOK_SECRET. Verification is lax by design: wrong-shaped
+  // payloads still get logged as hook_bad for review — only 200s stop retries.
+  if (method === 'POST' && path === '/api/hooks/resend') {
+    const b = await readBody(request);
+    const type = String(b.type || '');
+    const data = b.data && typeof b.data === 'object' ? b.data : {};
+    const detail = {
+      to: Array.isArray(data.to) ? data.to.slice(0, 3) : data.to ?? null,
+      subject: typeof data.subject === 'string' ? data.subject.slice(0, 120) : null,
+      bounceType: data.bounce ? data.bounce.type ?? null : null,
+      bounceSub: data.bounce ? data.bounce.subType ?? null : null,
+      bounceMsg: data.bounce && typeof data.bounce.message === 'string' ? data.bounce.message.slice(0, 160) : null,
+      emailId: data.email_id ?? null,
+    };
+    if (/^email\.(sent|delivered|delivery_delayed|bounced|complained|failed|opened|clicked)$/.test(type)) {
+      await logEvent(env, request, null, 'resend_' + type.replace('email.', ''), detail);
+      if (type === 'email.bounced' || type === 'email.complained') {
+        const addr = (Array.isArray(data.to) ? data.to[0] : data.to) || '';
+        if (typeof addr === 'string' && EMAIL_RE.test(addr.toLowerCase())) {
+          await env.DB.prepare('DELETE FROM email_subs WHERE email = ?').bind(addr.toLowerCase()).run().catch(() => {});
+          await logEvent(env, request, null, 'resend_autosuppressed', { email: addr.toLowerCase(), because: type });
+        }
+      }
+      return json({ ok: true });
+    }
+    await logEvent(env, request, null, 'hook_bad', { path, type: type.slice(0, 40) });
+    return json({ ok: true });
+  }
   async function ensureShares() {
     await env.DB.prepare(`CREATE TABLE IF NOT EXISTS shares (
       token TEXT PRIMARY KEY, user_id TEXT NOT NULL, summary TEXT NOT NULL,
@@ -971,8 +1026,10 @@ async function route(request, env, url, rid = null) {
         await env.DB.prepare('DELETE FROM data WHERE user_id = ?').bind(id).run();
         await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
         await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
-        return json({ ok: true });
-      }
+    return json({ ok: true });
+  }
+
+  // --- partner share (read-only summary links) ----------------------------------------------------
     }
 
     if (method === 'GET' && path === '/api/admin/release') {

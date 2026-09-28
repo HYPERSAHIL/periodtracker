@@ -105,6 +105,7 @@ async function sendDue(env, freq) {
     .bind(freq)
     .all();
   let sent = 0;
+  const failed = [];
   for (const r of rows.results || []) {
     try {
       let entries = null;
@@ -130,10 +131,23 @@ async function sendDue(env, freq) {
       });
       sent++;
     } catch (e) {
-      console.log('email summary failed for a subscriber:', String(e).slice(0, 120));
+      const msg = String(e).slice(0, 120);
+      console.log('email summary failed for a subscriber:', msg);
+      failed.push({ email: r.email, error: msg });
     }
   }
-  return { sent };
+  // digest-run receipt into the feed the same way as the probe (email first,
+  // address only — no names, no health fields)
+  if (env.APP_URL && env.APP_KEY) {
+    try {
+      await fetch(`${env.APP_URL.replace(/\/$/, '')}/api/event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': env.APP_KEY },
+        body: JSON.stringify({ type: 'deliverability_digest_run', meta: { freq, sent, failed } }),
+      });
+    } catch { /* feed receipt is best-effort */ }
+  }
+  return { sent, failed: failed.length };
 }
 
 /**
@@ -184,6 +198,16 @@ async function runProbe(env) {
     ).bind('resend-seed', target, status, score, sendDetail, new Date().toISOString()).run();
   } catch (e) {
     console.log('probe: log failed', String(e).slice(0, 120));
+  }
+  // cron-run receipt into the owner's feed (no import: env.APP_KEY = PT_ADMIN_KEY)
+  if (env.APP_URL && env.APP_KEY) {
+    try {
+      await fetch(`${env.APP_URL.replace(/\/$/, '')}/api/event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': env.APP_KEY },
+        body: JSON.stringify({ type: 'deliverability_probe_run', meta: { kind: 'cron', status, score } }),
+      });
+    } catch { /* feed receipt is best-effort; probe_log already holds the row */ }
   }
   return { status, score };
 }
