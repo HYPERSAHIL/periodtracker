@@ -1134,7 +1134,7 @@ async function load(){
   api('/otp').then(r=>{S.otp=r.otp||[]}).catch(()=>{S.otp=[]});
 }
 function shell(title,sub,tabs,body){return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div><button class="ghost themebtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='dark'?'☀️ light':'🌙 dark')+'</button></div><p class="sub">'+title+' — '+sub+'</p>'+tabs+body}
-function tabbar(){return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>'<button role="tab" aria-selected="'+(S.tab===id)+'" class="'+(S.tab===id?'primary':'ghost')+'" onclick="tabClick(&quot;"+id+"&quot;)">'+label+'</button>').join('')+'<span style="flex:1"></span><button class="ghost" onclick="refresh()">↻ Refresh</button></nav>'}
+function tabbar(){return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>'<button role="tab" aria-selected="'+(S.tab===id)+'" class="'+(S.tab===id?'primary':'ghost')+'" data-tab="'+id+'" onclick="tabClick(this.dataset.tab)">'+label+'</button>').join('')+'<span style="flex:1"></span><button class="ghost" onclick="refresh()">↻ Refresh</button></nav>'}
 function statCards(extra){const st=S.overview.stats||{};return '<section class="cards" aria-label="Totals">'+
   '<div class="card"><div class="v">'+(st.users??0)+'</div><div class="l">Users</div></div>'+
   '<div class="card"><div class="v">'+(st.accounts??0)+'</div><div class="l">Accounts</div></div>'+
