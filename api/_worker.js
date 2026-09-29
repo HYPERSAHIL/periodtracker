@@ -777,9 +777,10 @@ async function route(request, env, url, rid = null) {
     const ts = request.headers.get('svix-timestamp') || '';
     let verified = false;
     const secretRaw = (env.RESEND_WEBHOOK_SECRET || '').replace(/^whsec_/, '');
-    // Svix/standard-webhooks signs with the BASE64-DECODED bytes of the secret
-    // (NOT the raw string): sign bytes = base64decode(secret), over
-    // `${svixId}.${ts}.${raw}`. Both variants tried; decoded first.
+    // Svix signs with the BASE64-DECODED bytes of the secret: the whsec_ value
+    // is base64 for a 24-byte key, and the HMAC key is those decoded bytes.
+    // (Confirmed live: our decoded-key HMAC prefix matched Resend's signature
+    // head exactly; mismatch was only the secret copy drifting.)
     const toBytes = (s) => {
       const std = s.replace(/-/g, '+').replace(/_/g, '/');
       return Uint8Array.from(atob(std + '='.repeat((4 - (std.length % 4)) % 4)), (c) => c.charCodeAt(0));
@@ -791,7 +792,6 @@ async function route(request, env, url, rid = null) {
       secretBytes = null;
     }
     const tryKeys = secretBytes ? [secretBytes] : [];
-    if (secretRaw) tryKeys.push(te.encode(secretRaw));
     const tryPayloads = [`${svixId}.${ts}.${raw}`];
     if (secretRaw && sig && svixId && ts) {
       try {
@@ -821,14 +821,12 @@ async function route(request, env, url, rid = null) {
         /* verification error counts as unverified */
       }
     }
-    // svix echo-back: log exactly what arrived so a signature mismatch can be
-    // diagnosed from the feed instead of guessed at
+    // mismatch echo (kept for forensics, ~1 row per bad post): full signature,
+    // candidate HMAC preview, and raw tail — no secret material logged
     if (!verified) {
-      // one HMAC candidate preview (raw-secret, dot payload) so the feed shows
-      // whether we're even in the right neighborhood — no secret material logged
       let preview = null;
       try {
-        const k = await crypto.subtle.importKey('raw', secretBytes || te.encode(secretRaw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const k = await crypto.subtle.importKey('raw', secretBytes || te.encode('missing'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
         const mac = await crypto.subtle.sign('HMAC', k, te.encode(`${svixId}.${ts}.${raw}`));
         preview = btoa(String.fromCharCode(...new Uint8Array(mac))).slice(0, 12);
       } catch { /* preview is best-effort */ }
