@@ -777,21 +777,29 @@ async function route(request, env, url, rid = null) {
     const ts = request.headers.get('svix-timestamp') || '';
     let verified = false;
     const secretRaw = (env.RESEND_WEBHOOK_SECRET || '').replace(/^whsec_/, '');
-    // Svix signs with the raw UTF-8 bytes of the base64 secret string (the
-    // secret is used as-given, NOT base64-decoded); try both to be safe.
-    const tryKeys = [secretRaw, (() => { try { return atob(secretRaw.replace(/-/g, '+').replace(/_/g, '/')); } catch { return null; } })()].filter(Boolean);
+    // Svix/standard-webhooks signs with the BASE64-DECODED bytes of the secret
+    // (NOT the raw string): sign bytes = base64decode(secret), over
+    // `${svixId}.${ts}.${raw}`. Both variants tried; decoded first.
+    const toBytes = (s) => {
+      const std = s.replace(/-/g, '+').replace(/_/g, '/');
+      return Uint8Array.from(atob(std + '='.repeat((4 - (std.length % 4)) % 4)), (c) => c.charCodeAt(0));
+    };
+    let secretBytes;
+    try {
+      secretBytes = toBytes(secretRaw);
+    } catch {
+      secretBytes = null;
+    }
+    const tryKeys = secretBytes ? [secretBytes] : [];
+    if (secretRaw) tryKeys.push(te.encode(secretRaw));
     const tryPayloads = [`${svixId}.${ts}.${raw}`];
     if (secretRaw && sig && svixId && ts) {
       try {
         const parts = sig.split(' ').map((p) => p.split(','));
-        const toBytes = (s) => {
-          const std = s.replace(/-/g, '+').replace(/_/g, '/');
-          return Uint8Array.from(atob(std + '='.repeat((4 - (std.length % 4)) % 4)), (c) => c.charCodeAt(0));
-        };
         outer:
         for (const k of tryKeys) {
           const key = await crypto.subtle.importKey(
-            'raw', te.encode(k),
+            'raw', k instanceof Uint8Array ? k : te.encode(k),
             { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
           );
           for (const payload of tryPayloads) {
