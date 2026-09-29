@@ -790,7 +790,23 @@ async function route(request, env, url, rid = null) {
     } catch {
       secretBytes = null;
     }
-    const tryKeys = secretBytes ? [secretBytes] : [];
+    const tryKeys = [];
+    if (secretBytes) {
+      // PRIMARY: exact Svix decode — decoded bytes of the whsec_ value as-is.
+      tryKeys.push(secretBytes);
+      // VARIANT: the stored copy may carry `/` where the live signer used `+`
+      // (typographic drift across dashboards); flip each +/ and decode again.
+      const raw = secretRaw;
+      for (let i = 0; i < raw.length; i++) {
+        if (raw[i] !== '+' && raw[i] !== '/') continue;
+        const flipped = raw.slice(0, i) + (raw[i] === '+' ? '/' : '+') + raw.slice(i + 1);
+        try {
+          tryKeys.push(toBytes(flipped));
+        } catch {
+          /* skip undecodable flips */
+        }
+      }
+    }
     const tryPayloads = [`${svixId}.${ts}.${raw}`];
     if (secretRaw && sig && svixId && ts) {
       try {
