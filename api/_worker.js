@@ -777,10 +777,9 @@ async function route(request, env, url, rid = null) {
     const ts = request.headers.get('svix-timestamp') || '';
     let verified = false;
     const secretRaw = (env.RESEND_WEBHOOK_SECRET || '').replace(/^whsec_/, '');
-    // Svix signs with the BASE64-DECODED bytes of the secret: the whsec_ value
-    // is base64 for a 24-byte key, and the HMAC key is those decoded bytes.
-    // (Confirmed live: our decoded-key HMAC prefix matched Resend's signature
-    // head exactly; mismatch was only the secret copy drifting.)
+    // Svix signs with the BASE64-DECODED bytes of the secret, over
+    // `${svixId}.${ts}.${raw}`. (Confirmed live: our HMAC prefix matched
+    // Resend's signature head; fix is syncing the exact secret copy.)
     const toBytes = (s) => {
       const std = s.replace(/-/g, '+').replace(/_/g, '/');
       return Uint8Array.from(atob(std + '='.repeat((4 - (std.length % 4)) % 4)), (c) => c.charCodeAt(0));
