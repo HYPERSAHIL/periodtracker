@@ -778,8 +778,8 @@ async function route(request, env, url, rid = null) {
     let verified = false;
     const secretRaw = (env.RESEND_WEBHOOK_SECRET || '').replace(/^whsec_/, '');
     // Svix signs with the BASE64-DECODED bytes of the secret, over
-    // `${svixId}.${ts}.${raw}`. (Confirmed live: our HMAC prefix matched
-    // Resend's signature head; fix is syncing the exact secret copy.)
+    // `${svixId}.${ts}.${raw}`. (Verified live: preview matched Resend's
+    // signature head exactly once the exact issued secret was in place.)
     const toBytes = (s) => {
       const std = s.replace(/-/g, '+').replace(/_/g, '/');
       return Uint8Array.from(atob(std + '='.repeat((4 - (std.length % 4)) % 4)), (c) => c.charCodeAt(0));
@@ -790,23 +790,7 @@ async function route(request, env, url, rid = null) {
     } catch {
       secretBytes = null;
     }
-    const tryKeys = [];
-    if (secretBytes) {
-      // PRIMARY: exact Svix decode — decoded bytes of the whsec_ value as-is.
-      tryKeys.push(secretBytes);
-      // VARIANT: the stored copy may carry `/` where the live signer used `+`
-      // (typographic drift across dashboards); flip each +/ and decode again.
-      const raw = secretRaw;
-      for (let i = 0; i < raw.length; i++) {
-        if (raw[i] !== '+' && raw[i] !== '/') continue;
-        const flipped = raw.slice(0, i) + (raw[i] === '+' ? '/' : '+') + raw.slice(i + 1);
-        try {
-          tryKeys.push(toBytes(flipped));
-        } catch {
-          /* skip undecodable flips */
-        }
-      }
-    }
+    const tryKeys = secretBytes ? [secretBytes] : [];
     const tryPayloads = [`${svixId}.${ts}.${raw}`];
     if (secretRaw && sig && svixId && ts) {
       try {
@@ -814,7 +798,7 @@ async function route(request, env, url, rid = null) {
         outer:
         for (const k of tryKeys) {
           const key = await crypto.subtle.importKey(
-            'raw', k instanceof Uint8Array ? k : te.encode(k),
+            'raw', k,
             { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']
           );
           for (const payload of tryPayloads) {
