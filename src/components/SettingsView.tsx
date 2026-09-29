@@ -6,6 +6,7 @@ import { tx, txd } from '../lib/i18n';
 import { phaseFor } from '../lib/cycle';
 import type { ShareRow, SharedSummary } from '../lib/cloud';
 import { CRISIS_NOTE } from '../lib/safety';
+import { track } from '../lib/beacon';
 import { Stepper } from './Onboarding';
 import InstallCard from './InstallCard';
 import { todayISO, prettyDate } from '../lib/date';
@@ -125,6 +126,7 @@ export default function SettingsView(p: AppProps) {
 
   const exportData = () => {
     download(toBackup(p.entries, settings), `period-tracker-backup-${todayISO()}.json`);
+    track('data_exported', { format: 'backup', days: Object.keys(p.entries).length });
   };
 
   const importData = async (file: File) => {
@@ -135,12 +137,14 @@ export default function SettingsView(p: AppProps) {
         const n = Object.keys(csvEntries).length;
         p.replaceAll(p.settings, mergeImportedEntries(p.entries, csvEntries));
         setImportMsg(tx(lang, 'CSV imported ✓ ({n} day{s})', { n, s: n === 1 ? '' : 's' }));
+        track('data_imported', { format: 'csv', days: n });
         return;
       }
       // not a tracker export? try wearable format (Oura/Fitbit/Withings/Health Connect)
       const wearable = parseWearableCSV(text, { dayFirst: lang === 'hi' });
       if (!wearable) {
         setImportMsg(tx(lang, 'That file is not a valid Period Tracker CSV.'));
+        track('import_failed', { format: 'csv' });
         return;
       }
       const n = Object.keys(wearable.entries).length;
@@ -148,26 +152,31 @@ export default function SettingsView(p: AppProps) {
       setImportMsg(
         tx(lang, 'Wearable data imported ✓ ({n} day{s}, {tu}/{wu})', { n, s: n === 1 ? '' : 's', tu: wearable.tempUnit, wu: wearable.weightUnit })
       );
+      track('data_imported', { format: 'wearable', days: n });
       return;
     }
     if (/\.xml$/i.test(file.name)) {
       const xmlEntries = parseHealthXML(text);
       if (!xmlEntries) {
         setImportMsg(tx(lang, 'That file is not a valid Apple Health export.'));
+        track('import_failed', { format: 'health_xml' });
         return;
       }
       const n = Object.keys(xmlEntries).length;
       p.replaceAll(p.settings, mergeImportedEntries(p.entries, xmlEntries));
       setImportMsg(tx(lang, 'Health data imported ✓ ({n} day{s})', { n, s: n === 1 ? '' : 's' }));
+      track('data_imported', { format: 'health_xml', days: n });
       return;
     }
     const parsed = parseBackup(text);
     if (!parsed) {
       setImportMsg(tx(lang, 'That file is not a valid Period Tracker backup.'));
+      track('import_failed', { format: 'backup' });
       return;
     }
     p.replaceAll(parsed.settings, parsed.entries);
     setImportMsg(tx(lang, 'Backup restored ✓'));
+    track('data_imported', { format: 'backup', days: Object.keys(parsed.entries).length, replaced: true });
   };
 
   const savePin = async () => {

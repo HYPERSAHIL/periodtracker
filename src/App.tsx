@@ -253,8 +253,14 @@ function MainApp() {
     if (showReport) track('report_opened');
   }, [showReport]);
 
+  // screen views (nav tabs) — volume metric, no content
+  useEffect(() => {
+    if (settings.onboarded) track('screen_view', { tab });
+  }, [tab, settings.onboarded]);
+
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));
+    track('entry_saved', { hasFlow: !!e.flow, symptomCount: e.symptoms?.length ?? 0, hasNote: !!e.note });
   }, []);
 
   const remove = useCallback((date: string) => {
@@ -263,10 +269,13 @@ function MainApp() {
       delete next[date];
       return next;
     });
+    track('entry_deleted', { date });
   }, []);
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => ({ ...prev, ...patch, updatedAt: Date.now() }));
+    // which knobs moved, not their values (e.g. no pin hash, no cycle length)
+    track('settings_changed', { keys: Object.keys(patch).slice(0, 12) });
   }, []);
 
   const replaceAll = useCallback((s: Settings, e: Record<string, DayEntry>) => {
@@ -275,14 +284,22 @@ function MainApp() {
   }, []);
 
   const eraseAll = useCallback(() => {
+    const erased = Object.keys(entries).length;
     setEntries({});
     setSettings((s) => ({ ...s, lastPeriodStart: null, predictionsPaused: false, updatedAt: Date.now() }));
-  }, []);
+    track('data_erased', { days: erased });
+  }, [entries]);
 
-  const openDay = useCallback((date: string) => setSheetDate(date), []);
+  const openDay = useCallback((date: string) => {
+    setSheetDate(date);
+    track('day_opened', { date });
+  }, []);
   const openReport = useCallback(() => setShowReport(true), []);
 
-  const openAccount = useCallback(() => setAccountSheet(true), []);
+  const openAccount = useCallback(() => {
+    setAccountSheet(true);
+    track('account_opened');
+  }, []);
 
   // PWA share_target / file_handlers intake (stashed by main.tsx before render)
   useEffect(() => {
@@ -303,6 +320,7 @@ function MainApp() {
         return { ...prev, [t]: { ...cur, note: cur.note ? `${cur.note}\n${text}` : text, updatedAt: Date.now() } };
       });
       setSheetDate(t);
+      track('share_target_received', { chars: text.length });
     };
     consumeShare();
     window.addEventListener('pt:shared', consumeShare);
@@ -324,15 +342,27 @@ function MainApp() {
         const { name, text } = JSON.parse(raw) as { name: string; text: string };
         if (/\.xml$/i.test(name ?? '')) {
           const xmlEntries = parseHealthXML(text);
-          if (!xmlEntries) return;
+          if (!xmlEntries) {
+            track('import_failed', { format: 'health_xml', via: 'pwa' });
+            return;
+          }
+          track('data_imported', { format: 'health_xml', days: Object.keys(xmlEntries).length, via: 'pwa' });
           setEntries((prev) => mergeImportedEntries(prev, xmlEntries));
         } else if (/\.csv$/i.test(name ?? '')) {
           const csvEntries = parseCSVEntries(text);
-          if (!csvEntries) return;
+          if (!csvEntries) {
+            track('import_failed', { format: 'csv', via: 'pwa' });
+            return;
+          }
+          track('data_imported', { format: 'csv', days: Object.keys(csvEntries).length, via: 'pwa' });
           setEntries((prev) => mergeImportedEntries(prev, csvEntries));
         } else {
           const parsed = parseBackup(text);
-          if (!parsed) return;
+          if (!parsed) {
+            track('import_failed', { format: 'backup', via: 'pwa' });
+            return;
+          }
+          track('data_imported', { format: 'backup', days: Object.keys(parsed.entries).length, via: 'pwa', replaced: true });
           replaceAll(parsed.settings, parsed.entries);
         }
         setTab('insights');

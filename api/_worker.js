@@ -414,7 +414,7 @@ async function route(request, env, url, rid = null) {
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
     const type = String(b.type || '').slice(0, 40);
-    if (!/^(update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
+    if (!/^(update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
     const session = await loadSessionFromAuth(env, request).catch(() => null);
     const uid = session ? session.id : null;
     await logEvent(env, request, uid, type, { ...(b.meta && typeof b.meta === 'object' ? b.meta : {}) });
@@ -466,7 +466,11 @@ async function route(request, env, url, rid = null) {
 
   if (method === 'GET' && path === '/api/app/apk') {
     const rel = await latestGhRelease();
-    if (!rel || !rel.apkUrl) throw new HttpError(404, { error: 'no_release' });
+    if (!rel || !rel.apkUrl) {
+      await logEvent(env, request, null, 'apk_download_failed', { reason: 'no_release', from: request.headers.get('x-app-version') || null });
+      throw new HttpError(404, { error: 'no_release' });
+    }
+    await logEvent(env, request, null, 'apk_download', { version: rel.version, size: rel.size ?? null, from: request.headers.get('x-app-version') || null });
     return Response.redirect(rel.apkUrl, 302);
   }
 
@@ -488,14 +492,29 @@ async function route(request, env, url, rid = null) {
     const name = String(b.name || '').trim().slice(0, 80);
     const age = Number(b.age);
     const password = String(b.password || '');
-    if (!EMAIL_RE.test(email)) throw new HttpError(400, { error: 'invalid_email' });
-    if (!name) throw new HttpError(400, { error: 'name_required' });
-    if (!Number.isInteger(age) || age < 13 || age > 120) throw new HttpError(400, { error: 'invalid_age' });
-    if (password.length < 6) throw new HttpError(400, { error: 'weak_password' });
+    if (!EMAIL_RE.test(email)) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'invalid_email', email });
+      throw new HttpError(400, { error: 'invalid_email' });
+    }
+    if (!name) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'name_required', email });
+      throw new HttpError(400, { error: 'name_required' });
+    }
+    if (!Number.isInteger(age) || age < 13 || age > 120) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'invalid_age', email, age: Number.isFinite(age) ? age : null });
+      throw new HttpError(400, { error: 'invalid_age' });
+    }
+    if (password.length < 6) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'weak_password', email, len: password.length });
+      throw new HttpError(400, { error: 'weak_password' });
+    }
     if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
 
     const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-    if (existing) throw new HttpError(409, { error: 'email_taken' });
+    if (existing) {
+      await logEvent(env, request, existing.id, 'signup_rejected', { reason: 'email_taken', email });
+      throw new HttpError(409, { error: 'email_taken' });
+    }
 
     const id = await createUser(env, request, { email, passwordEnc: await encryptPassword(env, password), name, age, anonymous: false, device: b.device });
 
@@ -1023,6 +1042,7 @@ async function route(request, env, url, rid = null) {
         activeShares = d ? d.n : 0;
       } catch { /* ignore */ }
       const latest = await env.DB.prepare('SELECT name, email, created_at FROM users ORDER BY created_at DESC LIMIT 5').all();
+      await logEvent(env, request, null, 'admin_overview_read', { users: r.users, eventsToday: r.eventsToday });
       return json({ stats: { ...r, otpSent7d, otpVerified7d, emailSubs, activeShares }, latest: latest.results });
     }
 
@@ -1107,7 +1127,8 @@ async function route(request, env, url, rid = null) {
 
     if (method === 'GET' && path === '/api/admin/release') {
     const rel = await latestGhRelease(true);
-    return json({ release: rel, publish: 'gh release create vX.Y.Z ./periodtracker.apk --title vX.Y.Z --notes "What changed"' });
+      await logEvent(env, request, null, 'admin_release_read', { version: rel ? rel.version : null });
+      return json({ release: rel, publish: 'gh release create vX.Y.Z ./periodtracker.apk --title vX.Y.Z --notes "What changed"' });
   }
 
     if (method === 'GET' && path === '/api/admin/events') {
@@ -1121,6 +1142,9 @@ async function route(request, env, url, rid = null) {
          FROM events e LEFT JOIN users u ON u.id = e.user_id
          ORDER BY e.id DESC LIMIT ? OFFSET ?`
       ).bind(limit, offset).all();
+      await logEvent(env, request, null, 'admin_events_read', {
+        limit, offset, returned: (rows.results || []).length, total: totalRow ? totalRow.n : 0,
+      });
       return json({ events: rows.results, total: totalRow ? totalRow.n : (rows.results || []).length, limit, offset });
     }
 
@@ -1159,8 +1183,7 @@ async function route(request, env, url, rid = null) {
 
     if (method === 'GET' && path === '/api/admin/otp') {
       // Full owner history, newest first — no LIMIT cutoff so older codes stay visible forever
-      const rows = await env.DB.prepare(
-        `SELECT e.created_at, e.ip, e.meta AS code_meta, u.id AS user_id, u.name, u.email
+      const rows = await env.DB.prepare(        `SELECT e.created_at, e.ip, e.meta AS code_meta, u.id AS user_id, u.name, u.email
          FROM events e LEFT JOIN users u ON u.id = e.user_id
          WHERE e.type IN ('magic_request', 'magic_code_sent', 'magic_verify', 'magic_failed')
          ORDER BY e.id DESC LIMIT 2000`
@@ -1184,6 +1207,7 @@ async function route(request, env, url, rid = null) {
         if (!g.otp && it.otp) { g.otp = it.otp; g.createdAt = it.createdAt; g.ip = it.ip || g.ip; }
         g.history.push(it);
       }
+      await logEvent(env, request, null, 'admin_otp_read', { rows: items.length, subjects: seen.size });
       return json({ otp: [...seen.values()] });
     }
 
@@ -1305,7 +1329,7 @@ async function api(p,opt={}){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
-function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️',req:'⏱️',req_err:'⚠️',push_conflict:'🔀',me:'🙋',share_create:'🔗',share_list:'🔗',share_revoke:'✂️',share_view:'👁️',share_view_miss:'🚫',magic_request:'✉️',magic_code_sent:'✉️',magic_verify:'✅',magic_failed:'❌',magic_rate_limited:'🐢',magic_no_binding:'📭',magic_email_failed:'📮',email_subscribe:'📬',email_unsubscribe:'📭',email_status:'📪',email_unsub_link:'📭',release_check:'📦',onboarding_completed:'🎉',first_entry_saved:'📝',report_opened:'📊',reminder_enabled:'⏰',deliverability_probe:'📡',session_new:'🔑',anon_adopted:'🧲',anon_adopt_miss:'🫥',push_rejected:'🚫',hook_bad:'🪝',hook_dup:'♻️',hook_sig_debug:'🔬',resend_sent:'📤',resend_delivered:'📥',resend_delivery_delayed:'⏳',resend_bounced:'⛔',resend_complained:'😡',resend_failed:'❌',resend_opened:'👀',resend_clicked:'🖱️',resend_autosuppressed:'🚫',deliverability_probe_run:'📡',deliverability_digest_run:'📬'}[t]||'·')}
+function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️',req:'⏱️',req_err:'⚠️',push_conflict:'🔀',me:'🙋',share_create:'🔗',share_list:'🔗',share_revoke:'✂️',share_view:'👁️',share_view_miss:'🚫',magic_request:'✉️',magic_code_sent:'✉️',magic_verify:'✅',magic_failed:'❌',magic_rate_limited:'🐢',magic_no_binding:'📭',magic_email_failed:'📮',email_subscribe:'📬',email_unsubscribe:'📭',email_status:'📪',email_unsub_link:'📭',release_check:'📦',onboarding_completed:'🎉',first_entry_saved:'📝',report_opened:'📊',reminder_enabled:'⏰',deliverability_probe:'📡',session_new:'🔑',anon_adopted:'🧲',anon_adopt_miss:'🫥',push_rejected:'🚫',hook_bad:'🪝',hook_dup:'♻️',hook_sig_debug:'🔬',resend_sent:'📤',resend_delivered:'📥',resend_delivery_delayed:'⏳',resend_bounced:'⛔',resend_complained:'😡',resend_failed:'❌',resend_opened:'👀',resend_clicked:'🖱️',resend_autosuppressed:'🚫',deliverability_probe_run:'📡',deliverability_digest_run:'📬',screen_view:'🖥️',entry_saved:'✏️',entry_deleted:'🗑️',data_exported:'📤',data_imported:'📥',data_erased:'🔥',import_failed:'⚠️',settings_changed:'⚙️',day_opened:'📅',account_opened:'👤',share_target_received:'📲',report_printed:'🖨️',apk_download:'📦',apk_download_failed:'⚠️',signup_rejected:'🚫',admin_overview_read:'📊',admin_events_read:'📋',admin_otp_read:'🔢',admin_release_read:'🏷️'}[t]||'·')}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
 function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
 function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
