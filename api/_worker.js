@@ -828,17 +828,16 @@ async function route(request, env, url, rid = null) {
       // whether we're even in the right neighborhood — no secret material logged
       let preview = null;
       try {
-        const k = await crypto.subtle.importKey('raw', te.encode(secretRaw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const k = await crypto.subtle.importKey('raw', secretBytes || te.encode(secretRaw), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
         const mac = await crypto.subtle.sign('HMAC', k, te.encode(`${svixId}.${ts}.${raw}`));
-        preview = btoa(String.fromCharCode(...new Uint8Array(mac))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '').slice(0, 12);
+        preview = btoa(String.fromCharCode(...new Uint8Array(mac))).slice(0, 12);
       } catch { /* preview is best-effort */ }
       await logEvent(env, request, null, 'hook_sig_debug', {
         svixId: svixId || null,
         ts: ts || null,
-        sigHead: sig.slice(0, 24),
-        sigTail: sig.slice(-8),
+        sig: sig.slice(0, 60),
         rawLen: raw.length,
-        rawHead: raw.slice(0, 80),
+        rawTail: raw.slice(-60),
         preview,
       });
     }
