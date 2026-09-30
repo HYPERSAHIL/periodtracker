@@ -191,7 +191,7 @@ export function initResourceAudit(): void {
         } catch { /* unparsable URL */ }
       }
     });
-    po.observe({ type: 'resource', buffered: false } as PerformanceObserverInit);
+    po.observe({ type: 'resource', buffered: true }); // buffered: catch early loads (CF beacon, parser scripts)
   } catch { /* observer unsupported */ }
 }
 
