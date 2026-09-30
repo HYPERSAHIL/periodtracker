@@ -466,14 +466,15 @@ async function route(request, env, url, rid = null) {
     } catch { /* malformed report — drop, never 500 the browser */ }
     for (const r of reports.slice(0, 5)) {
       if (!r || typeof r !== 'object') continue;
-      // Chrome nests fields under body; direct posts (curl/tests) are flat
+      // Chrome's report-to body is camelCase (dictionary serialization);
+      // legacy report-uri and direct posts (curl/tests) are snake/flat
       const b = r.body && typeof r.body === 'object' ? r.body : r;
       await logEvent(env, request, null, 'sec_csp_report', {
         disposition: b.disposition || null,
-        directive: b.effective_directive || b.violated_directive || null,
-        blocked: String(b.blocked_url || b.blockedURI || '').slice(0, 200) || null,
-        source: String(b.source_file || b.sourceFile || '').slice(0, 200) || null,
-        line: b.line_number ?? b.lineNumber ?? null,
+        directive: b.effectiveDirective || b.effective_directive || b.violatedDirective || b.violated_directive || null,
+        blocked: String(b.blockedURL || b.blocked_url || b.blockedURI || '').slice(0, 200) || null,
+        source: String(b.sourceFile || b.source_file || '').slice(0, 200) || null,
+        line: b.lineNumber ?? b.line_number ?? null,
         sample: String(b.sample || '').slice(0, 120) || null,
         page: String(r.url || '').slice(0, 200) || null,
         kind: String(r.type || '').slice(0, 40) || null,
