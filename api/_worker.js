@@ -466,14 +466,17 @@ async function route(request, env, url, rid = null) {
     } catch { /* malformed report — drop, never 500 the browser */ }
     for (const r of reports.slice(0, 5)) {
       if (!r || typeof r !== 'object') continue;
+      // Chrome nests fields under body; direct posts (curl/tests) are flat
+      const b = r.body && typeof r.body === 'object' ? r.body : r;
       await logEvent(env, request, null, 'sec_csp_report', {
-        disposition: r.disposition || null,
-        directive: r.effective_directive || r.violated_directive || null,
-        blocked: String(r.blocked_url || r.blockedURI || '').slice(0, 200) || null,
-        source: String(r.source_file || r.sourceFile || '').slice(0, 200) || null,
-        line: r.line_number ?? r.lineNumber ?? null,
-        sample: String(r.sample || '').slice(0, 120) || null,
+        disposition: b.disposition || null,
+        directive: b.effective_directive || b.violated_directive || null,
+        blocked: String(b.blocked_url || b.blockedURI || '').slice(0, 200) || null,
+        source: String(b.source_file || b.sourceFile || '').slice(0, 200) || null,
+        line: b.line_number ?? b.lineNumber ?? null,
+        sample: String(b.sample || '').slice(0, 120) || null,
         page: String(r.url || '').slice(0, 200) || null,
+        kind: String(r.type || '').slice(0, 40) || null,
       });
     }
     return new Response(null, { status: 204 });
