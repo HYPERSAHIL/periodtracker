@@ -320,6 +320,10 @@ console.log('selfcheck: all 13 groups passed');
   assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(admin), 'no emoji glyphs in admin page');
   assert.ok(worker.includes('GROUP BY e.type, e.user_id'), 'events endpoint groups server-side');
   assert.ok(worker.includes('admin_user_read'), 'opening a user file is audited');
+  assert.ok(admin.includes('userActivity') && admin.includes('evUser'), 'per-user activity filter wired');
+  assert.ok(admin.includes('q=deliverability_'), 'cron run/failure receipts surface on the Delivery tab');
+  assert.ok(admin.includes('.meta.full'), 'long meta expands instead of staying truncated');
+  assert.ok(worker.includes('update_|deliverability_'), 'allowlist covers update_ and deliverability_ emitters');
   const cron = readFileSync(new URL('../workers/email-cron/email-cron.js', import.meta.url), 'utf8');
   assert.ok(
     cron.includes('deliverability_digest_failed') && cron.includes('deliverability_probe_failed'),

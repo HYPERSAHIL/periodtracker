@@ -1412,6 +1412,8 @@ button.otp:hover{background:var(--acc-tint)}
 .rline:last-child{border-bottom:none}
 .rline .tm{color:var(--ink3);min-width:54px}
 .rline .ep,.rline .ip{font-family:var(--mono);font-size:11.5px;color:var(--ink3)}
+.meta{display:inline-block;max-width:52ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;cursor:pointer;text-decoration:underline dotted var(--line)}
+.meta.full{white-space:normal;word-break:break-all;max-width:100%}
 /* panes (asymmetric grid) */
 .sect{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:12px}
 .sect .pane{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 18px}
@@ -1453,7 +1455,7 @@ main.login .detail{padding:24px}
 const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||'light'};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||'light'};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
@@ -1466,11 +1468,13 @@ function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.fl
 function tierDot(t){return '<span class="tdot '+tierOf(t)+'" title="'+tierOf(t)+' tier"></span>'}
 function userLabel(g){return g.user_name||g.user_email||(g.user_id?('user '+g.user_id.slice(0,6)):'no user')}
 function detailHtml(e){
+  const raw=String(e.meta||'');
+  const span='<span class="meta" title="'+esc(raw)+'" onclick="event.stopPropagation();this.classList.toggle(\\'full\\')">'+esc(raw.slice(0,240))+(raw.length>240?'…':'')+'</span>';
   try{
-    const m=JSON.parse(e.meta||'{}');
+    const m=JSON.parse(raw);
     if(m&&m.otp)return 'OTP <button class="otp" title="Tap to copy" data-code="'+esc(m.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(m.otp)+'</button> '+(m.email?esc(m.email):'');
-    return esc(e.meta||'').slice(0,240);
-  }catch(x){return esc(e.meta||'').slice(0,240)}
+    return span;
+  }catch(x){return span}
 }
 function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
 function otpCopy(code,btn){
@@ -1625,7 +1629,12 @@ function render0(){
       '<div class="detail" style="margin-bottom:14px"><div class="kv"><div><b>Latest</b> '+(last?esc(last.score||last.status)+' · '+esc(last.target)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div>'+
       '<div><b>Trend</b> '+(S.probes||[]).slice(0,8).map(p=>esc(p.score||p.status)).join(' → ')+'</div></div>'+
       '<p class="sub2" style="margin:8px 0 0">Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.</p></div>'+
-      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" class="empty-cell">No probes yet</td></tr>')+'</tbody></table></div></div>');
+      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" class="empty-cell">No probes yet</td></tr>')+'</tbody></table></div></div>'+
+      '<h2 style="margin-top:18px">Cron runs &amp; failures</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Event</th><th>Detail</th></tr></thead><tbody>'+
+      ((S.deliv||[]).length
+        ? S.deliv.map(e=>'<tr><td data-l="When" class="mono">'+ago(e.created_at)+'</td><td data-l="Event">'+tierDot(e.type)+' <span class="ftype">'+esc(e.type)+'</span></td><td data-l="Detail">'+detailHtml(e)+'</td></tr>').join('')
+        : '<tr><td colspan="3" class="empty-cell">No cron runs recorded yet — weekly digest Mon 07:00 UTC, monthly 1st 07:00, probe Sun 06:30.</td></tr>')+
+      '</tbody></table></div></div>');
     return;
   }
   // ---- OTP ----
@@ -1666,6 +1675,7 @@ function render0(){
         '<span class="pg">'+S.evPage+' / '+pages+'</span>'+
         '<button class="ghost sm" onclick="evNext()"'+(S.evPage>=pages?' disabled':'')+'>Older</button>'+
       '</span>'+
+      (S.evUser?'<span class="pg" title="Filtered to one user"><button class="ghost sm" onclick="clearEvUser()" aria-label="Clear user filter">'+esc(S.evUserLabel)+' ×</button></span>':'')+
     '</div>';
     let body;
     if(S.evView==='feed'){
@@ -1699,6 +1709,7 @@ async function load(){
   api('/release').then(r2=>{S.release=r2.release||null}).catch(()=>{});
   api('/probes').then(r2=>{S.probes=r2.probes||[]}).catch(()=>{S.probes=[]});
   api('/otp').then(r2=>{S.otp=r2.otp||[]}).catch(()=>{S.otp=[]});
+  api('/events?view=raw&q=deliverability_&limit=20&tier=all&order=desc').then(r2=>{S.deliv=(r2&&r2.events)||[]}).catch(()=>{S.deliv=[]});
 }
 // ---- activity controls (all filtering/paging is server-side) ----
 let evTimer=0;
@@ -1706,6 +1717,8 @@ function setEvView(v){if(S.evView===v)return;S.evView=v;S.evPage=1;S.exp={};rend
 function setEType(v){S.eType=v;S.evPage=1;S.exp={};render();loadEvents()}
 function setEvTier(v){S.evTier=v;S.evPage=1;S.exp={};render();loadEvents()}
 function setEvOrder(){S.evOrder=S.evOrder==='desc'?'asc':'desc';S.evPage=1;render();loadEvents()}
+function userActivity(id){const u=(S.users||[]).find(x=>x.id===id);S.evUser=String(id);S.evUserLabel=(u&&(u.name||u.email))||('user '+String(id).slice(0,6));S.view='list';S.sel=null;S.tab='activity';S.evPage=1;S.exp={};render();loadEvents()}
+function clearEvUser(){S.evUser='';S.evUserLabel='';S.evPage=1;S.exp={};render();loadEvents()}
 function evSearch(v){S.evQ=v;clearTimeout(evTimer);evTimer=setTimeout(()=>{S.evPage=1;S.exp={};loadEvents()},300)}
 function evPrev(){if(S.evPage>1){S.evPage--;loadEvents()}}
 function evNext(){if(S.evPage*100<S.evTotal){S.evPage++;loadEvents()}}
@@ -1721,6 +1734,7 @@ async function toggleExp(key){
 async function loadEvents(){
   let p='/events?view='+(S.evView==='raw'?'raw':'grouped')+'&limit=100&offset='+((S.evPage-1)*100)+
     '&tier='+S.evTier+'&order='+S.evOrder;
+  if(S.evUser)p+='&user='+encodeURIComponent(S.evUser);
   if(S.eType!=='all')p+='&type='+encodeURIComponent(S.eType);
   if(S.evQ)p+='&q='+encodeURIComponent(S.evQ);
   try{
@@ -1780,7 +1794,7 @@ function renderDetail(app){
     '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div></div></div>'+
     '</div>'+
     '<div>'+(Object.keys(flowCounts).length?'<div class="toolbar" style="gap:6px">'+Object.entries(flowCounts).map(([f,c])=>'<span class="pill '+(f==='heavy'?'n':'a')+'">'+esc(f)+' ×'+c+'</span>').join('')+'</div>':'')+'</div>'+
-    '<div style="margin:14px 0"><button class="danger" onclick="delUser()">Delete user &amp; data</button></div>'+
+    '<div style="margin:14px 0"><button class="danger" onclick="delUser()">Delete user &amp; data</button> <button class="ghost sm" onclick="userActivity(\\''+u.id+'\\')">View activity</button></div>'+
     '<h2>Recent log entries ('+entries.length+')</h2>'+
     '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
     entries.slice(0,60).map(e=>'<tr><td data-l="Date" class="mono">'+e.date+'</td><td data-l="Flow">'+(e.flow||'—')+'</td><td data-l="Symptoms">'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td data-l="Moods">'+esc((e.moods||[]).join(', ')||'—')+'</td><td data-l="Note">'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table></div></div>'+
