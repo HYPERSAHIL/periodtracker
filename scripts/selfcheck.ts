@@ -332,3 +332,25 @@ console.log('selfcheck: all 13 groups passed');
 }
 
 console.log('selfcheck: all 14 groups passed');
+
+// 15. CVE-based telemetry: patch floor, CSP reporting, injected-code canaries
+{
+  const audit = readFileSync(new URL('../src/lib/audit.ts', import.meta.url), 'utf8');
+  const worker = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  assert.ok(/BROWSER_FLOOR\s*=\s*\d{3}/.test(audit), 'chrome/webview patch floor pinned');
+  assert.ok(audit.includes("sec('browser_outdated'"), 'exposure event fires below floor');
+  assert.ok(app.includes('securitypolicyviolation'), 'client CSP violations logged');
+  assert.ok(audit.includes('initDynamicCodeCanaries'), 'eval/Function/timer canaries present');
+  assert.ok(audit.includes('ancestorOrigins'), 'framing logs ancestor origins');
+  assert.ok(audit.includes('PerformanceObserver'), 'subresource origins audited');
+  assert.ok(worker.includes('/api/csp-report'), 'worker accepts CSP reports');
+  assert.ok(worker.includes("frame-ancestors 'none'"), 'CSP header on app HTML');
+  assert.ok(worker.includes('reporting-endpoints'), 'reporting endpoint exposed');
+  assert.ok(
+    app.includes('initDynamicCodeCanaries()') && app.includes('reportBrowserVersion()'),
+    'Tier 1 audits wired at boot'
+  );
+}
+
+console.log('selfcheck: all 15 groups passed');

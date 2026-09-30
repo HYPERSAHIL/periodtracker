@@ -13,6 +13,7 @@ export default tseslint.config(
       globals: {
         Response: 'readonly',
         Request: 'readonly',
+        Headers: 'readonly',
         URL: 'readonly',
         URLSearchParams: 'readonly',
         fetch: 'readonly',

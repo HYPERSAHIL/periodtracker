@@ -21,8 +21,37 @@ const NOISE_EVENT_TYPES = [
   'screen_drag', 'screen_fullscreen', 'screen_nav', 'screen_undo',
 ];
 
-const J = { 'content-type': 'application/json; charset=utf-8' };
+const J = {
+  'content-type': 'application/json; charset=utf-8',
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+};
 const te = new TextEncoder();
+
+// App HTML only — never /admin (it runs inline handler JS). report-to feeds
+// /api/csp-report, which writes sec_csp_report rows.
+const SEC_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'x-frame-options': 'SAMEORIGIN',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+};
+const SEC_CSP = [
+  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:", "font-src 'self' data:", "connect-src 'self'",
+  "worker-src 'self'", "manifest-src 'self'", "object-src 'none'",
+  "base-uri 'self'", "frame-ancestors 'none'", "form-action 'self'", 'report-to csp',
+].join('; ');
+
+function withSecHeaders(res, csp = false) {
+  const h = new Headers(res.headers);
+  for (const [k, v] of Object.entries(SEC_HEADERS)) h.set(k, v);
+  if (csp) {
+    h.set('content-security-policy', SEC_CSP);
+    h.set('reporting-endpoints', 'csp="/api/csp-report"');
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
 
 let env_github_token = null;
 let env_d1 = null;
@@ -36,8 +65,12 @@ export default {
     env_github_token = env.GH_TOKEN || null;
     env_d1 = env.DB || null;
     const url = new URL(request.url);
-    if (url.pathname === '/admin' || url.pathname === '/admin/') return adminPage();
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+    if (url.pathname === '/admin' || url.pathname === '/admin/') return withSecHeaders(adminPage());
+    if (!url.pathname.startsWith('/api/')) {
+      const res = await env.ASSETS.fetch(request);
+      const ct = res.headers.get('content-type') || '';
+      return withSecHeaders(res, ct.includes('text/html'));
+    }
     // request-id + timing for every logEvent issued while handling this request
     const rid = randomHex(4);
     const t0 = Date.now();
@@ -420,6 +453,29 @@ async function route(request, env, url, rid = null) {
 
   if (method === 'GET' && path === '/api/health') return json({ ok: true, service: 'period-tracker-sync' });
   await ensureEvents(); // before any logEvent: logging swallows its own errors
+
+  // --- CSP violation reports (browser Reporting-Endpoints → sec_csp_report)
+  if (method === 'POST' && path === '/api/csp-report') {
+    const text = (await request.text().catch(() => '')).slice(0, 100_000);
+    let reports = [];
+    try {
+      const p = JSON.parse(text);
+      reports = Array.isArray(p) ? p : [p];
+    } catch { /* malformed report — drop, never 500 the browser */ }
+    for (const r of reports.slice(0, 5)) {
+      if (!r || typeof r !== 'object') continue;
+      await logEvent(env, request, null, 'sec_csp_report', {
+        disposition: r.disposition || null,
+        directive: r.effective_directive || r.violated_directive || null,
+        blocked: String(r.blocked_url || r.blockedURI || '').slice(0, 200) || null,
+        source: String(r.source_file || r.sourceFile || '').slice(0, 200) || null,
+        line: r.line_number ?? r.lineNumber ?? null,
+        sample: String(r.sample || '').slice(0, 120) || null,
+        page: String(r.url || '').slice(0, 200) || null,
+      });
+    }
+    return new Response(null, { status: 204 });
+  }
 
   // --- app release + update events (no auth; the updater runs pre-login) ---
   if (method === 'POST' && path === '/api/event') {

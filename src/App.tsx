@@ -42,7 +42,10 @@ import { loadSession } from './lib/cloud';
 import { fetchShared, type EmailSub, type SharedSummary, type ShareRow } from './lib/cloud';
 import { updater } from './lib/updater';
 import { track } from './lib/beacon';
-import { initFetchAudit, noteInjection, runBootSecurityChecks, scanUrl, sec } from './lib/audit';
+import {
+  initDynamicCodeCanaries, initFetchAudit, initResourceAudit,
+  noteInjection, reportBrowserVersion, runBootSecurityChecks, scanUrl, sec,
+} from './lib/audit';
 import { isNative } from './lib/native';
 import { tx } from './lib/i18n';
 import { useCloudSync } from './hooks/useCloudSync';
@@ -410,19 +413,27 @@ function MainApp() {
       });
     const onRejection = (e: PromiseRejectionEvent) =>
       track('screen_error', { message: String(e.reason).slice(0, 500), kind: 'rejection', stack: ((e.reason as Error | undefined)?.stack || '').slice(0, 500), tab });
+    let cspN = 0;
     const onCsp = (e: Event) => {
+      if (cspN++ >= 10) return;
       const ev = e as unknown as {
         documentURI?: string;
         blockedURI?: string;
         effectiveDirective?: string;
         violatedDirective?: string;
+        sourceFile?: string;
+        lineNumber?: number;
         sample?: string;
+        disposition?: string;
       };
       sec('csp_violation', {
         doc: (ev.documentURI || '').slice(0, 200),
         blocked: (ev.blockedURI || '').slice(0, 200),
         directive: (ev.effectiveDirective || ev.violatedDirective || '').slice(0, 100),
+        source: (ev.sourceFile || '').slice(0, 200) || null,
+        line: ev.lineNumber ?? null,
         sample: (ev.sample || '').slice(0, 200),
+        disposition: ev.disposition || null,
       });
     };
     let lastMsg = 0;
@@ -532,6 +543,9 @@ function MainApp() {
   // session context, load performance, PWA install prompts, security posture — once per load
   useEffect(() => {
     initFetchAudit();
+    initDynamicCodeCanaries();
+    initResourceAudit();
+    reportBrowserVersion();
     runBootSecurityChecks();
     scanUrl();
     let standalone = false;

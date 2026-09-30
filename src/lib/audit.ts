@@ -98,6 +98,103 @@ export function initFetchAudit(): void {
   };
 }
 
+// --- CVE exposure inventory (Chrome/WebView patch floor) ----------------
+// Floor = latest Chromium stable carrying every known exploited fix:
+// CVE-2026-87491/87481/87534/87483 (153.0.8010.36), CVE-2026-91728/91736
+// (153.0.8010.47), CVE-2026-95339 SW UAF (154.0.8037.57). Bump after each
+// verified Chrome stable release.
+export const BROWSER_FLOOR = 154;
+
+/** Log engine/version/platform once per session; flag majors below the floor. */
+export function reportBrowserVersion(): void {
+  try {
+    if (sessionStorage.getItem('pt.sec.bver')) return;
+    sessionStorage.setItem('pt.sec.bver', '1');
+  } catch { /* private mode: relog dedupes in the grouped feed */ }
+  const ua = navigator.userAgent;
+  const m = ua.match(/(Chrome|Chromium|CriOS|EdgiOS|Edg|OPR)\/(\d+)/);
+  const webview = /;\s*wv\)/.test(ua) || (/Android/i.test(ua) && !/Chrome\//.test(ua));
+  const platform = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/.test(ua) ? 'ios'
+    : /Windows/.test(ua) ? 'windows' : /Macintosh|Mac OS X/.test(ua) ? 'macos'
+    : /Linux/.test(ua) ? 'linux' : 'other';
+  const engine = !m
+    ? (/Firefox|FxiOS/.test(ua) ? 'gecko' : /Safari\//.test(ua) ? 'webkit' : 'unknown')
+    : m[1] === 'CriOS' || m[1] === 'EdgiOS' ? 'webkit' : 'chromium';
+  const major = m ? Number(m[2]) : null;
+  sec('browser_ver', { engine, major, webview, platform });
+  // iOS Chrome/Edge are WebKit under the hood — the Chromium floor doesn't apply
+  const webkitChrome = !!m && (m[1] === 'CriOS' || m[1] === 'EdgiOS');
+  if (major != null && !webkitChrome && major < BROWSER_FLOOR) {
+    sec('browser_outdated', { engine, major, floor: BROWSER_FLOOR, webview, platform });
+  }
+}
+
+// --- injected-code canaries (GRIMWEDGE-class eval C2) -------------------
+// Our bundle never evals, builds Functions, or passes strings to timers
+// (verified against dist/) — any hit is foreign code. Canary, not a wall:
+// a determined attacker unhooks, but the first call is already logged.
+let dynHits = 0;
+let canariesInited = false;
+export function initDynamicCodeCanaries(): void {
+  if (canariesInited || typeof window === 'undefined') return;
+  canariesInited = true;
+  const note = (api: string, src?: string) => {
+    if (dynHits++ >= 10) return;
+    sec('dynamic_eval', { api, src: src ? src.slice(0, 150) : null });
+  };
+  try {
+    const origEval = window.eval;
+    window.eval = function (this: unknown, src: string) {
+      note('eval', src);
+      return origEval.call(this, src);
+    } as typeof window.eval;
+  } catch { /* frozen global */ }
+  try {
+    const OrigFn = window.Function;
+    window.Function = new Proxy(OrigFn, {
+      construct(t, a) { note('Function'); return Reflect.construct(t, a); },
+      apply(t, th, a) { note('Function'); return Reflect.apply(t, th, a); },
+    }) as typeof window.Function;
+  } catch { /* non-writable in some engines */ }
+  try {
+    const origST = window.setTimeout.bind(window);
+    window.setTimeout = ((fn: TimerHandler, delay?: number, ...rest: unknown[]) => {
+      if (typeof fn === 'string') note('setTimeout', fn);
+      return origST(fn as () => void, delay, ...rest);
+    }) as typeof window.setTimeout;
+  } catch { /* noop */ }
+}
+
+// --- subresource origin observer ----------------------------------------
+let resourceInited = false;
+/** PerformanceObserver over resource entries: log anything loading off-origin. */
+export function initResourceAudit(): void {
+  if (resourceInited || typeof window === 'undefined' || typeof PerformanceObserver === 'undefined') return;
+  resourceInited = true;
+  let allowed: string;
+  try {
+    allowed = new URL(apiUrl('/api/event'), location.href).origin;
+  } catch {
+    allowed = location.origin;
+  }
+  let last = 0;
+  try {
+    const po = new PerformanceObserver((list) => {
+      for (const e of list.getEntries() as PerformanceResourceTiming[]) {
+        try {
+          const u = new URL(e.name, location.href);
+          if (u.protocol === 'data:' || u.origin === location.origin || u.origin === allowed) continue;
+          const now = Date.now();
+          if (now - last < 1000) continue; // 1/sec — CDN bursts don't flood the feed
+          last = now;
+          sec('resource_origin', { origin: u.origin.slice(0, 120), kind: e.initiatorType, path: u.pathname.slice(0, 120) });
+        } catch { /* unparsable URL */ }
+      }
+    });
+    po.observe({ type: 'resource', buffered: false } as PerformanceObserverInit);
+  } catch { /* observer unsupported */ }
+}
+
 // --- boot posture checks ------------------------------------------------
 export function runBootSecurityChecks(): void {
   // mixed content / non-HTTPS delivery
@@ -106,7 +203,13 @@ export function runBootSecurityChecks(): void {
   }
   // framed → clickjacking surface
   try {
-    if (window.self !== window.top) sec('framed', { referrer: document.referrer.slice(0, 200) });
+    if (window.self !== window.top) {
+      const anc = (location as Location & { ancestorOrigins?: DOMStringList }).ancestorOrigins;
+      sec('framed', {
+        referrer: document.referrer.slice(0, 200),
+        ancestors: anc ? Array.from(anc).slice(0, 5).join(' ') : null,
+      });
+    }
   } catch {
     sec('framed', { referrer: document.referrer.slice(0, 200), crossOrigin: true });
   }
