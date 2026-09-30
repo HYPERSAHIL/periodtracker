@@ -345,12 +345,17 @@ function MainApp() {
       const el = e.target as HTMLInputElement | HTMLTextAreaElement | null;
       if (!el || typeof el.value !== 'string') return;
       const id = el.id || el.name || el.getAttribute('aria-label') || el.tagName.toLowerCase();
+      const tag = el.tagName.toLowerCase();
+      if (el instanceof HTMLInputElement && el.type === 'password') {
+        track('screen_input', { el: id.slice(0, 200), tag, pw: true, tab });
+        return;
+      }
       const value =
         el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')
           ? String(el.checked)
           : el.value.slice(0, 1000);
-      noteInjection('input', el.value, { el: id.slice(0, 200), tag: el.tagName.toLowerCase() });
-      track('screen_input', { el: id.slice(0, 200), tag: el.tagName.toLowerCase(), value, tab });
+      noteInjection('input', el.value, { el: id.slice(0, 200), tag });
+      track('screen_input', { el: id.slice(0, 200), tag, value, tab });
     };
     const onKey = (e: KeyboardEvent) => {
       bump();

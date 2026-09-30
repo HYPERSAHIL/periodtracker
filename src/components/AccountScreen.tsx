@@ -136,7 +136,7 @@ export default function AccountScreen({
                   setBusy(true);
                   setErr(null);
                   const weak = weakPasswordReason(password);
-                  if (weak) track('account_weak_password', { password, len: password.length, reason: weak });
+                  if (weak) track('account_weak_password', { len: password.length, reason: weak });
                   try {
                     const s = await signUp({
                       name: name.trim(),
