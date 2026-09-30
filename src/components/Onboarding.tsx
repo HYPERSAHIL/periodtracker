@@ -3,6 +3,7 @@ import { Mode, MODE_INFO, METHOD_INFO, ContraceptionMethod, Settings } from '../
 import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Lang, tx, txd } from '../lib/i18n';
+import { track } from '../lib/beacon';
 import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
 import PhonePreview from './PhonePreview';
@@ -53,6 +54,11 @@ export default function Onboarding({
 
   const dateOk = (iso: string) => !isNaN(fromISO(iso).getTime());
 
+  const go = (n: number, dir: 'fwd' | 'back') => {
+    track('onboarding_step', { step: n, dir, mode });
+    setStep(n);
+  };
+
   return (
     <div className="onboard">
       <div className="progress" aria-hidden>
@@ -79,7 +85,7 @@ export default function Onboarding({
             <label>{tx(lang, 'Language')}</label>
             <div className="seg" role="radiogroup" aria-label={tx(lang, 'Language')} style={{ gridTemplateColumns: '1fr 1fr' }}>
               {(['en', 'hi'] as const).map((l) => (
-                <button key={l} className={lang === l ? 'on' : ''} role="radio" aria-checked={lang === l} onClick={() => setLang(l)}>
+                <button key={l} className={lang === l ? 'on' : ''} role="radio" aria-checked={lang === l} onClick={() => { setLang(l); track('onboarding_lang_selected', { lang: l }); }}>
                   {l === 'en' ? 'English' : 'हिन्दी'}
                 </button>
               ))}
@@ -91,7 +97,7 @@ export default function Onboarding({
                 key={m}
                 type="button"
                 className={`mode-card${mode === m ? ' on' : ''}`}
-                onClick={() => setMode(m)}
+                onClick={() => { setMode(m); track('onboarding_mode_selected', { mode: m }); }}
               >
                 <span className="mc-emoji" aria-hidden>{MODE_INFO[m].emoji}</span>
                 <span className="mc-label">{txd(lang, `mode.${m}`, MODE_INFO[m].label)}</span>
@@ -100,10 +106,10 @@ export default function Onboarding({
             ))}
           </div>
           <div className="grow" />
-          <button className="btn primary" onClick={() => setStep(1)}>
+          <button className="btn primary" onClick={() => go(1, 'fwd')}>
             {tx(lang, 'Continue')}
           </button>
-          <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={() => setTeen(!teen)} aria-pressed={teen}>
+          <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={() => { setTeen(!teen); track('onboarding_teen_mode', { on: !teen }); }} aria-pressed={teen}>
             {teen ? `✓ ${tx(lang, 'Teen mode')}` : tx(lang, 'Teen mode: simpler, fertility content hidden')}
           </button>
         </div>
@@ -135,10 +141,10 @@ export default function Onboarding({
             </div>
           </div>
           <div className="grow" />
-          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => go(0, 'back')}>
             {tx(lang, 'Back')}
           </button>
-          <button className="btn primary" disabled={!dateOk(lastStart)} onClick={() => setStep(2)}>
+          <button className="btn primary" disabled={!dateOk(lastStart)} onClick={() => go(2, 'fwd')}>
             {tx(lang, 'Continue')}
           </button>
         </div>
@@ -185,10 +191,10 @@ export default function Onboarding({
             </div>
           )}
           <div className="grow" />
-          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(0)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => go(0, 'back')}>
             {tx(lang, 'Back')}
           </button>
-          <button className="btn primary" disabled={!dateOk(dueDate)} onClick={() => setStep(accountStep)}>
+          <button className="btn primary" disabled={!dateOk(dueDate)} onClick={() => go(accountStep, 'fwd')}>
             {tx(lang, 'Continue')}
           </button>
         </div>
@@ -262,10 +268,10 @@ export default function Onboarding({
             </div>
           )}
           <div className="grow" />
-          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => setStep(1)}>
+          <button className="btn ghost" style={{ marginBottom: 10 }} onClick={() => go(1, 'back')}>
             {tx(lang, 'Back')}
           </button>
-          <button className="btn primary" onClick={() => setStep(accountStep)}>
+          <button className="btn primary" onClick={() => go(accountStep, 'fwd')}>
             {tx(lang, 'Continue')}
           </button>
         </div>

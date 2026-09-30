@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { fromISO, isSameMonth, monthGrid, monthLabel, todayISO, weekdayHeads } from '../lib/date';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
 
 export default function CalendarView(p: AppProps) {
   const t = fromISO(todayISO());
@@ -14,11 +15,17 @@ export default function CalendarView(p: AppProps) {
   const predictionsLive = !p.settings.predictionsPaused && !p.stats.stale;
   const showFertile = predictionsLive && p.settings.showFertileWindow && !p.stats.fertileSuppressed;
 
-  const move = (delta: number) => {
+  const move = (delta: number, via: 'button' | 'swipe' = 'button') => {
+    track('screen_calendar_nav', { dir: delta > 0 ? 'next' : 'prev', view: 'month', via });
     setYm(({ y, m }) => {
       const d = new Date(y, m + delta, 1);
       return { y: d.getFullYear(), m: d.getMonth() };
     });
+  };
+
+  const moveYear = (delta: number) => {
+    track('screen_calendar_nav', { dir: delta > 0 ? 'next' : 'prev', view: 'year', via: 'button' });
+    setYm(({ y, m }) => ({ y: y + delta, m }));
   };
 
   const cellFor = (iso: string, mini: boolean, dimMonth?: { y: number; m: number }) => {
@@ -69,8 +76,8 @@ export default function CalendarView(p: AppProps) {
     <>
       <div className="card">
         <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 12 }}>
-          <button className={!yearMode ? 'on' : ''} onClick={() => setYearMode(false)}>{tx(lang, 'Month')}</button>
-          <button className={yearMode ? 'on' : ''} onClick={() => setYearMode(true)}>{tx(lang, 'Year')}</button>
+          <button className={!yearMode ? 'on' : ''} onClick={() => { setYearMode(false); track('screen_calendar_view', { mode: 'month' }); }}>{tx(lang, 'Month')}</button>
+          <button className={yearMode ? 'on' : ''} onClick={() => { setYearMode(true); track('screen_calendar_view', { mode: 'year' }); }}>{tx(lang, 'Year')}</button>
         </div>
         {!yearMode ? (
           <div
@@ -81,8 +88,8 @@ export default function CalendarView(p: AppProps) {
               if (touchX.current === null) return;
               const dx = e.changedTouches[0].clientX - touchX.current;
               touchX.current = null;
-              if (dx > 48) move(-1);
-              else if (dx < -48) move(1);
+              if (dx > 48) move(-1, 'swipe');
+              else if (dx < -48) move(1, 'swipe');
             }}
           >
             <div className="cal-head">
@@ -106,11 +113,11 @@ export default function CalendarView(p: AppProps) {
         ) : (
           <div>
             <div className="cal-head">
-              <button className="cal-nav" aria-label={tx(lang, 'Previous year')} onClick={() => setYm(({ y, m }) => ({ y: y - 1, m }))}>
+              <button className="cal-nav" aria-label={tx(lang, 'Previous year')} onClick={() => moveYear(-1)}>
                 ‹
               </button>
               <div className="m">{ym.y}</div>
-              <button className="cal-nav" aria-label={tx(lang, 'Next year')} onClick={() => setYm(({ y, m }) => ({ y: y + 1, m }))}>
+              <button className="cal-nav" aria-label={tx(lang, 'Next year')} onClick={() => moveYear(1)}>
                 ›
               </button>
             </div>
@@ -120,6 +127,7 @@ export default function CalendarView(p: AppProps) {
                   <button
                     className="mini-head"
                     onClick={() => {
+                      track('screen_calendar_nav', { dir: 0, view: 'month', via: 'year_grid', month: m });
                       setYm({ y: ym.y, m });
                       setYearMode(false);
                     }}

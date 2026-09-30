@@ -11,6 +11,7 @@ import {
 import { DayFacts, Phase } from '../lib/cycle';
 import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
+import { track } from '../lib/beacon';
 
 const cToF = (c: number) => (c * 9) / 5 + 32;
 const fToC = (f: number) => ((f - 32) * 5) / 9;
@@ -89,7 +90,11 @@ export default function DaySheet({
   const lang = settings.lang;
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      track('day_sheet_closed', { via: 'escape' });
+      onClose();
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
@@ -573,7 +578,14 @@ export default function DaySheet({
   };
 
   return (
-    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="sheet-backdrop"
+      onClick={(e) => {
+        if (e.target !== e.currentTarget) return;
+        track('day_sheet_closed', { via: 'backdrop', empty: isEmpty, hadEntry: !!entry });
+        onClose();
+      }}
+    >
       <div className="sheet" role="dialog" aria-modal="true" aria-label={`Log for ${date}`}>
         <div className="grab" />
         <h2>{prettyDate(date, { withYear: true, weekday: true })}</h2>
@@ -590,7 +602,14 @@ export default function DaySheet({
         <button className="btn primary" onClick={save}>
           {isEmpty ? tx(lang, 'Clear this day') : tx(lang, 'Save')}
         </button>
-        <button className="btn ghost" style={{ marginTop: 10 }} onClick={onClose}>
+        <button
+          className="btn ghost"
+          style={{ marginTop: 10 }}
+          onClick={() => {
+            track('day_sheet_closed', { via: 'close_btn', empty: isEmpty, hadEntry: !!entry });
+            onClose();
+          }}
+        >
           {tx(lang, 'Close')}
         </button>
         {entry && (
@@ -647,7 +666,7 @@ interface SpeechRec {
   interimResults: boolean;
   onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
   onend: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((ev: { error?: string }) => void) | null;
   start: () => void;
   stop: () => void;
 }
@@ -679,14 +698,21 @@ function VoiceNote({ lang, onText }: { lang: string; onText: (t: string) => void
       rec.interimResults = false;
       rec.onresult = (ev) => {
         const t = ev.results[ev.results.length - 1]?.[0]?.transcript?.trim();
-        if (t) onText(t);
+        if (t) {
+          track('entry_note_dictated', { chars: t.length });
+          onText(t);
+        }
       };
       rec.onend = () => setListening(false);
-      rec.onerror = () => setListening(false);
+      rec.onerror = (ev) => {
+        track('entry_note_dictation_failed', { error: String((ev as { error?: string }).error ?? 'unknown') });
+        setListening(false);
+      };
       recRef.current = rec;
       rec.start();
       setListening(true);
     } catch {
+      track('entry_note_dictation_failed', { error: 'constructor' });
       setListening(false);
     }
   };

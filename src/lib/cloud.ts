@@ -8,9 +8,12 @@ import { DayEntry, Settings } from '../types';
 import { DeviceInfo } from './device';
 import { apiUrl } from './native';
 import { normLang } from './i18n';
+import { sec } from './audit';
 import { APP_VERSION } from '../types';
+import { track } from './beacon';
 
 const CLOUD_KEY = 'pt.cloud.v1';
+let clockSkewLogged = false;
 
 export type SyncStatus = 'idle' | 'connecting' | 'syncing' | 'synced' | 'offline' | 'error';
 
@@ -35,30 +38,57 @@ export function loadSession(): CloudSession | null {
     const raw = localStorage.getItem(CLOUD_KEY);
     return raw ? (JSON.parse(raw) as CloudSession) : null;
   } catch {
+    track('data_load_failed', { key: 'cloud_session' });
     return null;
   }
 }
 
 export function saveSession(s: CloudSession | null): void {
-  if (s) localStorage.setItem(CLOUD_KEY, JSON.stringify(s));
-  else localStorage.removeItem(CLOUD_KEY);
+  try {
+    if (s) localStorage.setItem(CLOUD_KEY, JSON.stringify(s));
+    else localStorage.removeItem(CLOUD_KEY);
+  } catch {
+    track('data_save_failed', { key: 'cloud_session' });
+  }
 }
 
 async function api(path: string, body?: unknown, token?: string): Promise<{ ok: boolean; status: number; data: any }> {
-  const res = await fetch(apiUrl(`/api/${path}`), {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      'x-app-version': APP_VERSION,
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(`/api/${path}`), {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'x-app-version': APP_VERSION,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (e) {
+    track('data_api_failed', { path, status: 0 });
+    throw e;
+  }
   let data: any = null;
   try {
     data = await res.json();
   } catch {
     /* non-JSON error page */
+  }
+  if (!res.ok) {
+    const err = typeof data?.error === 'string' ? data.error.slice(0, 100) : undefined;
+    track('data_api_failed', { path, status: res.status, ...(err ? { err } : {}) });
+    if (res.status === 401 || res.status === 403) sec('auth_rejected', { path, status: res.status, err });
+    if (res.status === 429) sec('rate_limited', { path, retry: res.headers.get('retry-after') });
+  }
+  if (!clockSkewLogged) {
+    const dateHdr = res.headers.get('date');
+    if (dateHdr) {
+      const skew = Date.parse(dateHdr) - Date.now();
+      if (Number.isFinite(skew) && Math.abs(skew) > 300000) {
+        clockSkewLogged = true;
+        sec('clock_skew', { ms: skew, path });
+      }
+    }
   }
   return { ok: res.ok, status: res.status, data };
 }

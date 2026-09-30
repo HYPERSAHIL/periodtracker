@@ -4,6 +4,7 @@ import { babySize, pregnancyInfo, TRIMESTER_INFO } from '../lib/pregnancy';
 import { PREG_TIPS } from '../lib/content';
 import { prettyDate, todayISO, toISO } from '../lib/date';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
 import type { ApptItem, KickSession } from '../types';
 
 const defaultAppts = (lang: string): ApptItem[] => [
@@ -50,6 +51,7 @@ export default function PregnancyScreen(p: AppProps) {
   const addAppt = () => {
     const text = apptText.trim().slice(0, 120);
     if (!text) return;
+    track('day_appointment_added', { text });
     p.updateSettings({ apptList: [...appts, { id: Date.now(), text, done: false }] });
     setApptText('');
   };
@@ -153,7 +155,11 @@ export default function PregnancyScreen(p: AppProps) {
             <button
               className="btn ghost"
               style={{ width: '100%', marginTop: 10 }}
-              onClick={() =>
+              onClick={() => {
+                track('day_kick_ended', {
+                  kicks: active ? active.kicks.length : 0,
+                  ms: active ? Date.now() - active.startedAt : 0,
+                });
                 updateKicks((prev) =>
                   prev.active
                     ? {
@@ -161,8 +167,8 @@ export default function PregnancyScreen(p: AppProps) {
                         active: null,
                       }
                     : prev
-                )
-              }
+                );
+              }}
             >
               {tx(lang, 'End & save session')}
             </button>
@@ -174,7 +180,10 @@ export default function PregnancyScreen(p: AppProps) {
             </p>
             <button
               className="btn primary"
-              onClick={() => updateKicks((prev) => ({ ...prev, active: { startedAt: Date.now(), endedAt: null, kicks: [] } }))}
+              onClick={() => {
+                track('day_kick_started');
+                updateKicks((prev) => ({ ...prev, active: { startedAt: Date.now(), endedAt: null, kicks: [] } }));
+              }}
             >
               {tx(lang, 'Start counting')}
             </button>

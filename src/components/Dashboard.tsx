@@ -6,8 +6,12 @@ import { PHASE_INFO, phaseFor } from '../lib/cycle';
 import { diffDays, prettyDate, todayISO } from '../lib/date';
 import { FLOWS, MUCUS_OPTIONS, METHOD_INFO } from '../types';
 import { safetyTriage } from '../lib/safety';
+import { track } from '../lib/beacon';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Fire each safety notice once per session (notices recompute every render). */
+const noticesSeen = new Set<string>();
 
 export default function Dashboard(p: AppProps) {
   const { stats, facts, settings } = p;
@@ -18,7 +22,13 @@ export default function Dashboard(p: AppProps) {
   const info = PHASE_INFO[phase];
   const todayFacts = facts.get(today);
   const [showWhy, setShowWhy] = useState(false);
+
   const notices = safetyTriage(p.entries, settings, stats.clusters);
+  for (const n of notices) {
+    if (noticesSeen.has(n.id)) continue;
+    noticesSeen.add(n.id);
+    track('day_safety_notice', { id: n.id, urgency: n.urgency, source: n.source });
+  }
 
   const recent = Object.values(p.entries)
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -361,6 +371,7 @@ function RecoveryCheck({ lang }: { lang: string }) {
       const raw = localStorage.getItem('pt.pp.check.v1');
       return raw ? (JSON.parse(raw) as string[]) : [];
     } catch {
+      track('data_load_failed', { key: 'pp_check' });
       return [];
     }
   });
@@ -370,16 +381,19 @@ function RecoveryCheck({ lang }: { lang: string }) {
     'No severe headache, vision changes, or sudden swelling',
     'No thoughts of harming yourself',
   ];
-  const toggle = (t: string) =>
+  const toggle = (t: string) => {
+    const on = !done.includes(t);
+    track('settings_checklist_toggled', { list: 'postpartum', on });
     setDone((prev) => {
       const next = prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t];
       try {
         localStorage.setItem('pt.pp.check.v1', JSON.stringify(next));
       } catch {
-        /* best-effort */
+        track('data_save_failed', { key: 'pp_check' });
       }
       return next;
     });
+  };
   return (
     <div className="card">
       <h3>🩹 {tx(lang, 'Recovery watch')}</h3>

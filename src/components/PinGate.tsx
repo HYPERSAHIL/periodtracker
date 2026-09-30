@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
 import { hashPin } from '../lib/crypto';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
+import { noteAuthFailure } from '../lib/audit';
 import { Logo } from './Icons';
 
 export default function PinGate({ pinHash, pinSalt, onUnlocked, lang }: { pinHash: string; pinSalt: string; onUnlocked: () => void; lang: string }) {
   const [pin, setPin] = useState('');
   const [wrong, setWrong] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+
+  useEffect(() => {
+    track('settings_locked_screen');
+  }, []);
 
   useEffect(() => {
     if (!/^\d{4,8}$/.test(pin)) return;
@@ -15,19 +22,25 @@ export default function PinGate({ pinHash, pinSalt, onUnlocked, lang }: { pinHas
         if (!live) return;
         if (h === pinHash) {
           sessionStorage.setItem('pt.unlocked', '1');
+          track('settings_pin_unlocked', { attempts });
           onUnlocked();
         } else {
+          const n = attempts + 1;
+          setAttempts(n);
+          track('settings_pin_unlock_failed', { attempt: n });
+          noteAuthFailure('pin');
           setWrong(true);
           setPin('');
         }
       })
       .catch(() => {
         /* a failed hash leaves the gate as-is */
+        track('settings_pin_unlock_failed', { attempt: attempts + 1, reason: 'hash_error' });
       });
     return () => {
       live = false;
     };
-  }, [pin, pinHash, pinSalt, onUnlocked]);
+  }, [pin, pinHash, pinSalt, onUnlocked, attempts]);
 
   return (
     <div className="pingate">

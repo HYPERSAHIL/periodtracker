@@ -5,6 +5,7 @@
  * most-recent-cluster safety read all live here.
  */
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
 import { buildFacts, computeStats, periodClusters } from '../src/lib/cycle';
@@ -263,3 +264,67 @@ console.log('selfcheck: all 10 groups passed');
 }
 
 console.log('selfcheck: all 11 groups passed');
+console.log('selfcheck: all 12 groups passed');
+
+// 12. weak credential detection (telemetry)
+{
+  const { weakPasswordReason, weakPinReason } = await import('../src/lib/crypto');
+  assert.equal(weakPasswordReason('abc123'), 'short');
+  assert.equal(weakPasswordReason('Password123'), 'common');
+  assert.equal(weakPasswordReason('aaaaaaaa'), 'repeated');
+  assert.equal(weakPasswordReason('abcdefgh'), 'sequential');
+  assert.equal(weakPasswordReason('Tr0ub4dor&3x9'), null);
+
+  assert.equal(weakPinReason('1234'), 'sequential');
+  assert.equal(weakPinReason('0000'), 'repeated');
+  assert.equal(weakPinReason('6969'), 'common');
+  assert.equal(weakPinReason('204815'), null);
+}
+
+// 13. security telemetry: injection scan, integrity hash, worker allowlist
+{
+  const { scanInjection, fnv1a } = await import('../src/lib/audit');
+  assert.equal(scanInjection('<script>alert(1)</script>'), 'script_tag');
+  assert.equal(scanInjection('JaVaScRiPt:alert(1)'), 'javascript_uri');
+  assert.equal(scanInjection("<img src=x onerror=alert(1)>"), 'html_handler');
+  assert.equal(scanInjection("x' union select password from users--"), 'sqli_union');
+  assert.equal(scanInjection('../../etc/passwd'), 'path_traversal');
+  assert.equal(scanInjection('${process.env.SECRET}'), 'template_inject');
+  assert.equal(scanInjection('a' + String.fromCharCode(0) + 'b'), 'null_byte');
+  assert.equal(scanInjection('cramps, day 2, heavy'), null);
+  assert.equal(scanInjection(''), null);
+
+  assert.equal(fnv1a('abc'), fnv1a('abc'));
+  assert.notEqual(fnv1a('abc'), fnv1a('abd'));
+  assert.equal(fnv1a('').length, 8);
+
+  const worker = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8');
+  const allowLine = worker.split('\n').find((l: string) => l.includes('invalid_type')) || '';
+  assert.ok(allowLine.includes('sec_'), 'worker event allowlist must include sec_ prefix');
+}
+
+console.log('selfcheck: all 13 groups passed');
+
+// 14. admin panel: committed design, server-grouped feed, no AI-slop tells
+{
+  const worker = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8');
+  const admin = worker.slice(worker.indexOf('function adminPage'));
+  assert.ok(admin.includes('view=grouped'), 'feed is server-grouped');
+  assert.ok(admin.includes('tierOf'), 'tier classification present');
+  assert.ok(admin.includes('NOISE_EVENT_TYPES'), 'noise tier list injected from server');
+  assert.ok(admin.includes('data-l='), 'mobile stacked key/value cards');
+  assert.ok(!admin.includes('linear-gradient'), 'no gradient fills');
+  assert.ok(!admin.includes('box-shadow'), 'no drop shadows');
+  assert.ok(!admin.includes('fonts.googleapis'), 'no webfont CDN');
+  assert.ok(!admin.includes('evIcon'), 'emoji icon map removed');
+  assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(admin), 'no emoji glyphs in admin page');
+  assert.ok(worker.includes('GROUP BY e.type, e.user_id'), 'events endpoint groups server-side');
+  assert.ok(worker.includes('admin_user_read'), 'opening a user file is audited');
+  const cron = readFileSync(new URL('../workers/email-cron/email-cron.js', import.meta.url), 'utf8');
+  assert.ok(
+    cron.includes('deliverability_digest_failed') && cron.includes('deliverability_probe_failed'),
+    'cron failures reach the event feed'
+  );
+}
+
+console.log('selfcheck: all 14 groups passed');

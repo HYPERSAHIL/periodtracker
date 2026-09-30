@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppProps } from '../App';
 import { ARTICLES, PERI_RELIEF, PREG_CHECKLISTS, PREG_FAQS, TTC_CARDS, articlesByCategory, searchContent } from '../lib/content';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
 
 type View =
   | { kind: 'home' }
@@ -27,6 +28,7 @@ export default function Learn(p: AppProps) {
     try {
       return new Set(JSON.parse(localStorage.getItem('pt.learn.checked.v1') ?? '[]') as string[]);
     } catch {
+      track('data_load_failed', { key: 'learn_checked' });
       return new Set<string>();
     }
   });
@@ -34,6 +36,7 @@ export default function Learn(p: AppProps) {
     try {
       return new Set(JSON.parse(localStorage.getItem('pt.school.checked.v1') ?? '[]') as string[]);
     } catch {
+      track('data_load_failed', { key: 'school_checked' });
       return new Set<string>();
     }
   });
@@ -41,11 +44,21 @@ export default function Learn(p: AppProps) {
 
   const toggleBookmark = (slug: string) => {
     const has = p.settings.bookmarks.includes(slug);
+    track('settings_bookmark_toggled', { added: !has, slug });
     p.updateSettings({ bookmarks: has ? p.settings.bookmarks.filter((s) => s !== slug) : [...p.settings.bookmarks, slug] });
   };
 
   const teenSafe = (a: { category: string }) =>
     !p.settings.teen || (a.category !== 'Fertility' && a.category !== 'Pregnancy');
+
+  // debounced search telemetry — one event per settled query, with result count
+  useEffect(() => {
+    if (!q) return;
+    const t = window.setTimeout(() => {
+      track('screen_search', { q: q.slice(0, 200), results: searchContent(q).length });
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [q]);
 
   if (view.kind === 'article') {
     const a = ARTICLES.find((x) => x.slug === view.slug);
@@ -160,7 +173,8 @@ export default function Learn(p: AppProps) {
                 type="button"
                 className={`chip${on ? ' on' : ''}`}
                 style={{ display: 'flex', margin: '0 8px 8px 0' }}
-                onClick={() =>
+                onClick={() => {
+                  track('settings_checklist_toggled', { list: 'school', on: !on });
                   setSchoolChecked((prev) => {
                     const n = new Set(prev);
                     if (n.has(it)) n.delete(it);
@@ -168,11 +182,11 @@ export default function Learn(p: AppProps) {
                     try {
                       localStorage.setItem('pt.school.checked.v1', JSON.stringify([...n]));
                     } catch {
-                      /* best-effort */
+                      track('data_save_failed', { key: 'school_checked' });
                     }
                     return n;
-                  })
-                }
+                  });
+                }}
               >
                 {on ? '✓' : '○'} {tx(lang, it)}
               </button>
@@ -198,7 +212,8 @@ export default function Learn(p: AppProps) {
                   type="button"
                   className={`chip${on ? ' on' : ''}`}
                   style={{ display: 'flex', margin: '0 8px 8px 0' }}
-                  onClick={() =>
+                  onClick={() => {
+                    track('settings_checklist_toggled', { list: 'pregnancy', on: !on });
                     setChecked((prev) => {
                       const n = new Set(prev);
                       if (n.has(key)) n.delete(key);
@@ -206,11 +221,11 @@ export default function Learn(p: AppProps) {
                       try {
                         localStorage.setItem('pt.learn.checked.v1', JSON.stringify([...n]));
                       } catch {
-                        /* checklist progress is best-effort */
+                        track('data_save_failed', { key: 'learn_checked' });
                       }
                       return n;
-                    })
-                  }
+                    });
+                  }}
                 >
                   {on ? '✓' : '○'} {it.text}
                 </button>
@@ -253,7 +268,7 @@ export default function Learn(p: AppProps) {
         aria-label={tx(lang, 'Search articles')}
       />
       <div className="chips" style={{ marginBottom: 14 }}>
-        <button type="button" className={`chip${onlyBookmarks ? ' on' : ''}`} onClick={() => setOnlyBookmarks(!onlyBookmarks)}>
+        <button type="button" className={`chip${onlyBookmarks ? ' on' : ''}`} onClick={() => { setOnlyBookmarks(!onlyBookmarks); track('screen_bookmarks_filter', { on: !onlyBookmarks }); }}>
           {tx(lang, '★ Bookmarks ({n})', { n: p.settings.bookmarks.length })}
         </button>
       </div>
@@ -268,7 +283,7 @@ export default function Learn(p: AppProps) {
               <button
                 key={a.slug}
                 className="topic-row"
-                onClick={() => setView({ kind: 'article', slug: a.slug })}
+                onClick={() => { setView({ kind: 'article', slug: a.slug }); track('screen_article_opened', { slug: a.slug }); }}
               >
                 <span className="tr-main">
                   <span className="tr-title">{a.title}</span>
@@ -284,7 +299,7 @@ export default function Learn(p: AppProps) {
       <div className="card">
         <h3>{tx(lang, 'Guides by goal')}</h3>
         {!p.settings.teen && (
-        <button className="topic-row" onClick={() => setView({ kind: 'ttc' })}>
+        <button className="topic-row" onClick={() => { setView({ kind: 'ttc' }); track('screen_learn_topic', { topic: 'ttc' }); }}>
           <span className="tr-main">
             <span className="tr-title">🌱 {tx(lang, 'Trying to conceive')}</span>
             <span className="tr-sub">{tx(lang, '6 essentials: timing, tests, folic acid, when to seek help')}</span>
@@ -293,7 +308,7 @@ export default function Learn(p: AppProps) {
         </button>
         )}
         {!p.settings.teen && (
-        <button className="topic-row" onClick={() => setView({ kind: 'pregnancy' })}>
+        <button className="topic-row" onClick={() => { setView({ kind: 'pregnancy' }); track('screen_learn_topic', { topic: 'pregnancy' }); }}>
           <span className="tr-main">
             <span className="tr-title">🤰 {tx(lang, 'Pregnancy checklists & FAQs')}</span>
             <span className="tr-sub">{tx(lang, 'Trimester checklists and 6 common questions')}</span>
@@ -301,14 +316,14 @@ export default function Learn(p: AppProps) {
           <span aria-hidden>›</span>
         </button>
         )}
-        <button className="topic-row" onClick={() => setView({ kind: 'peri' })}>
+        <button className="topic-row" onClick={() => { setView({ kind: 'peri' }); track('screen_learn_topic', { topic: 'peri' }); }}>
           <span className="tr-main">
             <span className="tr-title">🍂 {tx(lang, 'Perimenopause relief')}</span>
             <span className="tr-sub">{tx(lang, 'Self care and clinician questions by symptom domain')}</span>
           </span>
           <span aria-hidden>›</span>
         </button>
-        <button className="topic-row" onClick={() => setView({ kind: 'school' })}>
+        <button className="topic-row" onClick={() => { setView({ kind: 'school' }); track('screen_learn_topic', { topic: 'school' }); }}>
           <span className="tr-main">
             <span className="tr-title">🎒 {tx(lang, 'School readiness')}</span>
             <span className="tr-sub">{tx(lang, 'Emergency kit, toilets, trusted teacher, first-talk checklist')}</span>

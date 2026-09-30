@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
 
 interface DeferredPrompt extends Event {
   prompt: () => Promise<void>;
@@ -54,9 +55,10 @@ export default function InstallCard({ lang }: { lang: string }) {
             onClick={async () => {
               try {
                 await deferred.prompt();
-                await deferred.userChoice;
+                const choice = await deferred.userChoice;
+                track('update_pwa_install', { stage: choice.outcome });
               } catch {
-                /* dismissed */
+                track('update_pwa_install', { stage: 'dismissed' });
               }
               setDeferred(null);
             }}

@@ -9,9 +9,14 @@ import '@fontsource/plus-jakarta-sans/800.css';
 import '@fontsource/playfair-display/600.css';
 import '@fontsource/playfair-display/700.css';
 import App from './App';
+import { track } from './lib/beacon';
 import './styles.css';
 
-registerSW({ immediate: true });
+registerSW({
+  immediate: true,
+  onRegisterError: () => track('update_sw_error'),
+  onOfflineReady: () => track('update_sw_ready'),
+});
 
 // PWA share_target (?share=1&text=..) and file_handlers (?open=backup):
 // stash the payload, strip the query, let App consume it after mount.
@@ -30,13 +35,16 @@ try {
   LQ?.setConsumer((params) => {
     const files = (params as { files?: File[] })?.files ?? [];
     if (!files.length) return;
-    void files[0].text().then((text) => {
-      sessionStorage.setItem('pt.openfile.v1', JSON.stringify({ name: files[0].name, text }));
-      window.dispatchEvent(new Event('pt:openfile'));
-    });
+    void files[0]
+      .text()
+      .then((text) => {
+        sessionStorage.setItem('pt.openfile.v1', JSON.stringify({ name: files[0].name, text }));
+        window.dispatchEvent(new Event('pt:openfile'));
+      })
+      .catch(() => track('import_failed', { via: 'pwa', reason: 'intake' }));
   });
 } catch {
-  /* share/file intake is best-effort */
+  track('import_failed', { via: 'pwa', reason: 'intake_error' });
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

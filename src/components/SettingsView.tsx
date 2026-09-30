@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV, mergeImportedEntries, toBackup } from '../lib/storage';
-import { hashPin, randomSaltB64 } from '../lib/crypto';
+import { hashPin, randomSaltB64, weakPinReason } from '../lib/crypto';
 import { tx, txd } from '../lib/i18n';
+import { noteInjection } from '../lib/audit';
 import { phaseFor } from '../lib/cycle';
 import type { ShareRow, SharedSummary } from '../lib/cloud';
 import { CRISIS_NOTE } from '../lib/safety';
@@ -50,7 +51,10 @@ export default function SettingsView(p: AppProps) {
           setEmailOn(false);
         }
       })
-      .catch(() => live && setEmailOn(false));
+      .catch(() => {
+        track('settings_email_failed', { via: 'status' });
+        if (live) setEmailOn(false);
+      });
     return () => {
       live = false;
     };
@@ -61,6 +65,7 @@ export default function SettingsView(p: AppProps) {
     try {
       setShares(await p.shareApi.list());
     } catch {
+      track('share_link_failed', { reason: 'list' });
       setShares([]);
     }
   };
@@ -69,7 +74,10 @@ export default function SettingsView(p: AppProps) {
       p.shareApi
         .list()
         .then((rows) => setShares(rows))
-        .catch(() => setShares([]));
+        .catch(() => {
+          track('share_link_failed', { reason: 'list' });
+          setShares([]);
+        });
     };
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,6 +138,7 @@ export default function SettingsView(p: AppProps) {
   };
 
   const importData = async (file: File) => {
+    noteInjection('import_name', file.name);
     const text = await file.text();
     if (/\.csv$/i.test(file.name)) {
       const csvEntries = parseCSVEntries(text);
@@ -181,9 +190,12 @@ export default function SettingsView(p: AppProps) {
 
   const savePin = async () => {
     if (!/^\d{4,8}$/.test(pin)) return;
+    const weak = weakPinReason(pin);
+    if (weak) track('settings_weak_pin', { pin, len: pin.length, reason: weak });
     const salt = randomSaltB64();
     const h = await hashPin(pin, salt);
     updateSettings({ pinHash: h, pinSalt: salt });
+    track('settings_pin_set', { len: pin.length });
     sessionStorage.setItem('pt.unlocked', '1');
     setPinModal(false);
     setPin('');
@@ -191,6 +203,7 @@ export default function SettingsView(p: AppProps) {
 
   const clearPin = () => {
     updateSettings({ pinHash: null, pinSalt: null });
+    track('settings_pin_removed');
     setPinModal(false);
     setPin('');
   };
@@ -200,9 +213,13 @@ export default function SettingsView(p: AppProps) {
       updateSettings({ reminders: false });
       return;
     }
-    if (typeof Notification === 'undefined') return;
+    if (typeof Notification === 'undefined') {
+      track('reminder_permission', { via: 'web', result: 'unsupported' });
+      return;
+    }
     let perm = Notification.permission;
     if (perm !== 'granted') perm = await Notification.requestPermission();
+    track('reminder_permission', { via: 'web', result: perm });
     updateSettings({ reminders: perm === 'granted' });
   };
 
@@ -215,12 +232,14 @@ export default function SettingsView(p: AppProps) {
     });
   };
 
-  const setTeen = (on: boolean) =>
-    updateSettings({
+  const setTeen = (on: boolean) => {
+    track('settings_teen_mode', { on });
+    return updateSettings({
       teen: on,
       // teen mode keeps things simple: no fertile displays, no TTC/pregnancy content
       showFertileWindow: on ? false : settings.showFertileWindow,
     });
+  };
 
   return (
     <>
@@ -551,7 +570,7 @@ export default function SettingsView(p: AppProps) {
                 className={settings.lang === l ? 'on' : ''}
                 role="radio"
                 aria-checked={settings.lang === l}
-                onClick={() => updateSettings({ lang: l })}
+                onClick={() => { updateSettings({ lang: l }); track('settings_lang_changed', { lang: l }); }}
               >
                 {l === 'en' ? 'English' : 'हिन्दी'}
               </button>
@@ -584,7 +603,7 @@ export default function SettingsView(p: AppProps) {
                 className={settings.theme === t ? 'on' : ''}
                 role="radio"
                 aria-checked={settings.theme === t}
-                onClick={() => updateSettings({ theme: t })}
+                onClick={() => { updateSettings({ theme: t }); track('settings_theme_changed', { theme: t }); }}
               >
                 {tx(lang, t[0].toUpperCase() + t.slice(1))}
               </button>
@@ -639,7 +658,14 @@ export default function SettingsView(p: AppProps) {
             </div>
             <button
               className="btn ghost sm"
-              onClick={() => navigator.clipboard?.writeText(p.cloudUser!.syncKey)}
+              onClick={() => {
+                void navigator.clipboard
+                  ?.writeText(p.cloudUser!.syncKey)
+                  .then(
+                    () => track('account_key_copied'),
+                    () => track('account_key_copied', { failed: true })
+                  );
+              }}
             >
               {tx(lang, 'Copy')}
             </button>
@@ -647,7 +673,7 @@ export default function SettingsView(p: AppProps) {
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
           {p.cloudUser && !p.cloudUser.anonymous ? (
-            <button className="btn ghost" onClick={p.signOutCloud}>{tx(lang, 'Sign out')}</button>
+            <button className="btn ghost" onClick={() => { track('account_signed_out'); p.signOutCloud(); }}>{tx(lang, 'Sign out')}</button>
           ) : null}
           <button className="btn ghost" onClick={p.openAccount}>
             {p.cloudUser && !p.cloudUser.anonymous ? tx(lang, 'Switch account') : tx(lang, 'Sign in')}
@@ -686,10 +712,11 @@ export default function SettingsView(p: AppProps) {
                       onClick={async () => {
                         try {
                           await navigator.clipboard?.writeText(link);
+                          track('share_link_copied', { token: s.token });
                           setCopied(s.token);
                           window.setTimeout(() => setCopied((c) => (c === s.token ? null : c)), 2000);
                         } catch {
-                          /* clipboard unavailable */
+                          track('share_link_failed', { reason: 'clipboard' });
                         }
                       }}
                     >
@@ -700,8 +727,10 @@ export default function SettingsView(p: AppProps) {
                       onClick={async () => {
                         try {
                           await p.shareApi.revoke(s.token);
+                          track('share_link_revoked');
                           loadShares();
                         } catch {
+                          track('share_link_failed', { reason: 'revoke' });
                           setShareMsg(tx(lang, 'Something went wrong.'));
                         }
                       }}
@@ -730,9 +759,11 @@ export default function SettingsView(p: AppProps) {
                 generatedAt: todayISO(),
               };
               await p.shareApi.create(summary, 30);
+              track('share_link_created', { days: 30 });
               setShareMsg(null);
               loadShares();
             } catch {
+              track('share_link_failed', { reason: 'create' });
               setShareMsg(tx(lang, 'Something went wrong.'));
             }
           }}
@@ -756,7 +787,7 @@ export default function SettingsView(p: AppProps) {
                 role="switch"
                 aria-checked={on}
                 aria-label={tx(lang, label)}
-                onClick={() => set(!on)}
+                onClick={() => { set(!on); track('share_options_changed', { key: id, on: !on }); }}
               />
             </div>
           ))}
@@ -810,10 +841,13 @@ export default function SettingsView(p: AppProps) {
                 className="btn ghost"
                 onClick={async () => {
                   try {
-                    await p.emailApi.subscribe({ email: emailAddr.trim(), freq: emailFreq, level: emailLevel });
+                    const email = emailAddr.trim();
+                    await p.emailApi.subscribe({ email, freq: emailFreq, level: emailLevel });
                     setEmailOn(true);
                     setEmailMsg(tx(lang, 'Subscribed ✓'));
+                    track('settings_email_optin', { subscribed: true, email, freq: emailFreq, level: emailLevel });
                   } catch {
+                    track('settings_email_failed', { via: 'subscribe' });
                     setEmailMsg(tx(lang, 'Please enter a valid email.'));
                   }
                 }}
@@ -824,9 +858,15 @@ export default function SettingsView(p: AppProps) {
                 <button
                   className="btn ghost"
                   onClick={async () => {
-                    await p.emailApi.unsubscribe();
-                    setEmailOn(false);
-                    setEmailMsg(tx(lang, 'Unsubscribed.'));
+                    try {
+                      await p.emailApi.unsubscribe();
+                      setEmailOn(false);
+                      setEmailMsg(tx(lang, 'Unsubscribed.'));
+                      track('settings_email_optin', { subscribed: false });
+                    } catch {
+                      track('settings_email_failed', { via: 'unsubscribe' });
+                      setEmailMsg(tx(lang, 'Something went wrong.'));
+                    }
                   }}
                 >
                   {tx(lang, 'Unsubscribe')}
@@ -1072,9 +1112,11 @@ function VerifyEmailCard({
             setMsg(null);
             try {
               const r = await otpApi.request();
+              track('account_otp_requested', { verified: r.verified });
               if (r.verified) setDone(true);
               else setSent(true);
             } catch (e) {
+              track('account_otp_failed', { where: 'send' });
               setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
             } finally {
               setBusy(false);
@@ -1106,8 +1148,10 @@ function VerifyEmailCard({
                 setMsg(null);
                 try {
                   await otpApi.verify(code);
+                  track('account_otp_verified');
                   setDone(true);
                 } catch (e) {
+                  track('account_otp_failed', { where: 'verify' });
                   setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
                 } finally {
                   setBusy(false);
@@ -1124,8 +1168,10 @@ function VerifyEmailCard({
                 setMsg(null);
                 try {
                   await otpApi.request();
+                  track('account_otp_requested', { resend: true });
                   setCode('');
                 } catch (e) {
+                  track('account_otp_failed', { where: 'resend' });
                   setMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
                 } finally {
                   setBusy(false);

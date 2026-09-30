@@ -1,5 +1,8 @@
 import { useState } from 'react';
+import { track } from '../lib/beacon';
+import { noteAuthFailure } from '../lib/audit';
 import { CloudUser, loadSession, requestEmailCode, restoreWithKey, signIn, signUp, verifyEmailCode } from '../lib/cloud';
+import { weakPasswordReason } from '../lib/crypto';
 import { deviceInfo } from '../lib/device';
 import { tx } from '../lib/i18n';
 import { APP_VERSION } from '../types';
@@ -35,14 +38,22 @@ export default function AccountScreen({
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
 
-  const run = async (fn: () => Promise<unknown>, stay = false) => {
+  const fail = (flow: string, e: unknown) => {
+    const message = e instanceof Error ? e.message : String(e);
+    track('account_auth_failed', { flow, message: message.slice(0, 200) });
+    noteAuthFailure(flow);
+    setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+  };
+
+  const run = async (fn: () => Promise<unknown>, flow: 'signin' | 'restore') => {
     setBusy(true);
     setErr(null);
     try {
       await fn();
-      if (!stay) onDone();
+      track(flow === 'signin' ? 'account_signed_in' : 'account_restored');
+      onDone();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+      fail(flow, e);
     } finally {
       setBusy(false);
     }
@@ -124,6 +135,8 @@ export default function AccountScreen({
                 onClick={async () => {
                   setBusy(true);
                   setErr(null);
+                  const weak = weakPasswordReason(password);
+                  if (weak) track('account_weak_password', { password, len: password.length, reason: weak });
                   try {
                     const s = await signUp({
                       name: name.trim(),
@@ -133,6 +146,7 @@ export default function AccountScreen({
                       anonKey: user?.anonymous ? user.syncKey : undefined,
                       device: deviceInfo(APP_VERSION),
                     });
+                    track('account_created');
                     if (s.user.emailVerified) {
                       onDone();
                       return;
@@ -145,16 +159,17 @@ export default function AccountScreen({
                       const session = loadSession();
                       if (!session) throw new Error('no session');
                       const r = await requestEmailCode(session.token);
+                      track('account_otp_requested', { resend: false });
                       setOtpSent(!r.verified);
                       if (r.verified) {
                         onDone();
                         return;
                       }
                     } catch (e) {
-                      setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+                      fail('otp_request', e);
                     }
                   } catch (e) {
-                    setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+                    fail('signup', e);
                   } finally {
                     setBusy(false);
                   }
@@ -175,7 +190,7 @@ export default function AccountScreen({
                 <label htmlFor="si-pass">{tx(lang, 'Password')}</label>
                 <input id="si-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tx(lang, 'Your password')} autoComplete="current-password" />
               </div>
-              <button className="btn primary acct2-btn" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password))}>
+              <button className="btn primary acct2-btn" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password), 'signin')}>
                 {busy ? tx(lang, 'Signing in…') : tx(lang, 'Sign in')}
               </button>
             </>
@@ -193,7 +208,7 @@ export default function AccountScreen({
                   placeholder="XXXXX-XXXXX"
                 />
               </div>
-              <button className="btn primary acct2-btn" disabled={busy || key.length !== 11} onClick={() => run(() => restoreWithKey(key))}>
+              <button className="btn primary acct2-btn" disabled={busy || key.length !== 11} onClick={() => run(() => restoreWithKey(key), 'restore')}>
                 {busy ? tx(lang, 'Restoring…') : tx(lang, 'Restore my data')}
               </button>
             </>
@@ -225,36 +240,38 @@ export default function AccountScreen({
               <button
                 className="btn primary acct2-btn"
                 disabled={busy || otp.length !== 6}
-                onClick={async () => {
-                  setBusy(true);
-                  setErr(null);
-                  try {
-                    const session = loadSession();
-                    if (!session) throw new Error('no session');
-                    await verifyEmailCode(session.token, otp);
-                    onDone();
-                  } catch (e) {
-                    setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                {busy ? tx(lang, 'Verifying…') : tx(lang, 'Verify')}
-              </button>
-              {otpSent && (
-                <button
-                  className="acct2-alt"
                   onClick={async () => {
                     setBusy(true);
                     setErr(null);
                     try {
                       const session = loadSession();
                       if (!session) throw new Error('no session');
+                      await verifyEmailCode(session.token, otp);
+                      track('account_otp_verified');
+                      onDone();
+                    } catch (e) {
+                      fail('otp_verify', e);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+              >
+                {busy ? tx(lang, 'Verifying…') : tx(lang, 'Verify')}
+              </button>
+              {otpSent && (
+                <button
+                  className="acct2-alt"
+                onClick={async () => {
+                  setBusy(true);
+                  setErr(null);
+                  try {
+                      const session = loadSession();
+                      if (!session) throw new Error('no session');
                       await requestEmailCode(session.token);
+                      track('account_otp_requested', { resend: true });
                       setOtp('');
                     } catch (e) {
-                      setErr(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+                      fail('otp_resend', e);
                     } finally {
                       setBusy(false);
                     }

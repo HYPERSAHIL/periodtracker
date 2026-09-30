@@ -21,6 +21,7 @@ import {
   verifyEmailCode,
 } from '../lib/cloud';
 import { deviceInfo } from '../lib/device';
+import { track } from '../lib/beacon';
 
 /** Cloud backup state machine: session bootstrap, debounced push/pull, pending flag. */
 export function useCloudSync({
@@ -61,8 +62,10 @@ export function useCloudSync({
     async (currentEntries: Record<string, DayEntry>, currentSettings: Settings) => {
       const token = cloudRef.current.token;
       if (!token || !navigator.onLine) {
-        setSyncStatus(navigator.onLine ? 'error' : 'offline');
+        const status = navigator.onLine ? 'error' : 'offline';
+        setSyncStatus(status);
         markPending(true);
+        track('data_sync_status', { status, reason: token ? 'offline' : 'no_token' });
         return;
       }
       setSyncStatus('syncing');
@@ -71,13 +74,16 @@ export function useCloudSync({
           if (m.changed) {
             if (m.entries) setEntries(m.entries);
             if (m.settings) setSettings(m.settings);
+            track('data_sync_merged', { entries: m.entries ? Object.keys(m.entries).length : 0, settings: !!m.settings });
           }
         });
         setSyncStatus('synced');
         markPending(false);
+        track('data_sync_status', { status: 'synced' });
       } catch {
         setSyncStatus('error');
         markPending(true);
+        track('data_sync_status', { status: 'error', reason: 'exception' });
       }
     },
     [setEntries, setSettings]
@@ -107,6 +113,7 @@ export function useCloudSync({
         await runSync(entriesRef.current, settingsRef.current);
       } catch {
         if (!cancelled) setSyncStatus('error');
+        track('data_sync_status', { status: 'error', reason: 'bootstrap' });
       }
     })();
     const onOnline = () => runSync(entriesRef.current, settingsRef.current);
@@ -139,6 +146,7 @@ export function useCloudSync({
       await runSync(entriesRef.current, settingsRef.current);
     } catch {
       setSyncStatus('error');
+      track('data_sync_status', { status: 'error', reason: 'rebootstrap' });
     }
   }, [runSync]);
 

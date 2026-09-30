@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { DayEntry } from '../types';
 import { isNative } from './native';
+import { track } from './beacon';
 
 interface HealthBridge {
   push(o: { days: string }): Promise<unknown>;
@@ -13,7 +14,10 @@ interface HealthBridge {
 export async function pushRecentToHealth(entries: Record<string, DayEntry>): Promise<void> {
   if (!isNative()) return;
   try {
-    if (!Capacitor.isPluginAvailable('HealthBridge')) return;
+    if (!Capacitor.isPluginAvailable('HealthBridge')) {
+      track('data_health_push', { ok: false, kind: 'health', reason: 'unavailable' });
+      return;
+    }
     const days = Object.values(entries)
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-90)
@@ -27,7 +31,8 @@ export async function pushRecentToHealth(entries: Record<string, DayEntry>): Pro
     if (!days.length) return;
     const plugin = registerPlugin<HealthBridge>('HealthBridge');
     await plugin.push({ days: JSON.stringify(days) });
+    track('data_health_push', { ok: true, kind: 'health', days: days.length });
   } catch {
-    /* health bridge is best-effort */
+    track('data_health_push', { ok: false, kind: 'health' });
   }
 }

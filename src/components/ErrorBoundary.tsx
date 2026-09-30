@@ -1,5 +1,6 @@
 import { Component, ReactNode } from 'react';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
 
 /** One corrupt entry must blank a tab, never the whole app. */
 export default function withBoundary(node: ReactNode, label: string, lang?: string) {
@@ -17,6 +18,10 @@ class Boundary extends Component<{ label: string; children: ReactNode; lang?: st
     return { failed: true };
   }
 
+  componentDidCatch(error: Error) {
+    track('screen_error', { message: error.message.slice(0, 500), kind: 'render', label: this.props.label });
+  }
+
   render() {
     if (this.state.failed) {
       return (
@@ -30,7 +35,7 @@ class Boundary extends Component<{ label: string; children: ReactNode; lang?: st
               'Something in this view hit bad data. Your logs are safe — try another tab, or export a backup from Settings before clearing anything.'
             )}
           </p>
-          <button className="btn ghost sm" onClick={() => this.setState({ failed: false })}>
+          <button className="btn ghost sm" onClick={() => { track('screen_error_retry', { label: this.props.label }); this.setState({ failed: false }); }}>
             {tx(this.props.lang, 'Try again')}
           </button>
         </div>

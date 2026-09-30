@@ -53,18 +53,18 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
           <div className="field">
             <label>{tx(lang, 'Period covered')}</label>
             <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <button className={months === 6 ? 'on' : ''} onClick={() => setMonths(6)}>{tx(lang, 'Last 6 months')}</button>
-              <button className={months === 12 ? 'on' : ''} onClick={() => setMonths(12)}>{tx(lang, 'Last 12 months')}</button>
+              <button className={months === 6 ? 'on' : ''} onClick={() => { setMonths(6); track('report_window_changed', { months: 6 }); }}>{tx(lang, 'Last 6 months')}</button>
+              <button className={months === 12 ? 'on' : ''} onClick={() => { setMonths(12); track('report_window_changed', { months: 12 }); }}>{tx(lang, 'Last 12 months')}</button>
             </div>
           </div>
           <div className="field">
             <label>{tx(lang, 'Include')}</label>
             <div className="chips">
-              <button className={`chip${sections.cycles ? ' on' : ''}`} onClick={() => setSections((s) => ({ ...s, cycles: !s.cycles }))}>{tx(lang, 'Cycles & bleeding')}</button>
-              <button className={`chip${sections.symptoms ? ' on' : ''}`} onClick={() => setSections((s) => ({ ...s, symptoms: !s.symptoms }))}>{tx(lang, 'Symptoms & mood')}</button>
-              <button className={`chip${sections.measurements ? ' on' : ''}`} onClick={() => setSections((s) => ({ ...s, measurements: !s.measurements }))}>{tx(lang, 'Temperature & weight')}</button>
-              <button className={`chip${sections.fertility ? ' on' : ''}`} onClick={() => setSections((s) => ({ ...s, fertility: !s.fertility }))}>{tx(lang, 'Fertility signs')}</button>
-              <button className={`chip${sections.notes ? ' on' : ''}`} onClick={() => setSections((s) => ({ ...s, notes: !s.notes }))}>{tx(lang, 'Notes')}</button>
+              <button className={`chip${sections.cycles ? ' on' : ''}`} onClick={() => { const on = !sections.cycles; setSections((s) => ({ ...s, cycles: on })); track('report_section_toggled', { section: 'cycles', on }); }}>{tx(lang, 'Cycles & bleeding')}</button>
+              <button className={`chip${sections.symptoms ? ' on' : ''}`} onClick={() => { const on = !sections.symptoms; setSections((s) => ({ ...s, symptoms: on })); track('report_section_toggled', { section: 'symptoms', on }); }}>{tx(lang, 'Symptoms & mood')}</button>
+              <button className={`chip${sections.measurements ? ' on' : ''}`} onClick={() => { const on = !sections.measurements; setSections((s) => ({ ...s, measurements: on })); track('report_section_toggled', { section: 'measurements', on }); }}>{tx(lang, 'Temperature & weight')}</button>
+              <button className={`chip${sections.fertility ? ' on' : ''}`} onClick={() => { const on = !sections.fertility; setSections((s) => ({ ...s, fertility: on })); track('report_section_toggled', { section: 'fertility', on }); }}>{tx(lang, 'Fertility signs')}</button>
+              <button className={`chip${sections.notes ? ' on' : ''}`} onClick={() => { const on = !sections.notes; setSections((s) => ({ ...s, notes: on })); track('report_section_toggled', { section: 'notes', on }); }}>{tx(lang, 'Notes')}</button>
             </div>
           </div>
           <button className="btn primary" onClick={() => {

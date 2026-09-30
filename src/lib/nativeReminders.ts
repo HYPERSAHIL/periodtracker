@@ -3,6 +3,11 @@ import { CycleStats } from './cycle';
 import { inQuietHours } from './storage';
 import { diffDays, todayISO } from './date';
 import { tx } from './i18n';
+import { track } from './beacon';
+
+// dedupe: the caller effect re-runs on every data change, these fire only on transitions
+let lastNativePerm: string | undefined;
+let lastScheduledCount = -1;
 
 /**
  * Native reminders: (re)schedule heads-ups via Capacitor, respecting the
@@ -15,6 +20,10 @@ export async function scheduleNativeReminders(settings: Settings, stats: CycleSt
   try {
     const LN = (await import('@capacitor/local-notifications')).LocalNotifications;
     const perm = await LN.requestPermissions();
+    if (perm.display !== lastNativePerm) {
+      lastNativePerm = perm.display;
+      track('reminder_permission', { via: 'native', result: perm.display });
+    }
     if (perm.display !== 'granted') return;
     // cancel by fixed ids - extra payload doesn't round-trip on Android
     await LN.cancel({ notifications: [{ id: 4101 }, { id: 4102 }, { id: 4103 }, { id: 4104 }, { id: 4105 }] }).catch(
@@ -147,7 +156,15 @@ export async function scheduleNativeReminders(settings: Settings, stats: CycleSt
     }
 
     if (toSchedule.length) await LN.schedule({ notifications: toSchedule as never });
+    if (toSchedule.length !== lastScheduledCount) {
+      lastScheduledCount = toSchedule.length;
+      track('reminder_scheduled', { count: toSchedule.length });
+    }
   } catch {
     /* plugin unavailable or not permitted - web banner path still works */
+    if (lastNativePerm !== 'error') {
+      lastNativePerm = 'error';
+      track('reminder_permission', { via: 'native', result: 'error' });
+    }
   }
 }

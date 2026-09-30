@@ -1,5 +1,7 @@
 import { DayEntry, DEFAULT_SETTINGS, PAIN_AREAS, Settings, TRACKER_SECTIONS, normMethod } from '../types';
 import { normLang } from './i18n';
+import { track } from './beacon';
+import { verifyIntegrity, writeIntegrity } from './audit';
 
 const ENTRIES_KEY = 'pt.entries.v1';
 const SETTINGS_KEY = 'pt.settings.v1';
@@ -106,7 +108,7 @@ function adoptLegacyPregnancy(s: Settings): void {
       }
     }
   } catch {
-    /* migration is best-effort */
+    track('data_load_failed', { key: 'migration' });
   }
 }
 
@@ -114,6 +116,7 @@ export function loadEntries(): Record<string, DayEntry> {
   try {
     const raw = localStorage.getItem(ENTRIES_KEY);
     if (!raw) return {};
+    verifyIntegrity('entries', raw);
     const parsed = JSON.parse(raw);
     const out: Record<string, DayEntry> = {};
     for (const e of parsed) {
@@ -123,15 +126,18 @@ export function loadEntries(): Record<string, DayEntry> {
     }
     return out;
   } catch {
+    track('data_load_failed', { key: 'entries' });
     return {};
   }
 }
 
 export function saveEntries(entries: Record<string, DayEntry>): void {
   try {
-    localStorage.setItem(ENTRIES_KEY, JSON.stringify(Object.values(entries)));
+    const json = JSON.stringify(Object.values(entries));
+    localStorage.setItem(ENTRIES_KEY, json);
+    writeIntegrity('entries', json);
   } catch {
-    /* quota/private-mode: in-memory copy stays usable this session */
+    track('data_save_failed', { key: 'entries' });
   }
 }
 
@@ -160,6 +166,7 @@ export function loadSettings(): Settings {
       const t = normalizeTrackerOrder([], []);
       return { ...DEFAULT_SETTINGS, trackerOrder: t.order, trackerHidden: t.hidden };
     }
+    verifyIntegrity('settings', raw);
     const s: Settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
     s.contraception = { ...DEFAULT_SETTINGS.contraception, ...(s.contraception ?? {}) };
     s.contraception.method = normMethod(s.contraception.method) ?? 'none';
@@ -202,6 +209,7 @@ export function loadSettings(): Settings {
     s.trackerHidden = t.hidden;
     return s;
   } catch {
+    track('data_load_failed', { key: 'settings' });
     const t = normalizeTrackerOrder([], []);
     return { ...DEFAULT_SETTINGS, trackerOrder: t.order, trackerHidden: t.hidden };
   }
@@ -209,9 +217,11 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings): void {
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    const json = JSON.stringify(settings);
+    localStorage.setItem(SETTINGS_KEY, json);
+    writeIntegrity('settings', json);
   } catch {
-    /* quota/private-mode: in-memory copy stays usable this session */
+    track('data_save_failed', { key: 'settings' });
   }
 }
 

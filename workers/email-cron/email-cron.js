@@ -10,6 +10,18 @@
 
 const FROM = { email: 'updates@periodtracker.run', name: 'Period Tracker' };
 
+// feed receipt — best-effort, never blocks the cron run
+async function postEvent(env, type, meta) {
+  if (!env.APP_URL || !env.APP_KEY) return;
+  try {
+    await fetch(`${env.APP_URL.replace(/\/$/, '')}/api/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-key': env.APP_KEY },
+      body: JSON.stringify({ type, meta }),
+    });
+  } catch { /* feed receipt is best-effort */ }
+}
+
 async function sendMail(env, msg) {
   if (env.EMAIL) {
     await env.EMAIL.send(msg);
@@ -137,15 +149,12 @@ async function sendDue(env, freq) {
     }
   }
   // digest-run receipt into the feed the same way as the probe (email first,
-  // address only — no names, no health fields)
-  if (env.APP_URL && env.APP_KEY) {
-    try {
-      await fetch(`${env.APP_URL.replace(/\/$/, '')}/api/event`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': env.APP_KEY },
-        body: JSON.stringify({ type: 'deliverability_digest_run', meta: { freq, sent, failed } }),
-      });
-    } catch { /* feed receipt is best-effort */ }
+  // address only — no names, no health fields); failures post their own event
+  await postEvent(env, 'deliverability_digest_run', { freq, sent, failed: failed.length });
+  if (failed.length) {
+    await postEvent(env, 'deliverability_digest_failed', {
+      freq, sent, failed: failed.length, error: failed[0].error,
+    });
   }
   return { sent, failed: failed.length };
 }
@@ -198,16 +207,12 @@ async function runProbe(env) {
     ).bind('resend-seed', target, status, score, sendDetail, new Date().toISOString()).run();
   } catch (e) {
     console.log('probe: log failed', String(e).slice(0, 120));
+    await postEvent(env, 'deliverability_probe_failed', { status, score, detail: 'probe_log insert failed: ' + String(e).slice(0, 120) });
   }
   // cron-run receipt into the owner's feed (no import: env.APP_KEY = PT_ADMIN_KEY)
-  if (env.APP_URL && env.APP_KEY) {
-    try {
-      await fetch(`${env.APP_URL.replace(/\/$/, '')}/api/event`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-key': env.APP_KEY },
-        body: JSON.stringify({ type: 'deliverability_probe_run', meta: { kind: 'cron', status, score } }),
-      });
-    } catch { /* feed receipt is best-effort; probe_log already holds the row */ }
+  await postEvent(env, 'deliverability_probe_run', { kind: 'cron', status, score });
+  if (!sendOk) {
+    await postEvent(env, 'deliverability_probe_failed', { status, score, detail: (sendDetail || '').slice(0, 200) });
   }
   return { status, score };
 }
@@ -218,11 +223,11 @@ export default {
     // NOTE: probe needs a PROBE_TARGET secret (a seed inbox address) — without
     // it the probe is skipped, never sent to users by mistake.
     if (event.cron === '30 6 * * 1') {
-      ctx.waitUntil(runProbe(env));
+      ctx.waitUntil(runProbe(env).catch(e => postEvent(env, 'deliverability_probe_failed', { error: String(e).slice(0, 120) })));
       return;
     }
     const freq = event.cron === '0 7 1 * *' ? 'monthly' : 'weekly';
-    ctx.waitUntil(sendDue(env, freq));
+    ctx.waitUntil(sendDue(env, freq).catch(e => postEvent(env, 'deliverability_digest_failed', { freq, error: String(e).slice(0, 120) })));
   },
   // manual trigger (authed via ?key=CRON_KEY, optional): GET /?key=...
   async fetch(request, env) {

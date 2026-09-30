@@ -5,6 +5,7 @@ import { adherenceConfidence, detectThermalShift, marquetteStatus, patternCards,
 import { addDays, diffDays, todayISO } from '../lib/date';
 import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
+import { track } from '../lib/beacon';
 import { DayEntry } from '../types';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -140,8 +141,8 @@ export default function Insights(p: AppProps) {
 
       <div className="card" style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
         <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
-          <button className={win === 6 ? 'on' : ''} onClick={() => setWin(6)}>{tx(lang, '6 cycles')}</button>
-          <button className={win === 12 ? 'on' : ''} onClick={() => setWin(12)}>{tx(lang, '12 cycles')}</button>
+          <button className={win === 6 ? 'on' : ''} onClick={() => { setWin(6); track('screen_insights_window', { cycles: 6 }); }}>{tx(lang, '6 cycles')}</button>
+          <button className={win === 12 ? 'on' : ''} onClick={() => { setWin(12); track('screen_insights_window', { cycles: 12 }); }}>{tx(lang, '12 cycles')}</button>
         </div>
         <button className="btn ghost sm" onClick={p.openReport}>🖨️ {tx(lang, 'Clinician report')}</button>
       </div>
@@ -216,9 +217,11 @@ export default function Insights(p: AppProps) {
                   key={start}
                   onClick={() => {
                     const cur = settings.excludedStarts ?? [];
+                    const excluded = !cur.includes(start);
                     p.updateSettings({
-                      excludedStarts: cur.includes(start) ? cur.filter((s) => s !== start) : [...cur, start],
+                      excludedStarts: excluded ? [...cur, start] : cur.filter((s) => s !== start),
                     });
+                    track('settings_cycle_excluded', { excluded });
                   }}
                   style={{ cursor: 'pointer', opacity: pair.valid ? (i === lensPairs.length - 1 ? 1 : 0.85) : 0.3 }}
                 >
@@ -550,7 +553,7 @@ function PmddCard({ p }: { p: AppProps }) {
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 12px' }}>
           {tx(lang, 'Mood patterns need 2 cycles of daily tracking to confirm — a single bad month is not PMDD.')}
         </p>
-        <button className="btn ghost sm" onClick={() => p.updateSettings({ pmddCheckStart: todayISO() })}>
+        <button className="btn ghost sm" onClick={() => { p.updateSettings({ pmddCheckStart: todayISO() }); track('settings_pmdd_check_started'); }}>
           {tx(lang, 'Start 2-cycle check')}
         </button>
       </div>
@@ -567,7 +570,7 @@ function PmddCard({ p }: { p: AppProps }) {
           : tx(lang, 'Keep logging moods daily, especially the week before each period. {n} cycle(s) to go.', { n: 2 - cyclesSince })}
       </p>
       {done && (
-        <button className="btn ghost sm" onClick={() => p.updateSettings({ pmddCheckStart: null })}>
+        <button className="btn ghost sm" onClick={() => { p.updateSettings({ pmddCheckStart: null }); track('settings_pmdd_check_cleared'); }}>
           {tx(lang, 'Dismiss')}
         </button>
       )}

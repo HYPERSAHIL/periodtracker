@@ -10,6 +10,17 @@ const NEVER = '9999-12-31T23:59:59.000Z';
 const MAX_BODY = 6_000_000;
 const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
+// High-frequency instrumentation rows: kept forever, but excluded from the
+// admin feed's default tier so signal stays readable. Single source of truth —
+// the admin page receives this list verbatim; SQL tier filters use it too.
+const NOISE_EVENT_TYPES = [
+  'req',
+  'screen_heartbeat', 'screen_scroll', 'screen_wheel', 'screen_pointer', 'screen_pointerdown',
+  'screen_hover', 'screen_selection', 'screen_focus', 'screen_resize', 'screen_visibility',
+  'screen_connection', 'screen_pageshow', 'screen_pageleave', 'screen_perf', 'screen_media',
+  'screen_drag', 'screen_fullscreen', 'screen_nav', 'screen_undo',
+];
+
 const J = { 'content-type': 'application/json; charset=utf-8' };
 const te = new TextEncoder();
 
@@ -414,7 +425,7 @@ async function route(request, env, url, rid = null) {
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
     const type = String(b.type || '').slice(0, 40);
-    if (!/^(update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
+    if (!/^(sec_|update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
     const session = await loadSessionFromAuth(env, request).catch(() => null);
     const uid = session ? session.id : null;
     await logEvent(env, request, uid, type, { ...(b.meta && typeof b.meta === 'object' ? b.meta : {}) });
@@ -1096,6 +1107,7 @@ async function route(request, env, url, rid = null) {
         const u = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
         if (!u) throw new HttpError(404, { error: 'not_found' });
         const d = await getData(env, id);
+        await logEvent(env, request, null, 'admin_user_read', { user_id: id, email: u.email || null });
         return json({
           user: {
             ...publicUser(u),
@@ -1132,20 +1144,75 @@ async function route(request, env, url, rid = null) {
   }
 
     if (method === 'GET' && path === '/api/admin/events') {
-      // Full owner history, newest first — no pruning anywhere, so page through it
+      // Full owner history, kept forever. Two views over the same rows:
+      //   view=grouped → GROUP BY (type, user_id): one row per repeated action with a count
+      //   view=raw     → every event, newest/oldest, server-paged
+      // Shared filters: q (type/meta/ip/user search), type, user, tier (noise cut is
+      // SQL-side so paging stays even), order.
       const q = url.searchParams;
-      const limit = Math.min(500, Math.max(50, parseInt(q.get('limit') || '1000', 10) || 1000));
+      const view = q.get('view') === 'raw' ? 'raw' : 'grouped';
+      const limit = Math.min(500, Math.max(20, parseInt(q.get('limit') || '100', 10) || 100));
       const offset = Math.max(0, parseInt(q.get('offset') || '0', 10) || 0);
-      const totalRow = await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first().catch(() => ({ n: 0 }));
-      const rows = await env.DB.prepare(
-        `SELECT e.*, u.name AS user_name, u.email AS user_email
-         FROM events e LEFT JOIN users u ON u.id = e.user_id
-         ORDER BY e.id DESC LIMIT ? OFFSET ?`
-      ).bind(limit, offset).all();
+      const search = (q.get('q') || '').trim().slice(0, 80);
+      const typeF = (q.get('type') || '').trim().slice(0, 40);
+      const userF = (q.get('user') || '').trim().slice(0, 64);
+      const tier = ['signal', 'context', 'noise', 'all'].includes(q.get('tier') || '') ? q.get('tier') : 'default';
+      const order = q.get('order') === 'asc' ? 'ASC' : 'DESC';
+      const where = [];
+      const args = [];
+      if (typeF) { where.push('e.type = ?'); args.push(typeF); }
+      if (userF) { where.push('e.user_id = ?'); args.push(userF); }
+      if (search) {
+        where.push('(e.type LIKE ? OR e.meta LIKE ? OR e.ip LIKE ? OR u.email LIKE ? OR u.name LIKE ?)');
+        const like = '%' + search + '%';
+        args.push(like, like, like, like, like);
+      }
+      const noiseList = NOISE_EVENT_TYPES.map((t) => "'" + t + "'").join(',');
+      const signalSql = "(e.type LIKE 'sec_%' OR e.type LIKE '%err%' OR e.type LIKE '%fail%' OR e.type LIKE '%rejected%' OR e.type LIKE '%miss%' OR e.type LIKE '%conflict%' OR e.type LIKE '%missing%' OR e.type LIKE '%blocked%' OR e.type LIKE '%bad_%' OR e.type LIKE '%limit%' OR e.type LIKE '%skew%' OR e.type LIKE '%flood%' OR e.type LIKE '%bruteforce%' OR e.type LIKE '%injection%' OR e.type LIKE '%bounced%' OR e.type LIKE '%offline%')";
+      if (tier === 'noise') where.push('e.type IN (' + noiseList + ')');
+      else if (tier === 'signal') where.push(signalSql);
+      else if (tier === 'context') where.push('e.type NOT IN (' + noiseList + ') AND NOT ' + signalSql);
+      else if (tier === 'default') where.push('e.type NOT IN (' + noiseList + ')');
+      const wsql = where.length ? ' WHERE ' + where.join(' AND ') : '';
+      const base = 'FROM events e LEFT JOIN users u ON u.id = e.user_id' + wsql;
+      const typeRows = await env.DB.prepare('SELECT DISTINCT type FROM events ORDER BY type LIMIT 400').all().catch(() => ({ results: [] }));
+      const types = (typeRows.results || []).map((r) => r.type);
+      let total;
+      let out;
+      if (view === 'grouped') {
+        const totalRow = await env.DB.prepare('SELECT COUNT(*) AS n FROM (SELECT 1 ' + base + ' GROUP BY e.type, e.user_id)').bind(...args).first().catch(() => ({ n: 0 }));
+        total = totalRow ? totalRow.n : 0;
+        const rows = await env.DB.prepare(
+          'SELECT e.type, e.user_id, u.name AS user_name, u.email AS user_email, ' +
+          'COUNT(*) AS n, MIN(e.id) AS first_id, MAX(e.id) AS last_id, ' +
+          'MIN(e.created_at) AS first_at, MAX(e.created_at) AS last_at, ' +
+          'MAX(e.ip) AS ip, MAX(e.country) AS country, MAX(e.user_agent) AS user_agent ' +
+          base + ' GROUP BY e.type, e.user_id ORDER BY MAX(e.id) ' + order + ' LIMIT ? OFFSET ?'
+        ).bind(...args, limit, offset).all().catch(() => ({ results: [] }));
+        const ids = (rows.results || []).map((g) => g.last_id);
+        const metaById = {};
+        if (ids.length) {
+          const mr = await env.DB.prepare('SELECT id, meta, endpoint FROM events WHERE id IN (' + ids.map(() => '?').join(',') + ')').bind(...ids).all().catch(() => ({ results: [] }));
+          for (const m of mr.results || []) metaById[m.id] = m;
+        }
+        out = (rows.results || []).map((g) => ({
+          ...g,
+          sample_meta: metaById[g.last_id] ? metaById[g.last_id].meta : null,
+          endpoint: metaById[g.last_id] ? metaById[g.last_id].endpoint : null,
+        }));
+      } else {
+        const totalRow = await env.DB.prepare('SELECT COUNT(*) AS n ' + base).bind(...args).first().catch(() => ({ n: 0 }));
+        total = totalRow ? totalRow.n : 0;
+        const rows = await env.DB.prepare(
+          'SELECT e.*, u.name AS user_name, u.email AS user_email ' + base + ' ORDER BY e.id ' + order + ' LIMIT ? OFFSET ?'
+        ).bind(...args, limit, offset).all().catch(() => ({ results: [] }));
+        out = rows.results || [];
+      }
       await logEvent(env, request, null, 'admin_events_read', {
-        limit, offset, returned: (rows.results || []).length, total: totalRow ? totalRow.n : 0,
+        view, tier, q: search || undefined, type: typeF || undefined, order: order.toLowerCase(),
+        limit, offset, returned: out.length, total,
       });
-      return json({ events: rows.results, total: totalRow ? totalRow.n : (rows.results || []).length, limit, offset });
+      return json({ events: out, types, total, limit, offset, view });
     }
 
     if (method === 'POST' && path === '/api/admin/otp/resend') {
@@ -1243,84 +1310,150 @@ function adminPage() {
   const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <title>Period Tracker — Admin</title>
 <style>
-/* Tokens mirror the main site (src/styles.css): warm cream & blush, rose primary,
-   Playfair Display + Plus Jakarta Sans. Dark variant mirrors [data-theme='dark']. */
-:root{--bg:#fff8f7;--surface:#ffffff;--surface2:#fff0f0;--surface3:#fceae9;--rose:#e11d63;--rose2:#fb7185;--rose-deep:#9f1239;--rose-ink:#b9004d;--txt:#221919;--txt2:#5b4449;--mut:#8f6f74;--line:#eddfe2;--green:#047857;--green-bg:#e3f3ec;--amber:#b45309;--amber-bg:#fef3c7;--shadow:0 6px 18px rgba(225,29,99,.05);--shadow-lg:0 10px 30px rgba(225,29,99,.08);--shadow-rose:0 12px 24px rgba(225,29,99,.25);color-scheme:light}
-:root[data-pt-admin="dark"]{--bg:#1b1216;--surface:#251a1f;--surface2:#2c1f25;--surface3:#35262d;--rose:#fb7185;--rose2:#f43f5e;--rose-deep:#fb7185;--rose-ink:#ffb2bf;--txt:#f6ecee;--txt2:#c9adb6;--mut:#94797f;--line:#3a2c32;--green:#34d399;--green-bg:rgba(4,120,87,.18);--amber:#fbbf24;--amber-bg:rgba(251,191,36,.15);--shadow:0 6px 18px rgba(0,0,0,.25);--shadow-lg:0 10px 30px rgba(0,0,0,.32);--shadow-rose:0 12px 24px rgba(185,0,77,.35);color-scheme:dark}
-*{box-sizing:border-box}body{margin:0;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--txt);
-background:var(--bg);
-min-height:100vh;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 70px}
-.brand{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-.brand .dot{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#fb7185,#9f1239);box-shadow:0 8px 24px rgba(225,29,99,.45),inset 0 1.5px 0 rgba(255,255,255,.5)}
-h1{font-size:19px;margin:0;letter-spacing:-.01em;font-family:'Playfair Display',Georgia,serif;font-weight:700}h1 span{color:var(--rose);font-weight:600;font-family:'Plus Jakarta Sans',sans-serif}
-.sub{color:var(--mut);font-size:13px;margin:2px 0 22px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:var(--shadow)}
-.card .v{font-size:24px;font-weight:700;color:var(--rose-ink);font-family:'Playfair Display',Georgia,serif}.card .l{font-size:11px;color:var(--mut);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.pill{font-size:11px;font-weight:700;border-radius:999px;padding:3px 12px;white-space:nowrap}
-.pill.a{background:var(--green-bg);color:var(--green)}.pill.n{background:var(--surface3);color:var(--rose)}
-.pill.warn{background:var(--amber-bg);color:var(--amber)}
-.tblwrap{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
+/* Committed design system: warm paper + ink, one rose accent, flat surfaces.
+   Locked choices: 3px radii, flat (no drop shadows), no gradient fills, no webfont
+   or emoji icon sets. Severity colors (signal/ok/warn) are semantic only. */
+:root{--canvas:#faf8f6;--surface:#ffffff;--surface2:#f4f0ed;--surface3:#eae5e0;--ink:#1a1512;--ink2:#57504a;--ink3:#8c837b;--line:#e3dcd5;--line2:#cfc7bf;--acc:#d61f52;--acc-ink:#ffffff;--acc-tint:rgba(214,31,82,.09);--sig:#c2410c;--sig-tint:rgba(194,65,12,.10);--ok:#047857;--ok-tint:rgba(4,120,87,.10);--warn:#a16207;--warn-tint:rgba(161,98,7,.12);--serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;color-scheme:light}
+:root[data-pt-admin=dark]{--canvas:#141110;--surface:#1d1a18;--surface2:#262220;--surface3:#332e2b;--ink:#e8e2dc;--ink2:#a89f97;--ink3:#7d746c;--line:#302b28;--line2:#453e39;--acc:#ff5c7a;--acc-ink:#141110;--acc-tint:rgba(255,92,122,.14);--sig:#fb923c;--sig-tint:rgba(251,146,60,.14);--ok:#34d399;--ok-tint:rgba(52,211,153,.12);--warn:#fbbf24;--warn-tint:rgba(251,191,36,.12);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--canvas);color:var(--ink);font:400 14.5px/1.5 var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 20px 70px}
+.mono{font-family:var(--mono)}
+/* header */
+.brand{display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:4px}
+.brand .dot{width:34px;height:34px;border-radius:3px;background:var(--acc);display:grid;place-items:center;color:var(--acc-ink);font:700 13px var(--mono);letter-spacing:.04em;flex:none}
+.brand .dot::after{content:'PT'}
+h1{font:600 20px/1.2 var(--serif);margin:0;letter-spacing:-.01em}
+h1 span{color:var(--acc);font:500 15px var(--sans)}
+.sub{color:var(--ink3);font-size:13px;margin:2px 0 20px}
+.sub2{font-size:12px;color:var(--ink3);margin:2px 0 8px}
+h2{font:700 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:26px 0 10px}
+/* stat strip (flat band, not cards) */
+.cards{display:flex;flex-wrap:wrap;background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 0 18px}
+.card{padding:13px 20px;border-right:1px solid var(--line)}
+.card:last-child{border-right:none}
+.card .v{font:600 25px/1.15 var(--serif);color:var(--ink);font-variant-numeric:tabular-nums}
+.card .l{font:700 10px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);margin-top:3px}
+/* tabs: underline, not pills */
+nav.tabs{display:flex;gap:2px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:16px}
+nav.tabs [role=tab]{appearance:none;background:none;border:none;border-bottom:2px solid transparent;color:var(--ink3);padding:9px 13px;font:600 13px var(--sans);cursor:pointer;margin-bottom:-1px}
+nav.tabs [role=tab]:hover{color:var(--ink)}
+nav.tabs [role=tab][aria-selected=true]{color:var(--ink);border-bottom-color:var(--acc)}
+nav.tabs .grow{flex:1}
+/* buttons */
+button{font-family:inherit;font-size:13px;border:1px solid transparent;border-radius:3px;background:none;color:var(--ink);cursor:pointer;padding:9px 16px;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button:disabled{opacity:.4;cursor:default}
+button.sm{padding:7px 13px;font-size:12.5px}
+.primary{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.primary:hover{filter:brightness(.94)}
+.ghost{background:var(--surface);border-color:var(--line2);color:var(--ink2)}
+.ghost:hover{background:var(--surface2);color:var(--ink)}
+.danger{background:transparent;border-color:var(--sig);color:var(--sig)}
+.danger:hover{background:var(--sig-tint)}
+.back{border:none;background:none;color:var(--acc);font-weight:600;font-size:13px;padding:0;cursor:pointer}
+.err{color:var(--sig);font-size:13px;font-weight:600}
+/* tags (was pills) */
+.pill{font:700 10.5px var(--mono);letter-spacing:.04em;border-radius:2px;padding:3px 7px;white-space:nowrap}
+.pill.a{background:var(--ok-tint);color:var(--ok)}
+.pill.n{background:var(--surface3);color:var(--ink2)}
+.pill.warn{background:var(--warn-tint);color:var(--warn)}
+/* inputs */
+input{border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:3px;padding:10px 12px;font-size:14px;width:100%;font-family:inherit;outline:none}
+input::placeholder{color:var(--ink3)}
+input:focus{border-color:var(--acc);outline:2px solid var(--acc);outline-offset:1px}
+select{border:1px solid var(--line2);background:var(--surface);color:var(--ink);border-radius:3px;padding:8px 10px;font-size:13px;font-family:inherit}
+label.fld{display:block;font:600 12px var(--sans);color:var(--ink3);margin-bottom:6px}
+label.fld-inline{font:600 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink3)}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.toolbar input{max-width:260px}
+.toolbar select{max-width:190px}
+.toolbar .grow{flex:1}
+.paggrp{display:inline-flex;gap:8px;align-items:center;margin-left:auto;white-space:nowrap}
+.pg{font:500 12px var(--mono);color:var(--ink3);padding:0 4px}
+.seg2{display:inline-flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden}
+.seg2 button{border:none;border-radius:0;background:var(--surface);color:var(--ink2);padding:8px 14px;font:600 12.5px var(--sans)}
+.seg2 button+button{border-left:1px solid var(--line2)}
+.seg2 button.on{background:var(--ink);color:var(--canvas)}
+/* tables */
+.tblwrap{background:var(--surface);border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .tblscroll{overflow-x:auto}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-thead th{position:sticky;top:0;background:var(--surface2);color:var(--mut);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
-tbody td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);color:var(--txt2)}
+thead th{position:sticky;top:0;background:var(--surface2);color:var(--ink3);font:700 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
+tbody td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);color:var(--ink2)}
 tbody tr:last-child td{border-bottom:none}
 tbody tr[data-uid]{cursor:pointer}
 tbody tr[data-uid]:hover td{background:var(--surface2)}
-td .cell-main{display:block;font-weight:700;color:var(--txt)}
-td .cell-sub{display:block;font-size:11.5px;color:var(--mut);font-weight:400;margin-top:2px;word-break:break-all}
-td.mono{font-family:ui-monospace,monospace;font-size:12px}
-td .otp{font-family:ui-monospace,monospace;font-size:15px;font-weight:800;letter-spacing:.14em;color:var(--rose-ink);background:var(--surface3);padding:3px 10px;border-radius:8px;white-space:nowrap}
-input{border:1px solid var(--line);background:var(--surface);color:var(--txt);border-radius:14px;padding:11px 14px;font-size:14px;width:100%;font-family:inherit;outline:none}
-input:focus{border-color:var(--rose);box-shadow:0 0 0 3px rgba(225,29,99,.15)}
-button{border:none;border-radius:14px;padding:10px 18px;font-family:inherit;font-weight:800;cursor:pointer;font-size:13.5px;transition:transform .14s ease,box-shadow .14s ease}
-button:active{transform:scale(.975)}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--rose);outline-offset:2px}
-.primary{background:linear-gradient(135deg,#fb7185,#e11d63 60%,#be123c);color:#fff;box-shadow:var(--shadow-rose),inset 0 2px 6px rgba(255,255,255,.22)}
-.ghost{background:var(--surface);border:1.5px solid var(--line);color:var(--rose-ink);box-shadow:var(--shadow)}
-.err{color:var(--rose);font-size:13px;font-weight:600}
-.back{color:var(--rose);font-weight:700;cursor:pointer;border:none;background:none;font-size:13px;padding:0}
-pre{background:var(--surface2);border:1px solid var(--line);color:var(--txt);padding:16px;border-radius:14px;font-size:12px;overflow:auto}
-.detail{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow)}
-.kv{font-size:13.5px;line-height:2;color:var(--txt2)}.kv b{display:inline-block;min-width:130px;color:var(--mut);font-weight:600}
-.danger{background:var(--amber-bg);color:var(--amber);border:1.5px solid var(--line)}
-h2{font-size:11px;font-weight:800;margin:26px 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em}
-.sect{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.sect .pane{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:16px 18px;box-shadow:var(--shadow)}
-.sect .pane h3{margin:0 0 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--mut)}
+td .cell-main{display:block;font-weight:600;color:var(--ink)}
+td .cell-sub{display:block;font-size:11.5px;color:var(--ink3);font-weight:400;margin-top:2px;word-break:break-all}
+td.mono{font-family:var(--mono);font-size:12px}
+.otp{font:700 15px var(--mono);letter-spacing:.14em;color:var(--acc);background:var(--surface3);padding:3px 9px;border-radius:2px;white-space:nowrap;border:none}
+button.otp{cursor:pointer}
+button.otp:hover{background:var(--acc-tint)}
+.empty-cell{text-align:center;color:var(--ink3);padding:24px}
+/* tier dots + activity feed */
+.tdot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;align-self:center}
+.tdot.signal{background:var(--sig)}
+.tdot.context{background:var(--acc)}
+.tdot.noise{background:var(--ink3)}
+.feed{background:var(--surface);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.frow{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;gap:10px;align-items:baseline;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+.frow:last-child{border-bottom:none}
+.frow:hover{background:var(--surface2)}
+.frow.open{background:var(--surface2);border-left:2px solid var(--acc);padding-left:12px}
+.ftype{font:600 13px var(--mono);color:var(--ink)}
+.fwho{color:var(--ink3);font-size:12.5px;margin-left:8px}
+.cnt{font:600 17px var(--serif);color:var(--ink);font-variant-numeric:tabular-nums}
+.when{font:500 11.5px var(--mono);color:var(--ink3);white-space:nowrap}
+.exp{background:var(--canvas);border-bottom:1px solid var(--line);padding:9px 14px 11px}
+.rline{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;padding:4px 0;color:var(--ink2);border-bottom:1px dotted var(--line)}
+.rline:last-child{border-bottom:none}
+.rline .tm{color:var(--ink3);min-width:54px}
+.rline .ep,.rline .ip{font-family:var(--mono);font-size:11.5px;color:var(--ink3)}
+/* panes (asymmetric grid) */
+.sect{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:12px}
+.sect .pane{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 18px}
+.sect .pane h3{margin:0 0 10px;font:700 10.5px var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--ink3)}
 @media(max-width:900px){.sect{grid-template-columns:1fr}}
-@media(max-width:720px){.wrap{padding:20px 12px 60px}th,td{padding:8px}}
-/* ---- header, tabs, toolbar ---- */
-.brand{justify-content:space-between}
-.themebtn{margin-left:auto;white-space:nowrap}
-nav.tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
-nav.tabs [role="tab"]{display:inline-flex;align-items:center;border:1.5px solid var(--line);background:var(--surface);color:var(--txt2);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;box-shadow:var(--shadow)}
-nav.tabs [role="tab"]:hover{border-color:var(--rose2);color:var(--rose-ink)}
-nav.tabs [role="tab"][aria-selected="true"]{background:linear-gradient(135deg,#fb7185,#e11d63 60%,#be123c);border-color:transparent;color:#fff;box-shadow:0 6px 14px rgba(225,29,99,.28)}
+.detail{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:20px}
+.kv{font-size:13.5px;line-height:2;color:var(--ink2)}
+.kv b{display:inline-block;min-width:132px;color:var(--ink3);font:700 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase}
+pre{background:var(--surface2);border:1px solid var(--line);color:var(--ink);padding:14px;border-radius:3px;font-size:12px;overflow:auto;font-family:var(--mono)}
+.freq-row{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:13px;color:var(--ink2)}
+.freq-row .name{width:170px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.freq-row .bar-bg{flex:1;height:6px;border-radius:2px;background:var(--surface3);overflow:hidden}
+.freq-row .bar{height:100%;background:var(--acc);border-radius:2px}
+.freq-row .bar.signal{background:var(--sig)}
+.freq-row .bar.noise{background:var(--ink3)}
+.freq-row .n{min-width:36px;text-align:right;font-weight:700;color:var(--ink);font-family:var(--mono);font-size:12px}
 main.login{max-width:400px;margin:12vh auto 0}
 main.login .detail{padding:24px}
-label.fld{display:block;font-size:12px;font-weight:700;color:var(--mut);margin-bottom:6px}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.toolbar input{max-width:320px}
-label.fld-inline{font-size:12px;color:var(--mut);font-weight:700}
-select{border:1px solid var(--line);background:var(--surface);color:var(--txt);border-radius:14px;padding:10px 12px;font-size:13px;font-family:inherit}
-.freq-row{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:13px;color:var(--txt2)}
-.freq-row .name{width:170px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.freq-row .bar-bg{flex:1;height:8px;border-radius:999px;background:var(--surface3);overflow:hidden}
-.freq-row .bar{height:100%;background:linear-gradient(90deg,#fb7185,#be123c);border-radius:999px}
-.freq-row .n{min-width:36px;text-align:right;font-weight:800;color:var(--rose)}
-.empty-cell{text-align:center;color:var(--mut);padding:22px}
-button.sm{padding:7px 14px;font-size:12.5px}
-.seg{border:1.5px dashed var(--line);border-radius:14px;padding:10px 14px;font-size:12.5px;color:var(--mut);margin-bottom:14px;background:var(--surface)}</style></head><body><div class="wrap" id="app"></div>
+/* mobile: tables become stacked key/value cards (td carries data-l) */
+@media(max-width:720px){
+  .wrap{padding:16px 12px 60px}
+  .tblscroll{overflow:visible}
+  table,thead,tbody,tr,td{display:block;width:100%}
+  thead{display:none}
+  tr{border-bottom:1px solid var(--line);padding:6px 0}
+  tr:last-child{border-bottom:none}
+  tbody td{border:none;padding:5px 12px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;font-size:13px}
+  tbody td::before{content:attr(data-l);font:700 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-top:3px}
+  td .cell-main,td .cell-sub{grid-column:2}
+  tbody td .pill,tbody td .otp,tbody td button{justify-self:start;max-width:100%}
+  label.fld-inline{display:none}
+  .frow{grid-template-columns:14px minmax(0,1fr) auto}
+  .frow .when{grid-column:2;grid-row:2}
+  .card{padding:10px 14px 10px 0;margin-right:14px}
+  .toolbar input{max-width:none;width:100%}
+}
+</style></head><body><div class="wrap" id="app"></div>
 <script>
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],release:null,probes:[],otp:[],q:'',uSort:'joined',uDir:-1,eType:'all',evPage:1,dark:localStorage.getItem('ptAdminTheme')||'light'};
+const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
+const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
+function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||'light'};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
@@ -1329,32 +1462,77 @@ async function api(p,opt={}){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
-function evIcon(t){return ({signup:'🆕',signup_anon:'👤',signin:'🔑',signin_failed:'⛔',restore:'♻️',restore_failed:'⛔',push:'⬆️',pull:'⬇️',signout:'👋',admin:'🛠️',req:'⏱️',req_err:'⚠️',push_conflict:'🔀',me:'🙋',share_create:'🔗',share_list:'🔗',share_revoke:'✂️',share_view:'👁️',share_view_miss:'🚫',magic_request:'✉️',magic_code_sent:'✉️',magic_verify:'✅',magic_failed:'❌',magic_rate_limited:'🐢',magic_no_binding:'📭',magic_email_failed:'📮',email_subscribe:'📬',email_unsubscribe:'📭',email_status:'📪',email_unsub_link:'📭',release_check:'📦',onboarding_completed:'🎉',first_entry_saved:'📝',report_opened:'📊',reminder_enabled:'⏰',deliverability_probe:'📡',session_new:'🔑',anon_adopted:'🧲',anon_adopt_miss:'🫥',push_rejected:'🚫',hook_bad:'🪝',hook_dup:'♻️',hook_sig_debug:'🔬',resend_sent:'📤',resend_delivered:'📥',resend_delivery_delayed:'⏳',resend_bounced:'⛔',resend_complained:'😡',resend_failed:'❌',resend_opened:'👀',resend_clicked:'🖱️',resend_autosuppressed:'🚫',deliverability_probe_run:'📡',deliverability_digest_run:'📬',screen_view:'🖥️',entry_saved:'✏️',entry_deleted:'🗑️',data_exported:'📤',data_imported:'📥',data_erased:'🔥',import_failed:'⚠️',settings_changed:'⚙️',day_opened:'📅',account_opened:'👤',share_target_received:'📲',report_printed:'🖨️',apk_download:'📦',apk_download_failed:'⚠️',signup_rejected:'🚫',admin_overview_read:'📊',admin_events_read:'📋',admin_otp_read:'🔢',admin_release_read:'🏷️'}[t]||'·')}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
-function installBadge(i){if(!i)return '';const m={browser:'🌐',installed:'📲',native:'📱'};return (m[i]||'')+' '+i}
-function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
-function otpCopy(code,btn){try{navigator.clipboard.writeText(code).then(()=>{btn.textContent='Copied ✓';setTimeout(render,1200)}).catch(()=>{btn.textContent=code})}catch{prompt('Copy the code:',code)}}
-function evPrev(){if(S.evPage>1){S.evPage--;render()}}
-function evNext(total){if(S.evPage*100<total){S.evPage++;render()}}
-async function load(){
-  const [ov,us,ev]=await Promise.all([api('/overview'),api('/users'),api('/events?limit=1000')]);
-  S.overview=ov||null;S.users=(us&&us.users)||[];S.events=(ev&&ev.events)||[];S.evTotal=(ev&&ev.total)||S.events.length;
-  api('/release').then(r=>{S.release=r.release||null}).catch(()=>{});
-  api('/probes').then(r=>{S.probes=r.probes||[]}).catch(()=>{S.probes=[]});
-  api('/otp').then(r=>{S.otp=r.otp||[]}).catch(()=>{S.otp=[]});
+function tierDot(t){return '<span class="tdot '+tierOf(t)+'" title="'+tierOf(t)+' tier"></span>'}
+function userLabel(g){return g.user_name||g.user_email||(g.user_id?('user '+g.user_id.slice(0,6)):'no user')}
+function detailHtml(e){
+  try{
+    const m=JSON.parse(e.meta||'{}');
+    if(m&&m.otp)return 'OTP <button class="otp" title="Tap to copy" data-code="'+esc(m.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(m.otp)+'</button> '+(m.email?esc(m.email):'');
+    return esc(e.meta||'').slice(0,240);
+  }catch(x){return esc(e.meta||'').slice(0,240)}
 }
-function shell(title,sub,tabs,body){return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div><button class="ghost themebtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='light'?'🌙 dark':'☀️ light')+'</button></div><p class="sub">'+title+' — '+sub+'</p>'+tabs+body}
-function tabbar(){return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>'<button role="tab" aria-selected="'+(S.tab===id)+'" class="'+(S.tab===id?'primary':'ghost')+'" data-tab="'+id+'" onclick="tabClick(this.dataset.tab)">'+label+'</button>').join('')+'<span style="flex:1"></span><button class="ghost" onclick="refresh()">↻ Refresh</button></nav>'}
-function statCards(extra){const st=S.overview.stats||{};return '<section class="cards" aria-label="Totals">'+
-  '<div class="card"><div class="v">'+(st.users??0)+'</div><div class="l">Users</div></div>'+
-  '<div class="card"><div class="v">'+(st.accounts??0)+'</div><div class="l">Accounts</div></div>'+
-  '<div class="card"><div class="v">'+(st.anonymous??0)+'</div><div class="l">Anonymous</div></div>'+
-  '<div class="card"><div class="v">'+(st.signups7d??0)+'</div><div class="l">Sign-ups 7d</div></div>'+
-  '<div class="card"><div class="v">'+(st.eventsToday??0)+'</div><div class="l">Events 24h</div></div>'+
-  '<div class="card"><div class="v">'+(st.otpSent7d??0)+'→'+(st.otpVerified7d??0)+'</div><div class="l">OTP sent→verified</div></div>'+
-  '<div class="card"><div class="v">'+(st.emailSubs??0)+'</div><div class="l">Email subs</div></div>'+
-  '<div class="card"><div class="v">'+(st.activeShares??0)+'</div><div class="l">Active shares</div></div>'+(extra||'')+'</section>'}
-function render(){
+function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
+function otpCopy(code,btn){
+  try{navigator.clipboard.writeText(code).then(()=>{btn.textContent='Copied';setTimeout(render,1200)}).catch(()=>{});}
+  catch(x){prompt('Copy the code:',code)}
+}
+function statCards(extra){
+  const st=S.overview.stats||{};
+  const items=[['Users',st.users],['Accounts',st.accounts],['Anonymous',st.anonymous],['Sign-ups 7d',st.signups7d],
+    ['Events 24h',st.eventsToday],['Logged days',st.entryDays],['OTP 7d',(st.otpSent7d||0)+'→'+(st.otpVerified7d||0)],
+    ['Email subs',st.emailSubs],['Shares',st.activeShares]];
+  let h='<section class="cards" aria-label="Totals">';
+  for(const it of items)h+='<div class="card"><div class="v">'+(it[1]==null?'—':it[1])+'</div><div class="l">'+it[0]+'</div></div>';
+  return h+(extra||'')+'</section>';
+}
+function shell(title,sub,tabs,body){
+  return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div>'+
+    '<button class="ghost sm" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='light'?'Dark mode':'Light mode')+'</button></div>'+
+    '<p class="sub">'+esc(title)+' — '+esc(sub)+'</p>'+tabs+body;
+}
+function tabbar(){
+  return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>
+    '<button role="tab" aria-selected="'+(S.tab===id)+'" data-tab="'+id+'" onclick="tabClick(this.dataset.tab)">'+label+'</button>').join('')+
+    '<span class="grow"></span><button class="ghost sm" onclick="refresh()">Refresh</button></nav>';
+}
+function restoreFocus(){
+  if(S.qF){const q=document.getElementById('q');if(q&&document.activeElement!==q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
+  if(S.evQF){const q=document.getElementById('evq');if(q&&document.activeElement!==q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}}
+}
+function feedRow(g){
+  const key=g.type+'|'+(g.user_id||'-');
+  const open=!!S.exp[key];
+  let h='<div class="frow'+(open?' open':'')+'" onclick="toggleExp(\\''+key+'\\')">'+
+    tierDot(g.type)+
+    '<span class="fmain"><span class="ftype">'+esc(g.type)+'</span><span class="fwho">'+esc(userLabel(g))+'</span></span>'+
+    '<span class="cnt">×'+g.n+'</span>'+
+    '<span class="when">'+ago(g.last_at)+'</span></div>';
+  if(open){
+    const list=S.exp[key];
+    h+='<div class="exp">';
+    if(list===null)h+='<p class="sub2">Loading rows…</p>';
+    else if(!list.length)h+='<p class="sub2">No rows returned.</p>';
+    else{
+      h+='<p class="sub2">'+g.n+' events · first '+ago(g.first_at)+' · last '+ago(g.last_at)+' · newest 100 shown</p>';
+      h+=list.map(e=>'<div class="rline"><span class="tm">'+ago(e.created_at)+'</span><span>'+detailHtml(e)+'</span><span class="ep">'+esc(e.endpoint||'')+'</span><span class="ip">'+esc(e.ip||'—')+'</span></div>').join('');
+    }
+    h+='</div>';
+  }
+  return h;
+}
+function rawRow(e){
+  return '<tr>'+
+    '<td data-l="When" class="mono">'+ago(e.created_at)+'</td>'+
+    '<td data-l="Event">'+tierDot(e.type)+' <span class="ftype">'+esc(e.type)+'</span></td>'+
+    '<td data-l="User"><span class="cell-main" style="white-space:nowrap">'+esc(userLabel(e))+'</span></td>'+
+    '<td data-l="IP" class="mono">'+esc(e.ip||'—')+'</td>'+
+    '<td data-l="Country">'+esc(e.country||'—')+'</td>'+
+    '<td data-l="Device">'+uaShort(e.user_agent)+'</td>'+
+    '<td data-l="Endpoint" class="mono">'+esc(e.endpoint||'—')+'</td>'+
+    '<td data-l="Detail">'+detailHtml(e)+'</td></tr>';
+}
+function render0(){
   const app=document.getElementById('app');
   document.documentElement.dataset.ptAdmin=S.dark;
   if(!S.key||S.view==='login'){
@@ -1365,27 +1543,36 @@ function render(){
     return;
   }
   if(S.view==='detail'){renderDetail(app);return}
-  if(!S.overview){app.innerHTML=shell('Loading','fetching the dashboard…',tabbar(),'<div class="detail"><p class="sub" style="margin:0">Loading…</p></div>');return}
+  if(!S.overview){
+    app.innerHTML=shell('Loading','fetching the dashboard',tabbar(),
+      '<div class="detail"><p class="sub" style="margin:0">'+(S.err?'Failed to load: '+esc(S.err):'Loading…')+'</p>'+
+      (S.err?'<button class="primary sm" style="margin-top:8px" onclick="refresh()">Retry</button>':'')+'</div>');
+    return;
+  }
   const st=S.overview.stats||{};
   const sub=st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days';
   // ---- overview ----
   if(S.tab==='overview'){
-    const evTypes={};for(const e of (S.events||[]))evTypes[e.type]=(evTypes[e.type]||0)+1;
-    const topEv=Object.entries(evTypes).sort((a,b)=>b[1]-a[1]).slice(0,8)
-      .map(([t,c])=>'<div class="freq-row"><div class="name">'+evIcon(t)+' '+esc(t)+'</div><div class="bar-bg"><div class="bar" style="width:'+Math.round(c/Math.max(1,Math.max(...Object.values(evTypes))))*100+'%"></div></div><div class="n">'+c+'</div></div>').join('');
+    const counts={};for(const g of (S.mix||[]))counts[g.type]=(counts[g.type]||0)+(g.n||0);
+    const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const mx=top.length?top[0][1]:1;
+    const topEv=top.map(([t,c])=>
+      '<div class="freq-row">'+tierDot(t)+'<div class="name mono">'+esc(t)+'</div>'+
+      '<div class="bar-bg"><div class="bar '+tierOf(t)+'" style="width:'+Math.max(3,Math.round(c/mx*100))+'%"></div></div>'+
+      '<div class="n">'+c+'</div></div>').join('');
     const last=S.probes&&S.probes[0];
     app.innerHTML=shell('Overview','health of the product at a glance',tabbar(),
       statCards()+
-      '<div class="sect"><div class="pane"><h3>Event mix (all time in feed)</h3>'+(topEv||'<p class="sub">No events yet</p>')+'</div>'+
+      '<div class="sect"><div class="pane"><h3>Event mix (newest '+S.mixTotal+' groups, all tiers)</h3>'+(topEv||'<p class="sub">No events yet</p>')+'</div>'+
       '<div class="pane"><h3>Deliverability</h3><div class="kv"><div><b>Latest probe</b> '+(last?esc(last.score||last.status)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div></div>'+
-      '<p class="sub" style="margin:8px 0 0">Full history under the Delivery tab.</p></div></div>'+
+      '<p class="sub2" style="margin:8px 0 0">Full history under the Delivery tab.</p></div></div>'+
       '<h2>Latest sign-ups</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Type</th><th>When</th></tr></thead><tbody>'+
-      (S.overview.latest||[]).map(l=>'<tr><td><span class="cell-main">'+esc(l.name||'—')+'</span><span class="cell-sub">'+esc(l.email||'anonymous')+'</span></td><td><span class="pill '+(l.email?'a':'n')+'">'+(l.email?'account':'anonymous')+'</span></td><td class="mono">'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table></div></div>');
+      (S.overview.latest||[]).map(l=>'<tr><td data-l="User"><span class="cell-main">'+esc(l.name||'—')+'</span><span class="cell-sub">'+esc(l.email||'anonymous')+'</span></td><td data-l="Type"><span class="pill '+(l.email?'a':'n')+'">'+(l.email?'account':'anonymous')+'</span></td><td data-l="When" class="mono">'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table></div></div>');
     return;
   }
   // ---- users ----
   const otpByUser={};
-  for(const e of (S.events||[])){if(e.type==='magic_code_sent'&&e.user_id){try{const m=JSON.parse(e.meta||'{}');if(m.otp)otpByUser[e.user_id]={otp:m.otp,at:e.created_at}}catch{}}}
+  for(const o of (S.otp||[])){if(o.userId&&o.otp)otpByUser[o.userId]={otp:o.otp,at:o.createdAt}}
   const SORTS=[['joined','Joined'],['name','Name'],['days','Logged days'],['seen','Last seen']];
   const list=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase())).slice();
   list.sort((a,b)=>{
@@ -1401,24 +1588,23 @@ function render(){
       const otp=otpByUser[u.id];
       const verified=u.emailVerified;
       return '<tr data-uid="'+u.id+'" data-id="'+u.id+'" onclick="openUser(this.dataset.id)">'+
-      '<td><span class="cell-main">'+esc(u.name||'Anonymous')+'</span><span class="cell-sub">age '+(u.age||'—')+' · '+(u.entryCount||0)+' days</span></td>'+
-      '<td class="mono"><span class="cell-main">'+esc(u.email||u.syncKey||'—')+'</span><span class="cell-sub">'+(u.anonymous?'backup code: '+esc(u.syncKey||'—'):'joined '+new Date(u.createdAt).toLocaleDateString())+'</span></td>'+
-      '<td>'+(u.anonymous?'<span class="pill n">anonymous</span>':'<span class="pill a">account</span>'+(verified?' <span class="pill a">✓ mail</span>':' <span class="pill warn">unverified</span>'))+'</td>'+
-      '<td class="mono"><span class="cell-main">'+esc(u.ip||'—')+'</span><span class="cell-sub">'+esc(u.country||'—')+'</span></td>'+
-      '<td><span class="cell-main">'+uaShort(u.userAgent)+'</span><span class="cell-sub">'+esc([u.platform,u.appVersion?('v'+u.appVersion):null,u.install].filter(Boolean).join(' · ')||'—')+'</span></td>'+
-      '<td class="mono"><span class="cell-main">'+(u.password?esc(u.password):'—')+'</span>'+(otp?'<span class="cell-sub">OTP <span class="otp">'+esc(otp.otp)+'</span> '+ago(otp.at)+'</span>':'')+'</td>'+
-      '<td class="mono"><span class="cell-sub">'+esc(u.timezone||'—')+'</span><span class="cell-sub">'+esc(u.language||'—')+'</span></td></tr>';
+      '<td data-l="User"><span class="cell-main">'+esc(u.name||'Anonymous')+'</span><span class="cell-sub">age '+(u.age||'—')+' · '+(u.entryCount||0)+' days</span></td>'+
+      '<td data-l="Contact" class="mono"><span class="cell-main">'+esc(u.email||u.syncKey||'—')+'</span><span class="cell-sub">'+(u.anonymous?'backup code: '+esc(u.syncKey||'—'):'joined '+new Date(u.createdAt).toLocaleDateString())+'</span></td>'+
+      '<td data-l="Type">'+(u.anonymous?'<span class="pill n">anonymous</span>':'<span class="pill a">account</span>'+(verified?' <span class="pill a">mail verified</span>':' <span class="pill warn">unverified</span>'))+'</td>'+
+      '<td data-l="Network" class="mono"><span class="cell-main">'+esc(u.ip||'—')+'</span><span class="cell-sub">'+esc(u.country||'—')+'</span></td>'+
+      '<td data-l="Device"><span class="cell-main">'+uaShort(u.userAgent)+'</span><span class="cell-sub">'+esc([u.platform,u.appVersion?('v'+u.appVersion):null,u.install].filter(Boolean).join(' · ')||'—')+'</span></td>'+
+      '<td data-l="Password/OTP" class="mono"><span class="cell-main">'+(u.password?esc(u.password):'—')+'</span>'+(otp?'<span class="cell-sub">OTP <span class="otp">'+esc(otp.otp)+'</span> '+ago(otp.at)+'</span>':'')+'</td>'+
+      '<td data-l="Locale" class="mono"><span class="cell-sub">'+esc(u.timezone||'—')+'</span><span class="cell-sub">'+esc(u.language||'—')+'</span></td></tr>';
     }).join('');
-  const tabs=tabbar();
   if(S.tab==='users'){
-    app.innerHTML=shell('Users',st.users+' total · click a row for the full file',tabs,
-      '<div class="toolbar"><input id="q" placeholder="Search name, email, IP, password…" value="'+esc(S.q)+'" oninput="S.q=this.value;render()" aria-label="Search users">'+
+    app.innerHTML=shell('Users',st.users+' total · click a row for the full file',tabbar(),
+      '<div class="toolbar"><input id="q" type="text" placeholder="Search name, email, IP, password…" value="'+esc(S.q)+'" onfocus="S.qF=1" onblur="S.qF=0" oninput="S.q=this.value;render()" aria-label="Search users">'+
       '<label class="fld-inline" for="usort">Sort</label><select id="usort" onchange="S.uSort=this.value;render()">'+SORTS.map(([v,l])=>'<option value="'+v+'"'+(S.uSort===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
-      '<button class="ghost" onclick="S.uDir*=-1;render()" title="Flip order">'+(S.uDir===-1?'↓ new first':'↑ old first')+'</button></div>'+
+      '<button class="ghost sm" onclick="S.uDir*=-1;render()" title="Flip order">'+(S.uDir===-1?'Newest first':'Oldest first')+'</button></div>'+
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" class="empty-cell">No users yet</td></tr>')+'</tbody></table></div></div>');
-    const q=document.getElementById('q');if(q&&document.activeElement!==q){q.focus();q.setSelectionRange(q.value.length,q.value.length)}
     return;
   }
+  // ---- release ----
   if(S.tab==='release'){
     const r=S.release;
     app.innerHTML=shell('Release','APK channel hosted on GitHub Releases',tabbar(),
@@ -1431,85 +1617,153 @@ function render(){
       '<p class="sub" style="margin:10px 0 0">Apps check on launch (and every 6h), auto-download, and show the install screen. Watch adoption under the Activity tab (update_* events).</p></div>');
     return;
   }
+  // ---- delivery ----
   if(S.tab==='deliver'){
-    const pr=(S.probes||[]).map(p=>'<tr><td class="mono">'+new Date(p.created_at).toLocaleString()+'</td><td>'+esc(p.kind)+'</td><td class="mono">'+esc(p.target)+'</td><td><span class="pill '+(p.status==='sent'||p.status==='accepted'?'a':'n')+'">'+esc(p.status)+'</span></td><td class="mono">'+esc(p.score||'—')+'</td><td>'+esc(p.detail||'')+'</td></tr>').join('');
+    const pr=(S.probes||[]).map(p=>'<tr><td data-l="When" class="mono">'+new Date(p.created_at).toLocaleString()+'</td><td data-l="Kind">'+esc(p.kind)+'</td><td data-l="Target" class="mono">'+esc(p.target)+'</td><td data-l="Status"><span class="pill '+(p.status==='sent'||p.status==='accepted'?'a':'n')+'">'+esc(p.status)+'</span></td><td data-l="Score" class="mono">'+esc(p.score||'—')+'</td><td data-l="Detail">'+esc(p.detail||'')+'</td></tr>').join('');
     const last=S.probes&&S.probes[0];
     app.innerHTML=shell('Delivery','deliverability probes — latest score first',tabbar(),
       '<div class="detail" style="margin-bottom:14px"><div class="kv"><div><b>Latest</b> '+(last?esc(last.score||last.status)+' · '+esc(last.target)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div>'+
       '<div><b>Trend</b> '+(S.probes||[]).slice(0,8).map(p=>esc(p.score||p.status)).join(' → ')+'</div></div>'+
-      '<p class="sub" style="margin:8px 0 0">Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.</p></div>'+
+      '<p class="sub2" style="margin:8px 0 0">Scores come from the weekly probe worker (mail-tester style seed inbox + Resend log + DMARC aggregate). A falling score means investigate before touching code.</p></div>'+
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Kind</th><th>Target</th><th>Status</th><th>Score</th><th>Detail</th></tr></thead><tbody>'+(pr||'<tr><td colspan="6" class="empty-cell">No probes yet</td></tr>')+'</tbody></table></div></div>');
     return;
   }
+  // ---- OTP ----
   if(S.tab==='otp'){
     const items=(S.otp||[]).map(o=>{
       const last=(o.history&&o.history.find(h=>h.otp))||(o.history&&o.history[0]);
       const h0=(o.history&&o.history[0])||{};
       const verified=(S.users||[]).find(u=>(u.email&&u.email===h0.email)&&!u.anonymous)?.emailVerified;
-      return '<tr><td><span class="cell-main">'+esc(h0.name||'—')+'</span><span class="cell-sub mono">'+esc(h0.email||'—')+'</span></td>'+
-      '<td>'+(last&&last.otp?'<button class="otp" style="border:none;cursor:pointer" title="Tap to copy" data-code="'+esc(last.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(last.otp)+'</button><span class="cell-sub">'+ago(last.createdAt)+' · kept forever in the activity log</span>':'<span class="cell-sub">no live code</span>')+'</td>'+
-      '<td>'+(verified?'<span class="pill a">✓ verified</span>':'<span class="pill warn">pending</span>')+'</td>'+
-      '<td class="mono">'+esc((last&&last.ip)||'—')+'</td>'+
-      '<td><span class="cell-sub">'+o.history.length+' attempt'+(o.history.length===1?'':'s')+'</span></td>'+
-      '<td><button class="ghost sm" data-email="'+esc(h0.email||'')+'" onclick="resendOtp(this)">Resend</button></td></tr>'}).join('');
+      return '<tr><td data-l="Inbox"><span class="cell-main">'+esc(h0.name||'—')+'</span><span class="cell-sub mono">'+esc(h0.email||'—')+'</span></td>'+
+      '<td data-l="Latest code">'+(last&&last.otp?'<button class="otp" title="Tap to copy" data-code="'+esc(last.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(last.otp)+'</button><span class="cell-sub">'+ago(last.createdAt)+' · kept forever in the activity log</span>':'<span class="cell-sub">no live code</span>')+'</td>'+
+      '<td data-l="Status">'+(verified?'<span class="pill a">verified</span>':'<span class="pill warn">pending</span>')+'</td>'+
+      '<td data-l="IP" class="mono">'+esc((last&&last.ip)||'—')+'</td>'+
+      '<td data-l="Attempts"><span class="cell-sub">'+o.history.length+' attempt'+(o.history.length===1?'':'s')+'</span></td>'+
+      '<td data-l="Action"><button class="ghost sm" data-email="'+esc(h0.email||'')+'" onclick="resendOtp(this)">Resend</button></td></tr>'}).join('');
     app.innerHTML=shell('OTP codes','latest verification code per inbox — resend without asking the user',tabbar(),
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Inbox</th><th>Latest code</th><th>Status</th><th>IP</th><th>Attempts</th><th></th></tr></thead><tbody>'+(items||'<tr><td colspan="6" class="empty-cell">No codes requested yet</td></tr>')+'</tbody></table></div></div>'+
-      '<p class="sub" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes are single-use and stay valid until entered; 5 wrong tries burn them.</p>');
+      '<p class="sub2" style="margin:10px 0 0">Resend issues a fresh code to the same inbox. Codes are single-use and stay valid until entered; 5 wrong tries burn them.</p>');
     return;
   }
+  // ---- activity: grouped feed + raw table, server-paged ----
   if(S.tab==='activity'){
-    const types=[...new Set((S.events||[]).map(e=>e.type))].sort();
-    // 'req' is the per-request timing row — kept forever, but hidden from the
-    // default view (it doubles every other row); pick it from the filter to see it.
-    const filtered=S.events.filter(e=>S.eType==='all'?(e.type!=='req'):e.type===S.eType);
-    const per=100,pages=Math.max(1,Math.ceil((S.evTotal||filtered.length)/per));
+    const pages=Math.max(1,Math.ceil((S.evTotal||0)/100));
     if(S.evPage>pages)S.evPage=pages;
-    const ev=filtered.slice((S.evPage-1)*per,S.evPage*per).map(e=>{
-      let detail=e.meta||'';
-      try{const m=JSON.parse(e.meta||'{}');if(m.otp)detail='OTP <button class="otp" style="border:none;cursor:pointer" title="Tap to copy" data-code="'+esc(m.otp)+'" onclick="otpCopy(this.dataset.code,this)">'+esc(m.otp)+'</button> '+(m.email?esc(m.email):'');else detail=esc(e.meta||'')}catch{detail=esc(e.meta||'')}
-      return '<tr><td class="mono">'+ago(e.created_at)+'</td><td>'+evIcon(e.type)+' '+esc(e.type)+'</td><td><span class="cell-main">'+esc(e.user_name||e.user_email||(e.user_id?('user '+e.user_id.slice(0,6)):'—'))+'</span></td><td class="mono">'+esc(e.ip||'—')+'</td><td>'+esc(e.country||'—')+'</td><td>'+uaShort(e.user_agent)+'</td><td class="mono">'+esc(e.endpoint)+'</td><td>'+detail+'</td></tr>'}).join('');
-    app.innerHTML=shell('Activity',(S.evTotal||filtered.length)+' events kept forever · page '+S.evPage+' of '+pages,tabbar(),
-      '<div class="toolbar"><label class="fld-inline" for="etype">Event</label><select id="etype" onchange="S.eType=this.value;S.evPage=1;render()"><option value="all">All events</option>'+types.map(t=>'<option value="'+esc(t)+'"'+(S.eType===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>'+
-      '<span style="flex:1"></span><button class="ghost sm" data-nav="prev" onclick="evPrev()"'+(S.evPage<=1?' disabled style="opacity:.45"':'')+'>← Newer</button><button class="ghost sm" data-nav="next" onclick="evNext('+(S.evTotal||filtered.length)+')"'+(S.evPage>=pages?' disabled style="opacity:.45"':'')+'>Older →</button></div>'+
-      '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Action</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+(ev||'<tr><td colspan="8" class="empty-cell">No activity yet</td></tr>')+'</tbody></table></div></div>');
+    const TIER_OPTS=[['default','Signal + context'],['signal','Signal only'],['context','Context only'],['noise','Noise only'],['all','Everything']];
+    const ctl='<div class="toolbar">'+
+      '<div class="seg2" role="group" aria-label="View mode">'+
+        '<button class="'+(S.evView==='feed'?'on':'')+'" onclick="setEvView(\\'feed\\')">Feed</button>'+
+        '<button class="'+(S.evView==='raw'?'on':'')+'" onclick="setEvView(\\'raw\\')">Raw</button>'+
+      '</div>'+
+      '<input id="evq" type="text" placeholder="Search type, meta, user, IP" value="'+esc(S.evQ)+'" onfocus="S.evQF=1" onblur="S.evQF=0" oninput="evSearch(this.value)" aria-label="Search events">'+
+      '<label class="fld-inline" for="etype">Type</label><select id="etype" onchange="setEType(this.value)"><option value="all">All types</option>'+
+        S.types.map(t=>'<option value="'+esc(t)+'"'+(S.eType===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>'+
+      '<label class="fld-inline" for="etier">Tier</label><select id="etier" onchange="setEvTier(this.value)">'+
+        TIER_OPTS.map(o=>'<option value="'+o[0]+'"'+(S.evTier===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'+
+      '<button class="ghost sm" onclick="setEvOrder()">'+(S.evOrder==='desc'?'Newest first':'Oldest first')+'</button>'+
+      '<span class="paggrp">'+
+        '<button class="ghost sm" onclick="evPrev()"'+(S.evPage<=1?' disabled':'')+'>Newer</button>'+
+        '<span class="pg">'+S.evPage+' / '+pages+'</span>'+
+        '<button class="ghost sm" onclick="evNext()"'+(S.evPage>=pages?' disabled':'')+'>Older</button>'+
+      '</span>'+
+    '</div>';
+    let body;
+    if(S.evView==='feed'){
+      body=S.events.length
+        ? '<div class="feed">'+S.events.map(feedRow).join('')+'</div>'
+        : '<div class="tblwrap"><div class="empty-cell">No events match this filter.</div></div>';
+    }else{
+      body='<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Event</th><th>User</th><th>IP</th><th>Country</th><th>Device</th><th>Endpoint</th><th>Detail</th></tr></thead><tbody>'+
+        (S.events.length?S.events.map(rawRow).join(''):'<tr><td colspan="8" class="empty-cell">No events match this filter.</td></tr>')+'</tbody></table></div></div>';
+    }
+    const sub=(S.evTotal||0)+' rows match'+(S.evTier==='default'?' · noise tiers hidden (tier: Everything to reveal)':'')+' · feed groups by action+user';
+    app.innerHTML=shell('Activity',sub,tabbar(),ctl+body);
     return;
   }
-  app.innerHTML=shell('Users',st.users+' total · click a row for the full file',tabbar(),
-    '<div class="seg" role="note"><span>🔎 Tip: the search box keeps focus while you type.</span></div>'+
-    '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody><tr><td colspan="7" class="empty-cell">Search above — results render here.</td></tr></tbody></table></div></div>');
 }
-function login(){S.key=document.getElementById('k').value.trim();sessionStorage.setItem('ptAdminKey',S.key);
-  load().then(()=>{S.view='list';render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});}
-function refresh(){load().then(render).catch(()=>{})}
-function tabClick(id){S.tab=id;S.evPage=1;render()}
+function render(){render0();restoreFocus()}
+function login(){
+  S.key=document.getElementById('k').value.trim();
+  sessionStorage.setItem('ptAdminKey',S.key);
+  load().then(()=>{S.view='list';S.err=null;render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});
+}
+function refresh(){load().then(()=>{S.err=null;render();if(S.tab==='activity')loadEvents()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
+function tabClick(id){S.tab=id;S.evPage=1;render();if(id==='activity')loadEvents()}
+async function load(){
+  const r=await Promise.all([api('/overview'),api('/users'),api('/events?view=grouped&limit=300&offset=0&tier=all&order=desc')]);
+  S.overview=r[0]||null;
+  S.users=(r[1]&&r[1].users)||[];
+  S.mix=(r[2]&&r[2].events)||[];
+  S.mixTotal=(r[2]&&r[2].total)||0;
+  if(r[2]&&r[2].types&&r[2].types.length)S.types=r[2].types;
+  api('/release').then(r2=>{S.release=r2.release||null}).catch(()=>{});
+  api('/probes').then(r2=>{S.probes=r2.probes||[]}).catch(()=>{S.probes=[]});
+  api('/otp').then(r2=>{S.otp=r2.otp||[]}).catch(()=>{S.otp=[]});
+}
+// ---- activity controls (all filtering/paging is server-side) ----
+let evTimer=0;
+function setEvView(v){if(S.evView===v)return;S.evView=v;S.evPage=1;S.exp={};render();loadEvents()}
+function setEType(v){S.eType=v;S.evPage=1;S.exp={};render();loadEvents()}
+function setEvTier(v){S.evTier=v;S.evPage=1;S.exp={};render();loadEvents()}
+function setEvOrder(){S.evOrder=S.evOrder==='desc'?'asc':'desc';S.evPage=1;render();loadEvents()}
+function evSearch(v){S.evQ=v;clearTimeout(evTimer);evTimer=setTimeout(()=>{S.evPage=1;S.exp={};loadEvents()},300)}
+function evPrev(){if(S.evPage>1){S.evPage--;loadEvents()}}
+function evNext(){if(S.evPage*100<S.evTotal){S.evPage++;loadEvents()}}
+async function toggleExp(key){
+  if(S.exp[key]){delete S.exp[key];render();return}
+  S.exp[key]=null;render();
+  const parts=key.split('|');
+  let p='/events?view=raw&tier=all&order='+S.evOrder+'&limit=100&type='+encodeURIComponent(parts[0]);
+  if(parts[1]&&parts[1]!=='-')p+='&user='+encodeURIComponent(parts[1]);
+  try{const r=await api(p);S.exp[key]=(r&&r.events)||[]}catch(e){S.exp[key]=[]}
+  render();
+}
+async function loadEvents(){
+  let p='/events?view='+(S.evView==='raw'?'raw':'grouped')+'&limit=100&offset='+((S.evPage-1)*100)+
+    '&tier='+S.evTier+'&order='+S.evOrder;
+  if(S.eType!=='all')p+='&type='+encodeURIComponent(S.eType);
+  if(S.evQ)p+='&q='+encodeURIComponent(S.evQ);
+  try{
+    const r=await api(p);
+    S.events=(r&&r.events)||[];
+    S.evTotal=(r&&r.total)||0;
+    if(r&&r.types&&r.types.length)S.types=r.types;
+  }catch(e){}
+  render();
+}
+function keyLogin(e){if(e.key==='Enter')login()}
 async function resendOtp(el){
   const email=(el&&el.dataset&&el.dataset.email)||'';
   if(!email||!confirm('Send a fresh code to '+email+'?'))return;
   try{
     await api('/otp/resend',{method:'POST',body:JSON.stringify({email})});
     refresh();
-  }catch(e){alert('Resend failed: '+(e.message||e))}}
-function keyLogin(e){if(e.key==='Enter')login()}
-async function openUser(id){S.sel=await api('/users/'+id);S.view='detail';render()}
+  }catch(e){alert('Resend failed: '+(e.message||e))}
+}
+async function openUser(id){
+  S.sel=await api('/users/'+id);
+  if(!S.otp.length){try{const r=await api('/otp');S.otp=r.otp||[]}catch(e){}}
+  S.view='detail';render();
+}
 function closeUser(){S.view='list';render()}
-function delUser(){if(!confirm('Delete this user and all their data?'))return;api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()})}
+function delUser(){
+  if(!confirm('Delete this user and all their data?'))return;
+  api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()});
+}
 function renderDetail(app){
   const u=S.sel.user,d=S.sel.data||{};
   const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
   let otpHtml='';
-  for(const e of (S.events||[]).slice().reverse()){
-    if(e.type==='magic_code_sent'&&e.user_id===u.id){
-      try{const m=JSON.parse(e.meta||'{}');if(m.otp){otpHtml='<div><b>Latest OTP</b> <span class="otp">'+esc(m.otp)+'</span> <span>'+ago(e.created_at)+'</span></div>';break}}catch{}
-    }
-  }
+  const oo=(S.otp||[]).find(o=>o.userId===u.id&&o.otp);
+  if(oo)otpHtml='<div><b>Latest OTP</b> <span class="otp">'+esc(oo.otp)+'</span> <span>'+ago(oo.createdAt)+'</span></div>';
   const flowCounts={};for(const e of entries){if(e.flow)flowCounts[e.flow]=(flowCounts[e.flow]||0)+1}
   app.innerHTML='<button class="back" onclick="closeUser()">← All users</button>'+
-    '<h1 style="margin-top:10px;font-size:22px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
-    '<div class="cards">'+
+    '<h1 style="margin-top:10px;font-size:23px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
+    '<section class="cards">'+
     '<div class="card"><div class="v">'+entries.length+'</div><div class="l">Logged days</div></div>'+
     '<div class="card"><div class="v">'+(d.updatedAt?ago(d.updatedAt):'never')+'</div><div class="l">Last sync</div></div>'+
-    '<div class="card"><div class="v">'+(u.anonymous?'Anon':'Acct')+'</div><div class="l">'+(u.anonymous?'Backup code '+esc(u.syncKey||'—'):(u.emailVerified?'✓ email verified':'unverified email'))+'</div></div>'+
-    '</div>'+
+    '<div class="card"><div class="v">'+(u.anonymous?'Anon':'Acct')+'</div><div class="l">'+(u.anonymous?'Backup code '+esc(u.syncKey||'—'):(u.emailVerified?'email verified':'unverified email'))+'</div></div>'+
+    '</section>'+
     '<div class="sect">'+
     '<div class="pane"><h3>Sign-in</h3><div class="kv">'+
     '<div><b>Email</b> '+esc(u.email||'—')+'</div>'+
@@ -1522,19 +1776,19 @@ function renderDetail(app){
     '<div><b>Country</b> '+esc(u.country||'—')+'</div>'+
     '<div><b>Device</b> '+esc(u.userAgent||'—')+'</div>'+
     '<div><b>Screen</b> '+(u.screen||'—')+(u.platform?' · '+esc(u.platform):'')+'</div>'+
-    '<div><b>App</b> '+esc(installBadge(u.install)||'—')+(u.appVersion?' · app v'+esc(u.appVersion):'')+'</div>'+
+    '<div><b>App</b> '+esc(u.install||'—')+(u.appVersion?' · app v'+esc(u.appVersion):'')+'</div>'+
     '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div></div></div>'+
     '</div>'+
-    '<div>'+(Object.keys(flowCounts).length?'<div class="row" style="gap:6px">'+Object.entries(flowCounts).map(([f,c])=>'<span class="pill '+(f==='heavy'?'n':'a')+'">'+esc(f)+' ×'+c+'</span>').join('')+'</div>':'')+'</div>'+
+    '<div>'+(Object.keys(flowCounts).length?'<div class="toolbar" style="gap:6px">'+Object.entries(flowCounts).map(([f,c])=>'<span class="pill '+(f==='heavy'?'n':'a')+'">'+esc(f)+' ×'+c+'</span>').join('')+'</div>':'')+'</div>'+
     '<div style="margin:14px 0"><button class="danger" onclick="delUser()">Delete user &amp; data</button></div>'+
     '<h2>Recent log entries ('+entries.length+')</h2>'+
     '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
-    entries.slice(0,60).map(e=>'<tr><td class="mono">'+e.date+'</td><td>'+(e.flow||'—')+'</td><td>'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td>'+esc((e.moods||[]).join(', ')||'—')+'</td><td>'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table></div></div>'+
+    entries.slice(0,60).map(e=>'<tr><td data-l="Date" class="mono">'+e.date+'</td><td data-l="Flow">'+(e.flow||'—')+'</td><td data-l="Symptoms">'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td data-l="Moods">'+esc((e.moods||[]).join(', ')||'—')+'</td><td data-l="Note">'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table></div></div>'+
     (entries.length>60?'<p class="sub">Showing latest 60 of '+entries.length+'</p>':'')+
     '<h2>Settings JSON</h2><pre>'+esc(JSON.stringify(d.settings||{},null,1))+'</pre>';
 }
 render();
-if(S.key){load().then(render).catch(()=>{})}
+if(S.key){load().then(()=>{S.err=null;render()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
 </script></body></html>`;
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
