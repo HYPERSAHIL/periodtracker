@@ -346,6 +346,7 @@ console.log('selfcheck: all 14 groups passed');
   assert.ok(audit.includes('PerformanceObserver'), 'subresource origins audited');
   assert.ok(worker.includes('/api/csp-report'), 'worker accepts CSP reports');
   assert.ok(worker.includes("frame-ancestors 'none'"), 'CSP header on app HTML');
+  assert.ok(worker.includes('cloudflareinsights.com'), 'CF RUM beacon allowlisted in CSP');
   assert.ok(worker.includes('reporting-endpoints'), 'reporting endpoint exposed');
   assert.ok(
     app.includes('initDynamicCodeCanaries()') && app.includes('reportBrowserVersion()'),

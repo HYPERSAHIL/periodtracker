@@ -37,8 +37,10 @@ const SEC_HEADERS = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
 };
 const SEC_CSP = [
-  "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:", "font-src 'self' data:", "connect-src 'self'",
+  "default-src 'self'", "script-src 'self' https://static.cloudflareinsights.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:", "font-src 'self' data:",
+  "connect-src 'self' https://cloudflareinsights.com",
   "worker-src 'self'", "manifest-src 'self'", "object-src 'none'",
   "base-uri 'self'", "frame-ancestors 'none'", "form-action 'self'", 'report-to csp',
 ].join('; ');
