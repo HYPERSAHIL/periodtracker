@@ -78,9 +78,20 @@ export default {
         /\.\w{2,9}$/.test(url.pathname) &&
         !url.pathname.endsWith('.html')
       ) {
-        return new Response('not found', { status: 404, headers: J });
+        return new Response('not found', {
+          status: 404,
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        });
       }
-      return withSecHeaders(res, ct.includes('text/html'));
+      const out = withSecHeaders(res, ct.includes('text/html'));
+      // SW must revalidate on every navigation or shell updates lag up to 4h
+      // (platform default max-age=14400; _headers never reaches worker output)
+      if (url.pathname === '/sw.js') {
+        const h = new Headers(out.headers);
+        h.set('cache-control', 'public, max-age=0, must-revalidate');
+        return new Response(out.body, { status: out.status, statusText: out.statusText, headers: h });
+      }
+      return out;
     }
     // request-id + timing for every logEvent issued while handling this request
     const rid = randomHex(4);
