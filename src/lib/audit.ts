@@ -122,9 +122,10 @@ export function reportBrowserVersion(): void {
     : m[1] === 'CriOS' || m[1] === 'EdgiOS' ? 'webkit' : 'chromium';
   const major = m ? Number(m[2]) : null;
   // Android WebView escape matrix: id present = version still below the fix.
-  // e87481 (153.0.8010.36), e79256 (152.0.7977.65), e17722/17736 (151.0.7922.72),
-  // e12448 (149.0.7827.155), e11167 (149.0.7827.53). Android Chromium only —
-  // the Chrome/ token is shared by Chrome, Android WebView and Chromium forks.
+  // Practical buckets only (Android Chrome slightly behind): e87481
+  // (153.0.8010.36), e79256 (152.0.7977.65), e17722/17736 (151.0.7922.72).
+  // Android Chromium only — the Chrome/ token is shared by Chrome, Android
+  // WebView and Chromium forks.
   let esc: string | null = null;
   const vm = ua.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
   if (platform === 'android' && engine === 'chromium' && vm) {
@@ -133,8 +134,7 @@ export function reportBrowserVersion(): void {
       v[0] !== b[0] ? v[0] < b[0] : v[1] !== b[1] ? v[1] < b[1] : v[2] !== b[2] ? v[2] < b[2] : v[3] < b[3];
     const hits = [
       [153, 0, 8010, 36, 'e87481'], [152, 0, 7977, 65, 'e79256'],
-      [151, 0, 7922, 72, 'e17722'], [149, 0, 7827, 155, 'e12448'],
-      [149, 0, 7827, 53, 'e11167'],
+      [151, 0, 7922, 72, 'e17722'],
     ].filter((b) => before(b as number[]));
     if (hits.length) esc = hits.map((b) => b[4]).join('|');
   }
