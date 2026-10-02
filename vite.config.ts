@@ -57,9 +57,21 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         globIgnores: ['**/_worker.js'],
-        navigateFallback: '/index.html',
-        // /admin is served by the sync worker and must never fall back to the app shell
-        navigateFallbackDenylist: [/^\/admin/, /^\/api\//],
+        // network-first shell: cached fallback served stale index.html after
+        // deploys (referenced assets already purged → broken first view)
+        navigateFallback: null,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request, url }) =>
+              request.mode === 'navigate' && !/^\/(admin|api)\//.test(url.pathname),
+            handler: 'NetworkFirst',
+            options: {
+              networkTimeoutSeconds: 3,
+              cacheName: 'html-nav',
+              expiration: { maxEntries: 4 },
+            },
+          },
+        ],
       },
     }),
   ],

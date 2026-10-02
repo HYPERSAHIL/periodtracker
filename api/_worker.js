@@ -71,6 +71,15 @@ export default {
     if (!url.pathname.startsWith('/api/')) {
       const res = await env.ASSETS.fetch(request);
       const ct = res.headers.get('content-type') || '';
+      // file paths are never SPA routes — the /* redirect turns missing
+      // assets into 200 index.html (soft-404, breaks stale shells differently)
+      if (
+        ct.includes('text/html') &&
+        /\.\w{2,9}$/.test(url.pathname) &&
+        !url.pathname.endsWith('.html')
+      ) {
+        return new Response('not found', { status: 404, headers: J });
+      }
       return withSecHeaders(res, ct.includes('text/html'));
     }
     // request-id + timing for every logEvent issued while handling this request
