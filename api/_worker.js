@@ -84,13 +84,9 @@ export default {
         });
       }
       const out = withSecHeaders(res, ct.includes('text/html'));
-      // SW must revalidate on every navigation or shell updates lag up to 4h
-      // (platform default max-age=14400; _headers never reaches worker output)
-      if (url.pathname === '/sw.js') {
-        const h = new Headers(out.headers);
-        h.set('cache-control', 'public, max-age=0, must-revalidate');
-        return new Response(out.body, { status: out.status, statusText: out.statusText, headers: h });
-      }
+      // platform re-asserts its own cache-control on static assets (max-age
+      // 14400 survives worker overrides) — browsers still revalidate sw.js on
+      // every update check (updateViaCache:'imports'), so no override here.
       return out;
     }
     // request-id + timing for every logEvent issued while handling this request
