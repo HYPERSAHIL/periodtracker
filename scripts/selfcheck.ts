@@ -352,6 +352,11 @@ console.log('selfcheck: all 14 groups passed');
     app.includes('initDynamicCodeCanaries()') && app.includes('reportBrowserVersion()'),
     'Tier 1 audits wired at boot'
   );
+  assert.ok(
+    audit.includes("'e87481'") && audit.includes("'e79256'") && audit.includes("'e17722'") && audit.includes("'e12448'"),
+    'android escape boundaries pinned'
+  );
+  assert.ok(audit.includes('esc:'), 'escape matrix emitted with browser_ver');
 }
 
 console.log('selfcheck: all 15 groups passed');

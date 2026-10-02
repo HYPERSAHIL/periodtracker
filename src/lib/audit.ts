@@ -121,7 +121,24 @@ export function reportBrowserVersion(): void {
     ? (/Firefox|FxiOS/.test(ua) ? 'gecko' : /Safari\//.test(ua) ? 'webkit' : 'unknown')
     : m[1] === 'CriOS' || m[1] === 'EdgiOS' ? 'webkit' : 'chromium';
   const major = m ? Number(m[2]) : null;
-  sec('browser_ver', { engine, major, webview, platform });
+  // Android WebView escape matrix: id present = version still below the fix.
+  // e87481 (153.0.8010.36), e79256 (152.0.7977.65), e17722/17736 (151.0.7922.72),
+  // e12448 (149.0.7827.155), e11167 (149.0.7827.53). Android Chromium only —
+  // the Chrome/ token is shared by Chrome, Android WebView and Chromium forks.
+  let esc: string | null = null;
+  const vm = ua.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
+  if (platform === 'android' && engine === 'chromium' && vm) {
+    const v = vm.slice(1).map(Number);
+    const before = (b: number[]) =>
+      v[0] !== b[0] ? v[0] < b[0] : v[1] !== b[1] ? v[1] < b[1] : v[2] !== b[2] ? v[2] < b[2] : v[3] < b[3];
+    const hits = [
+      [153, 0, 8010, 36, 'e87481'], [152, 0, 7977, 65, 'e79256'],
+      [151, 0, 7922, 72, 'e17722'], [149, 0, 7827, 155, 'e12448'],
+      [149, 0, 7827, 53, 'e11167'],
+    ].filter((b) => before(b as number[]));
+    if (hits.length) esc = hits.map((b) => b[4]).join('|');
+  }
+  sec('browser_ver', { engine, major, webview, platform, esc });
   // iOS Chrome/Edge are WebKit under the hood — the Chromium floor doesn't apply
   const webkitChrome = !!m && (m[1] === 'CriOS' || m[1] === 'EdgiOS');
   if (major != null && !webkitChrome && major < BROWSER_FLOOR) {
