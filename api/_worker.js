@@ -1388,6 +1388,7 @@ function adminPage() {
   const html = `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.svg">
 <title>Period Tracker — Admin</title>
 <style>
 /* Committed design system: warm paper + ink, one rose accent, flat surfaces.
