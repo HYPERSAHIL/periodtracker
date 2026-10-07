@@ -96,3 +96,25 @@ CREATE TABLE IF NOT EXISTS events (
   meta TEXT,
   created_at TEXT NOT NULL
 );
+
+-- Hourly fleet rollup (written by workers/email-cron on the */15 * * * * trigger).
+-- One row per hour so trend questions are a single SELECT, not a raw scan.
+CREATE TABLE IF NOT EXISTS fleet_health (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bucket TEXT NOT NULL,              -- 'YYYY-MM-DDTHH' (UTC hour)
+  sessions INTEGER,                  -- screen_session rows in the hour
+  vitals INTEGER,                    -- screen_vitals rows
+  p75_lcp_ms REAL,
+  p75_inp_ms REAL,
+  p75_cls REAL,
+  sync_ok INTEGER,
+  sync_fail INTEGER,
+  sync_fail_pct REAL,
+  errors INTEGER,
+  esc_visitors INTEGER,              -- sessions on a device below a known fix
+  esc_by_bucket TEXT,                -- JSON {"e102327":2,...}
+  android_visitors INTEGER,
+  detail TEXT,                       -- JSON: percentiles + tails for the admin tab
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fleet_bucket ON fleet_health(bucket);

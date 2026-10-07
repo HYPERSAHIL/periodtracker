@@ -154,11 +154,22 @@ body {
   padding: 0;
 }
 
+/* the blush bloom is a light-mode flourish — on plum it reads as a grey block,
+   so dark mode gets its own plum bloom. Same composition, no glare. */
 body {
   font-family: var(--font-body);
   background:
     radial-gradient(720px 320px at 88% -10%, rgba(252, 234, 233, 0.55), transparent 60%),
     var(--bg);
+}
+
+[data-theme='dark'] body {
+  background:
+    radial-gradient(720px 320px at 88% -10%, rgba(122, 66, 87, 0.22), transparent 60%),
+    var(--bg);
+}
+
+body {
   color: var(--text);
   line-height: 1.5;
   min-height: 100dvh;

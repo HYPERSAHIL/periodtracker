@@ -217,11 +217,117 @@ async function runProbe(env) {
   return { status, score };
 }
 
+// --- fleet health rollup -------------------------------------------------
+// One row per hour (trigger: 7 * * * *) so "is it getting slower / are more
+// devices exposed" is a
+// single SELECT. Reads the raw event rows for the closed hour and stores
+// percentiles — no raw scan at query time.
+function pctl(sorted, p) {
+  if (!sorted.length) return null;
+  const i = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return Math.round(sorted[i] * 100) / 100;
+}
+
+function nums(rows, key) {
+  return rows
+    .map((r) => {
+      try {
+        return JSON.parse(r.meta || '{}')[key];
+      } catch {
+        return null;
+      }
+    })
+    .filter((n) => typeof n === 'number' && isFinite(n))
+    .sort((a, b) => a - b);
+}
+
+async function runRollup(env, hourIso) {
+  const hour = hourIso || new Date(Date.now() - 3600000).toISOString().slice(0, 13);
+  const from = `${hour}:00.000Z`;
+  const to = `${hour}:59.999Z`;
+
+  const [sessions, vitals, sync, errors, esc] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type='screen_session' AND created_at >= ? AND created_at <= ?").bind(from, to).first(),
+    env.DB.prepare("SELECT meta FROM events WHERE type='screen_vitals' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
+    env.DB.prepare("SELECT meta FROM events WHERE type='data_sync_status' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type='screen_error' AND created_at >= ? AND created_at <= ?").bind(from, to).first(),
+    env.DB.prepare("SELECT meta FROM events WHERE type='sec_browser_ver' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
+  ]);
+
+  const vrows = vitals.results || [];
+  const lcps = nums(vrows, 'lcpMs').sort((a, b) => a - b);
+  const inps = nums(vrows, 'inpMs').sort((a, b) => a - b);
+  const clss = nums(vrows, 'cls').sort((a, b) => a - b);
+
+  let syncOk = 0;
+  let syncFail = 0;
+  for (const r of sync.results || []) {
+    let st = '';
+    try {
+      st = JSON.parse(r.meta || '{}').status || '';
+    } catch {
+      /* unparsable */
+    }
+    if (st === 'synced') syncOk++;
+    else if (st === 'error') syncFail++;
+  }
+
+  // visitors exposed to at least one unpatched escape + bucket histogram
+  let android = 0;
+  const byBucket = {};
+  const ids = new Set();
+  for (const r of esc.results || []) {
+    let m = {};
+    try {
+      m = JSON.parse(r.meta || '{}');
+    } catch {
+      continue;
+    }
+    if (m.platform === 'android') android++;
+    if (!m.esc) continue;
+    ids.add(String(r.id));
+    for (const b of String(m.esc).split('|')) byBucket[b] = (byBucket[b] || 0) + 1;
+  }
+
+  const pct = (n) => (syncOk + syncFail ? Math.round((n / (syncOk + syncFail)) * 1000) / 10 : null);
+  const detail = JSON.stringify({
+    lcp: { p50: pctl(lcps, 50), p75: pctl(lcps, 75), p95: pctl(lcps, 95), max: lcps.length ? lcps[lcps.length - 1] : null, n: lcps.length },
+    inp: { p50: pctl(inps, 50), p75: pctl(inps, 75), p95: pctl(inps, 95), max: inps.length ? inps[inps.length - 1] : null, n: inps.length },
+    cls: { p50: pctl(clss, 50), p75: pctl(clss, 75), p95: pctl(clss, 95), max: clss.length ? clss[clss.length - 1] : null, n: clss.length },
+  });
+
+  await env.DB.prepare(
+    `INSERT INTO fleet_health (bucket, sessions, vitals, p75_lcp_ms, p75_inp_ms, p75_cls,
+       sync_ok, sync_fail, sync_fail_pct, errors, esc_visitors, esc_by_bucket, android_visitors, detail, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(bucket) DO UPDATE SET
+       sessions=excluded.sessions, vitals=excluded.vitals, p75_lcp_ms=excluded.p75_lcp_ms,
+       p75_inp_ms=excluded.p75_inp_ms, p75_cls=excluded.p75_cls, sync_ok=excluded.sync_ok,
+       sync_fail=excluded.sync_fail, sync_fail_pct=excluded.sync_fail_pct, errors=excluded.errors,
+       esc_visitors=excluded.esc_visitors, esc_by_bucket=excluded.esc_by_bucket,
+       android_visitors=excluded.android_visitors, detail=excluded.detail`
+  )
+    .bind(
+      hour, sessions?.n || 0, vrows.length,
+      pctl(lcps, 75), pctl(inps, 75), pctl(clss, 75),
+      syncOk, syncFail, pct(syncFail), errors?.n || 0,
+      ids.size, JSON.stringify(byBucket), android, detail, new Date().toISOString()
+    )
+    .run();
+
+  return { hour, sessions: sessions?.n || 0, vitals: vrows.length, esc: ids.size, syncFail };
+}
+
 export default {
   async scheduled(event, env, ctx) {
     // crons: weekly probe (Mon 06:30), digests (Mon 07:00, monthly 1st)
     // NOTE: probe needs a PROBE_TARGET secret (a seed inbox address) — without
     // it the probe is skipped, never sent to users by mistake.
+    if (event.cron === '7 * * * *') {
+      // hourly fleet rollup (previous hour); re-running a bucket upserts it
+      ctx.waitUntil(runRollup(env).catch(e => postEvent(env, 'fleet_rollup_failed', { error: String(e).slice(0, 120) })));
+      return;
+    }
     if (event.cron === '30 6 * * 1') {
       ctx.waitUntil(runProbe(env).catch(e => postEvent(env, 'deliverability_probe_failed', { error: String(e).slice(0, 120) })));
       return;
@@ -234,6 +340,7 @@ export default {
     const url = new URL(request.url);
     if (env.CRON_KEY && url.searchParams.get('key') === env.CRON_KEY) {
       if (url.searchParams.get('run') === 'probe') return Response.json(await runProbe(env));
+      if (url.searchParams.get('run') === 'rollup') return Response.json(await runRollup(env, url.searchParams.get('hour')));
       const freq = url.searchParams.get('freq') === 'monthly' ? 'monthly' : 'weekly';
       return Response.json(await sendDue(env, freq));
     }

@@ -1221,6 +1221,26 @@ async function route(request, env, url, rid = null) {
       return json({ release: rel, publish: 'gh release create vX.Y.Z ./periodtracker.apk --title vX.Y.Z --notes "What changed"' });
   }
 
+    if (method === 'GET' && path === '/api/admin/health') {
+      // Fleet rollup + live perf attribution + fingerprinted errors, one call.
+      // Trends come from fleet_health (hourly rows); attribution/errors are
+      // read live because they only matter when something is actually wrong.
+      const hours = Math.min(168, Math.max(1, parseInt(url.searchParams.get('hours') || '48', 10) || 48));
+      const since = new Date(Date.now() - hours * 3600000).toISOString();
+      const [fleet, attr, errs, devices] = await Promise.all([
+        env.DB.prepare('SELECT * FROM fleet_health WHERE bucket >= ? ORDER BY bucket DESC LIMIT 200').bind(since.slice(0, 13)).all().catch(() => ({ results: [] })),
+        env.DB.prepare("SELECT meta FROM events WHERE type='screen_perf_attr' AND created_at >= ? ORDER BY created_at DESC LIMIT 40").bind(since).all(),
+        env.DB.prepare("SELECT meta, COUNT(*) AS n, MAX(created_at) AS last FROM events WHERE type='screen_error' AND created_at >= ? GROUP BY json_extract(meta,'$.fp') ORDER BY n DESC LIMIT 25").bind(since).all(),
+        env.DB.prepare("SELECT meta FROM events WHERE type IN ('sec_device_surface','sec_device_hints') AND created_at >= ? ORDER BY created_at DESC LIMIT 40").bind(since).all(),
+      ]);
+      return json({
+        fleet: fleet.results || [],
+        attribution: (attr.results || []).map((r) => { try { return JSON.parse(r.meta || '{}'); } catch { return {}; } }),
+        errors: (errs.results || []).map((r) => { try { return { ...JSON.parse(r.meta || '{}'), n: r.n, last: r.last }; } catch { return { n: r.n, last: r.last }; } }),
+        devices: (devices.results || []).map((r) => { try { return JSON.parse(r.meta || '{}'); } catch { return {}; } }),
+      });
+    }
+
     if (method === 'GET' && path === '/api/admin/events') {
       // Full owner history, kept forever. Two views over the same rows:
       //   view=grouped → GROUP BY (type, user_id): one row per repeated action with a count
@@ -1550,8 +1570,8 @@ main.login .detail{padding:24px}
 const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
-const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
+const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
@@ -1747,6 +1767,65 @@ function render0(){
       '</tbody></table></div></div>');
     return;
   }
+  // ---- health: fleet rollup + attribution + fingerprinted errors ----
+  if(S.tab==='health'){
+    const h=S.health||{};
+    const fleet=h.fleet||[];
+    const latest=fleet[0];
+    const agg=(key)=>{
+      const vals=fleet.map(r=>r[key]).filter(v=>typeof v==='number');
+      return vals.length?vals[vals.length-1]:null;
+    };
+    const bars=(rows,key,max,fmt)=>rows.slice(0,24).reverse().map(r=>
+      '<div class="freq-row" title="'+esc(r.bucket)+'"><span class="mono" style="width:78px">'+esc(String(r.bucket).slice(11))+'</span>'+
+      '<span class="bar-bg"><span class="bar" style="width:'+(max?Math.max(2,Math.round((r[key]||0)/max*100)):0)+'%"></span></span>'+
+      '<span class="mono" style="width:56px;text-align:right">'+(r[key]==null?'—':fmt(r[key]))+'</span></div>').join('');
+    const mx=(key)=>Math.max(1,...fleet.map(r=>r[key]||0));
+    const attrs=(h.attribution||[]).filter(a=>(a.clsTop&&a.clsTop.length)||(a.inpTop&&a.inpTop.length)).slice(0,6);
+    const devs=h.devices||[];
+    const escAgg={};
+    for(const r of fleet){try{const o=JSON.parse(r.esc_by_bucket||'{}');for(const k in o)escAgg[k]=(escAgg[k]||0)+o[k];}catch(e){}}
+    const devRows=devs.filter(d=>d.isAndroid!==undefined).slice(0,8).map(d=>
+      '<tr><td data-l="WebView" class="mono">'+(d.webview?'yes':'no')+'</td><td data-l="SDK">'+esc(d.sdk||'—')+'</td>'+
+      '<td data-l="Model" class="mono">'+esc(d.model||'—')+'</td><td data-l="Patch">'+esc(d.securityPatch||'—')+'</td>'+
+      '<td data-l="GMS">'+(d.gms?'yes':'no')+'</td><td data-l="Autofill">'+esc(d.autofill||'—')+'</td>'+
+      '<td data-l="Mode">'+esc((d.pwa&&d.pwa.displayMode)||'—')+'</td></tr>').join('');
+    app.innerHTML=shell('Health','fleet rollup (hourly) · perf attribution · fingerprinted errors',tabbar(),
+      (latest?
+      '<div class="cards" aria-label="Latest hour">'+
+        '<div class="card"><div class="v">'+(latest.p75_lcp_ms!=null?Math.round(latest.p75_lcp_ms):'—')+'</div><div class="l">p75 LCP ms</div></div>'+
+        '<div class="card"><div class="v">'+(latest.p75_inp_ms!=null?Math.round(latest.p75_inp_ms):'—')+'</div><div class="l">p75 INP ms</div></div>'+
+        '<div class="card"><div class="v">'+(latest.p75_cls!=null?latest.p75_cls:'—')+'</div><div class="l">p75 CLS</div></div>'+
+        '<div class="card"><div class="v">'+(latest.sync_fail_pct!=null?latest.sync_fail_pct+'%':'—')+'</div><div class="l">sync fail</div></div>'+
+        '<div class="card"><div class="v">'+(latest.sessions||0)+'</div><div class="l">sessions/h</div></div>'+
+        '<div class="card"><div class="v">'+(latest.esc_visitors||0)+'</div><div class="l">exposed devices</div></div>'+
+      '</div>'
+      :'<div class="detail" style="margin-bottom:14px"><p class="sub" style="margin:0">No rollup rows yet — the cron worker writes one per hour (trigger <span class="mono">7 * * * *</span>). Trigger it manually with <span class="mono">?run=rollup</span> on the email-cron worker.</p></div>')+
+      (Object.keys(escAgg).length?'<div class="detail" style="margin-bottom:14px"><div class="kv"><div><b>Esc buckets (window)</b> '+
+        Object.entries(escAgg).sort((a,b)=>b[1]-a[1]).map(([k,v])=>esc(k)+' × '+v).join(' · ')+'</div></div></div>':'')+
+      (fleet.length?'<h2>Hourly trend</h2><div class="detail" style="margin-bottom:14px">'+
+        '<p class="sub2" style="margin:0 0 6px">p75 LCP (ms)</p>'+bars(fleet,'p75_lcp_ms',mx('p75_lcp_ms'),v=>Math.round(v))+
+        '<p class="sub2" style="margin:10px 0 6px">sessions per hour</p>'+bars(fleet,'sessions',mx('sessions'),v=>v)+
+      '</div>':'')+
+      '<h2>Worst offenders (CLS / INP)</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Biggest shifts</th><th>Slowest interactions</th></tr></thead><tbody>'+
+      ((h.attribution||[]).slice(0,8).map(a=>
+        '<tr><td data-l="When" class="mono">'+esc(String(a.reason||''))+'</td>'+
+        '<td data-l="CLS">'+((a.clsTop||[]).slice(0,3).map(c=>'<span class="mono">'+c.v+'</span> '+(c.src?esc(c.src):'<i>unknown node</i>')).join('<br>')||'—')+'</td>'+
+        '<td data-l="INP">'+((a.inpTop||[]).slice(0,3).map(i=>'<span class="mono">'+i.ms+'ms</span> '+(i.target?esc(i.target):'<i>unknown</i>')).join('<br>')||'—')+'</td></tr>').join('')
+        ||'<tr><td colspan="3" class="empty-cell">No attributed shifts captured yet.</td></tr>')+
+      '</tbody></table></div></div>'+
+      '<h2>Errors by fingerprint</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>FP</th><th>Count</th><th>Message</th><th>Last</th></tr></thead><tbody>'+
+      ((h.errors||[]).map(e=>
+        '<tr><td data-l="FP" class="mono">'+esc(e.fp||'—')+'</td><td data-l="Count" class="mono">'+esc(e.n)+'</td>'+
+        '<td data-l="Message">'+esc((e.message||'').slice(0,90))+'</td><td data-l="Last" class="mono">'+esc(e.last||'')+'</td></tr>').join('')
+        ||'<tr><td colspan="4" class="empty-cell">No errors in this window.</td></tr>')+
+      '</tbody></table></div></div>'+
+      '<h2>Android / WebView surface</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>WebView</th><th>SDK</th><th>Model</th><th>Patch</th><th>GMS</th><th>Autofill</th><th>Mode</th></tr></thead><tbody>'+
+      (devRows||'<tr><td colspan="7" class="empty-cell">No device_surface rows yet.</td></tr>')+
+      '</tbody></table></div></div>');
+    return;
+  }
+
   // ---- OTP ----
   if(S.tab==='otp'){
     const items=(S.otp||[]).map(o=>{
@@ -1810,7 +1889,7 @@ function login(){
   load().then(()=>{S.view='list';S.err=null;render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});
 }
 function refresh(){load().then(()=>{S.err=null;render();if(S.tab==='activity')loadEvents()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
-function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEvents()}
+function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEvents();if(id==='health')loadHealth()}
 async function load(){
   const r=await Promise.all([api('/overview'),api('/users'),api('/events?view=grouped&limit=300&offset=0&tier=all&order=desc')]);
   S.overview=r[0]||null;
@@ -1822,6 +1901,11 @@ async function load(){
   api('/probes').then(r2=>{S.probes=r2.probes||[]}).catch(()=>{S.probes=[]});
   api('/otp').then(r2=>{S.otp=r2.otp||[]}).catch(()=>{S.otp=[]});
   api('/events?view=raw&q=deliverability_&limit=20&tier=all&order=desc').then(r2=>{S.deliv=(r2&&r2.events)||[]}).catch(()=>{S.deliv=[]});
+  loadHealth();
+}
+// ---- health tab loader ----
+function loadHealth(){
+  api('/health?hours=48').then(r=>{S.health=r;if(S.tab==='health')render()}).catch(e=>{S.health={fleet:[],attribution:[],errors:[],devices:[],err:String(e)}});
 }
 // ---- activity controls (all filtering/paging is server-side) ----
 let evTimer=0;

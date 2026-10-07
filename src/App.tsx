@@ -48,6 +48,9 @@ import {
 } from './lib/audit';
 import { isNative } from './lib/native';
 import { initVitals } from './lib/vitals';
+import { initPerfAttribution } from './lib/perfattr';
+import { reportDeviceSurface } from './lib/deviceSurface';
+import { clearErrorFingerprints, reportError } from './lib/errfp';
 import { tx } from './lib/i18n';
 import { useCloudSync } from './hooks/useCloudSync';
 import { scheduleNativeReminders } from './lib/nativeReminders';
@@ -418,16 +421,17 @@ function MainApp() {
       lastBeacon: Date.now() - (lastBeaconAt || SESSION_START),
       route: location.pathname + location.search,
     });
-    const onError = (e: ErrorEvent) =>
-      track('screen_error', {
-        message: (e.message || '').slice(0, 500),
-        src: (e.filename || '').slice(0, 200),
-        stack: ((e.error as Error | undefined)?.stack || '').slice(0, 500),
-        tab,
-        ...errWhere(),
+    // fingerprinted: one row per distinct bug, repeats counted (lib/errfp.ts)
+    const onError = (e: ErrorEvent) => {
+      const err = e.error as Error | undefined;
+      reportError('error', e.message || String(err), err?.stack || '', e.filename || '', {
+        tab, ...errWhere(),
       });
-    const onRejection = (e: PromiseRejectionEvent) =>
-      track('screen_error', { message: String(e.reason).slice(0, 500), kind: 'rejection', stack: ((e.reason as Error | undefined)?.stack || '').slice(0, 500), tab, ...errWhere() });
+    };
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const err = e.reason as Error | undefined;
+      reportError('rejection', String(e.reason), err?.stack || '', '', { tab, ...errWhere() });
+    };
     let cspN = 0;
     const onCsp = (e: Event) => {
       if (cspN++ >= 10) return;
@@ -561,7 +565,10 @@ function MainApp() {
     initDynamicCodeCanaries();
     initResourceAudit();
     initVitals();
+    initPerfAttribution();
+    clearErrorFingerprints();
     reportBrowserVersion();
+    reportDeviceSurface();
     runBootSecurityChecks();
     scanUrl();
     let standalone = false;

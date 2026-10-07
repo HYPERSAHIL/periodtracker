@@ -429,3 +429,33 @@ console.log('selfcheck: all 17 groups passed');
 }
 
 console.log('selfcheck: all 18 groups passed');
+
+// 19. fleet-health plumbing: schema, rollup job, endpoint, admin tab
+{
+  const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
+  const worker = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8');
+  const cron = readFileSync(new URL('../workers/email-cron/email-cron.js', import.meta.url), 'utf8');
+  const toml = readFileSync(new URL('../workers/email-cron/wrangler.toml', import.meta.url), 'utf8');
+  const perf = readFileSync(new URL('../src/lib/perfattr.ts', import.meta.url), 'utf8');
+  const dev = readFileSync(new URL('../src/lib/deviceSurface.ts', import.meta.url), 'utf8');
+  assert.ok(schema.includes('CREATE TABLE IF NOT EXISTS fleet_health'), 'fleet_health table is in schema.sql');
+  assert.ok(cron.includes('async function runRollup'), 'cron worker computes the rollup');
+  assert.ok(cron.includes("event.cron === '7 * * * *'"), 'hourly rollup trigger is routed');
+  assert.ok(toml.includes('"7 * * * *"'), 'hourly cron is registered in wrangler.toml');
+  assert.ok(worker.includes("path === '/api/admin/health'"), 'admin health endpoint exists');
+  assert.ok(worker.includes("['health','Health']"), 'admin exposes a Health tab');
+  assert.ok(worker.includes('screen_perf_attr'), 'health tab reads attribution rows');
+  assert.ok(worker.includes('json_extract(meta,\'$.fp\')'), 'errors are grouped by fingerprint');
+  assert.ok(perf.includes('sources'), 'CLS attribution reads layout-shift sources');
+  assert.ok(perf.includes('interactionId'), 'INP attribution reads interaction ids');
+  assert.ok(dev.includes('securityPatch'), 'device surface records the platform patch level');
+  assert.ok(dev.includes('autofillSurface'), 'device surface detects an autofill surface');
+  // credentials are never readable from a page — assert we never try
+  for (const lib of [perf, dev, readFileSync(new URL('../src/lib/errfp.ts', import.meta.url), 'utf8')])
+    assert.ok(
+      !/(password_manager|credentialStore|chrome:\/\/|Login Data)/i.test(lib),
+      'no credential-store scraping anywhere'
+    );
+}
+
+console.log('selfcheck: all 19 groups passed');
