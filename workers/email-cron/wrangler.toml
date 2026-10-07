@@ -16,7 +16,7 @@ compatibility_date = "2024-11-01"
 APP_URL = "https://periodtracker.run"
 
 [triggers]
-crons = ["0 7 * * 1", "0 7 1 * *", "30 6 * * 1", "7 * * * *"]
+crons = ["0 7 * * 1", "0 7 1 * *", "30 6 * * 1"]
 
 [[d1_databases]]
 binding = "DB"

@@ -439,9 +439,12 @@ console.log('selfcheck: all 18 groups passed');
   const perf = readFileSync(new URL('../src/lib/perfattr.ts', import.meta.url), 'utf8');
   const dev = readFileSync(new URL('../src/lib/deviceSurface.ts', import.meta.url), 'utf8');
   assert.ok(schema.includes('CREATE TABLE IF NOT EXISTS fleet_health'), 'fleet_health table is in schema.sql');
-  assert.ok(cron.includes('async function runRollup'), 'cron worker computes the rollup');
-  assert.ok(cron.includes("event.cron === '7 * * * *'"), 'hourly rollup trigger is routed');
-  assert.ok(toml.includes('"7 * * * *"'), 'hourly cron is registered in wrangler.toml');
+  // Workers Free caps cron triggers at 5/account and all are spent, so the
+  // rollup runs on demand from the Health tab instead of a new trigger.
+  assert.ok(worker.includes('async function rollupHour'), 'Pages worker computes the rollup bucket');
+  assert.ok(worker.includes('await refreshFleet(env)'), 'health endpoint refreshes stale buckets');
+  assert.ok(!cron.includes('runRollup'), 'cron worker stays free of duplicate rollup logic');
+  assert.ok(!/\"7 \* \* \* \*\"/.test(toml), 'no rollup trigger was added to wrangler.toml');
   assert.ok(worker.includes("path === '/api/admin/health'"), 'admin health endpoint exists');
   assert.ok(worker.includes("['health','Health']"), 'admin exposes a Health tab');
   assert.ok(worker.includes('screen_perf_attr'), 'health tab reads attribution rows');

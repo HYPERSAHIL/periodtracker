@@ -1221,11 +1221,128 @@ async function route(request, env, url, rid = null) {
       return json({ release: rel, publish: 'gh release create vX.Y.Z ./periodtracker.apk --title vX.Y.Z --notes "What changed"' });
   }
 
+
+// --- fleet health rollup (on demand) -------------------------------------
+// Workers Free caps the account at 5 cron triggers and they are all spent, so
+// the rollup is computed when the admin opens the Health tab and the newest
+// bucket is stale (>50min). Upserts, so re-opening never double-counts.
+function _pctl(sorted, p) {
+  if (!sorted.length) return null;
+  const i = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return Math.round(sorted[i] * 100) / 100;
+}
+
+function _nums(rows, key) {
+  return rows
+    .map((r) => {
+      try {
+        return JSON.parse(r.meta || '{}')[key];
+      } catch {
+        return null;
+      }
+    })
+    .filter((n) => typeof n === 'number' && isFinite(n))
+    .sort((a, b) => a - b);
+}
+
+async function rollupHour(env, bucket) {
+  const from = `${bucket}:00.000Z`;
+  const to = `${bucket}:59.999Z`;
+  const [sessions, vitals, sync, errors, esc] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type='screen_session' AND created_at >= ? AND created_at <= ?").bind(from, to).first(),
+    env.DB.prepare("SELECT meta FROM events WHERE type='screen_vitals' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
+    env.DB.prepare("SELECT meta FROM events WHERE type='data_sync_status' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
+    env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type='screen_error' AND created_at >= ? AND created_at <= ?").bind(from, to).first(),
+    env.DB.prepare("SELECT meta FROM events WHERE type='sec_browser_ver' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
+  ]);
+  const vrows = vitals.results || [];
+  const lcps = _nums(vrows, 'lcpMs');
+  const inps = _nums(vrows, 'inpMs');
+  const clss = _nums(vrows, 'cls');
+  let syncOk = 0;
+  let syncFail = 0;
+  for (const r of sync.results || []) {
+    let st = '';
+    try {
+      st = JSON.parse(r.meta || '{}').status || '';
+    } catch { /* unparsable */ }
+    if (st === 'synced') syncOk++;
+    else if (st === 'error') syncFail++;
+  }
+  let android = 0;
+  const byBucket = {};
+  let exposed = 0;
+  for (const r of esc.results || []) {
+    let m = {};
+    try {
+      m = JSON.parse(r.meta || '{}');
+    } catch {
+      continue;
+    }
+    if (m.platform === 'android') android++;
+    if (!m.esc) continue;
+    exposed++;
+    for (const b of String(m.esc).split('|')) byBucket[b] = (byBucket[b] || 0) + 1;
+  }
+  const tot = syncOk + syncFail;
+  const detail = JSON.stringify({
+    lcp: { p50: _pctl(lcps, 50), p75: _pctl(lcps, 75), p95: _pctl(lcps, 95), max: lcps.length ? lcps[lcps.length - 1] : null, n: lcps.length },
+    inp: { p50: _pctl(inps, 50), p75: _pctl(inps, 75), p95: _pctl(inps, 95), max: inps.length ? inps[inps.length - 1] : null, n: inps.length },
+    cls: { p50: _pctl(clss, 50), p75: _pctl(clss, 75), p95: _pctl(clss, 95), max: clss.length ? clss[clss.length - 1] : null, n: clss.length },
+  });
+  await env.DB.prepare(
+    `INSERT INTO fleet_health (bucket, sessions, vitals, p75_lcp_ms, p75_inp_ms, p75_cls,
+       sync_ok, sync_fail, sync_fail_pct, errors, esc_visitors, esc_by_bucket, android_visitors, detail, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(bucket) DO UPDATE SET
+       sessions=excluded.sessions, vitals=excluded.vitals, p75_lcp_ms=excluded.p75_lcp_ms,
+       p75_inp_ms=excluded.p75_inp_ms, p75_cls=excluded.p75_cls, sync_ok=excluded.sync_ok,
+       sync_fail=excluded.sync_fail, sync_fail_pct=excluded.sync_fail_pct, errors=excluded.errors,
+       esc_visitors=excluded.esc_visitors, esc_by_bucket=excluded.esc_by_bucket,
+       android_visitors=excluded.android_visitors, detail=excluded.detail`
+  )
+    .bind(
+      bucket, (sessions && sessions.n) || 0, vrows.length,
+      _pctl(lcps, 75), _pctl(inps, 75), _pctl(clss, 75),
+      syncOk, syncFail, tot ? Math.round((syncFail / tot) * 1000) / 10 : null, (errors && errors.n) || 0,
+      exposed, JSON.stringify(byBucket), android, detail, new Date().toISOString()
+    )
+    .run();
+}
+
+/** Fill in every hour bucket that is missing or stale, oldest first. */
+async function refreshFleet(env) {
+  const last = await env.DB.prepare('SELECT bucket FROM fleet_health ORDER BY bucket DESC LIMIT 1').first();
+  const newest = last && last.bucket ? new Date(`${last.bucket}:00.000Z`).getTime() : 0;
+  const nowHour = new Date().toISOString().slice(0, 13);
+  // close out the previous hour if nobody has; then keep up to 24h backfilled
+  const wanted = [];
+  const cur = new Date(Date.now() - 3600000);
+  cur.setUTCMinutes(0, 0, 0);
+  const floorT = new Date(`${newest}:00.000Z`).getTime();
+  for (let i = 0; i < 24; i++) {
+    const h = new Date(cur.getTime() - i * 3600000);
+    const b = h.toISOString().slice(0, 13);
+    if (h.getTime() >= floorT) wanted.push(b);
+  }
+  for (const b of wanted.slice(0, 6)) {
+    try {
+      await rollupHour(env, b);
+    } catch {
+      /* a bad bucket must not break the tab */
+    }
+  }
+  return nowHour;
+}
+
     if (method === 'GET' && path === '/api/admin/health') {
       // Fleet rollup + live perf attribution + fingerprinted errors, one call.
       // Trends come from fleet_health (hourly rows); attribution/errors are
       // read live because they only matter when something is actually wrong.
       const hours = Math.min(168, Math.max(1, parseInt(url.searchParams.get('hours') || '48', 10) || 48));
+      try {
+        await refreshFleet(env);
+      } catch { /* rollup is best-effort; the tab still reads what exists */ }
       const since = new Date(Date.now() - hours * 3600000).toISOString();
       const [fleet, attr, errs, devices] = await Promise.all([
         env.DB.prepare('SELECT * FROM fleet_health WHERE bucket >= ? ORDER BY bucket DESC LIMIT 200').bind(since.slice(0, 13)).all().catch(() => ({ results: [] })),
