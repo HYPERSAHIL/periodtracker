@@ -1246,8 +1246,8 @@ function _nums(rows, key) {
 }
 
 async function rollupHour(env, bucket) {
-  const from = `${bucket}:00.000Z`;
-  const to = `${bucket}:59.999Z`;
+  const from = `${bucket}:00:00.000Z`;
+  const to = `${bucket}:59:59.999Z`;
   const [sessions, vitals, sync, errors, esc] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type='screen_session' AND created_at >= ? AND created_at <= ?").bind(from, to).first(),
     env.DB.prepare("SELECT meta FROM events WHERE type='screen_vitals' AND created_at >= ? AND created_at <= ?").bind(from, to).all(),
@@ -1313,13 +1313,12 @@ async function rollupHour(env, bucket) {
 /** Fill in every hour bucket that is missing or stale, oldest first. */
 async function refreshFleet(env) {
   const last = await env.DB.prepare('SELECT bucket FROM fleet_health ORDER BY bucket DESC LIMIT 1').first();
-  const newest = last && last.bucket ? new Date(`${last.bucket}:00.000Z`).getTime() : 0;
+  const floorT = last && last.bucket ? new Date(`${last.bucket}:00:00.000Z`).getTime() : 0;
   const nowHour = new Date().toISOString().slice(0, 13);
   // close out the previous hour if nobody has; then keep up to 24h backfilled
   const wanted = [];
   const cur = new Date(Date.now() - 3600000);
   cur.setUTCMinutes(0, 0, 0);
-  const floorT = new Date(`${newest}:00.000Z`).getTime();
   for (let i = 0; i < 24; i++) {
     const h = new Date(cur.getTime() - i * 3600000);
     const b = h.toISOString().slice(0, 13);
