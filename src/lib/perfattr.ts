@@ -24,7 +24,6 @@ function selectorFor(node: EventTarget | null | undefined): string | null {
   return parts.join('>').slice(0, 80);
 }
 
-let inited = false;
 let sent = false;
 let idleTimer = 0;
 
@@ -65,8 +64,11 @@ function flush(reason: string): void {
 
 /** Call from the same boot effect as initVitals(). */
 export function initPerfAttribution(): void {
-  if (inited || typeof window === 'undefined' || typeof PerformanceObserver === 'undefined') return;
-  inited = true;
+  if (typeof window === 'undefined' || typeof PerformanceObserver === 'undefined') return;
+  try {
+    if (sessionStorage.getItem('pt.sec.attr')) return;
+    sessionStorage.setItem('pt.sec.attr', '1');
+  } catch { /* private mode: still observe */ }
 
   observe('layout-shift', (e) => {
     const s = e as unknown as {

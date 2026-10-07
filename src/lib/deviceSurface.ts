@@ -12,7 +12,6 @@
 
 import { sec } from './audit';
 
-let inited = false;
 
 /** Retail Chrome omits Build/; WebView UAs carry the exact platform build. */
 function webviewBuild(ua: string): Record<string, string | boolean | null> {
@@ -115,8 +114,13 @@ async function deviceHealth(): Promise<Record<string, unknown>> {
 
 /** One row per load. Never contains credentials — see module header. */
 export function reportDeviceSurface(): void {
-  if (inited || typeof window === 'undefined') return;
-  inited = true;
+  if (typeof window === 'undefined') return;
+  // sessionStorage (not a module flag) so a duplicated module instance — or a
+  // double-mounted effect — still reports exactly once per tab session
+  try {
+    if (sessionStorage.getItem('pt.sec.dsurf')) return;
+    sessionStorage.setItem('pt.sec.dsurf', '1');
+  } catch { /* private mode: fall through and report */ }
   const ua = navigator.userAgent;
   const isAndroid = /Android/i.test(ua);
   const webview = webviewBuild(ua);
