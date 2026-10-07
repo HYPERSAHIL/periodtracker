@@ -131,13 +131,21 @@ export function loadEntries(): Record<string, DayEntry> {
   }
 }
 
+/** Distinguish a full disk from a serialization fault — quota is unfixable by retry. */
+function noteSaveFailure(key: string, err: unknown, bytes = 0): void {
+  const quota =
+    err instanceof DOMException &&
+    (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+  track('data_save_failed', { key, quota, bytes });
+}
+
 export function saveEntries(entries: Record<string, DayEntry>): void {
+  const json = JSON.stringify(Object.values(entries));
   try {
-    const json = JSON.stringify(Object.values(entries));
     localStorage.setItem(ENTRIES_KEY, json);
     writeIntegrity('entries', json);
-  } catch {
-    track('data_save_failed', { key: 'entries' });
+  } catch (err) {
+    noteSaveFailure('entries', err, json.length);
   }
 }
 
@@ -216,12 +224,12 @@ export function loadSettings(): Settings {
 }
 
 export function saveSettings(settings: Settings): void {
+  const json = JSON.stringify(settings);
   try {
-    const json = JSON.stringify(settings);
     localStorage.setItem(SETTINGS_KEY, json);
     writeIntegrity('settings', json);
-  } catch {
-    track('data_save_failed', { key: 'settings' });
+  } catch (err) {
+    noteSaveFailure('settings', err, json.length);
   }
 }
 

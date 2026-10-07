@@ -26,8 +26,12 @@ const bumpFail = () => {
   }
 };
 
+/** Timestamp of the most recent beacon send — error rows carry the gap. */
+export let lastBeaconAt = 0;
+
 export function track(type: string, meta?: Record<string, unknown>): void {
   try {
+    lastBeaconAt = Date.now();
     void fetch(apiUrl('/api/event'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

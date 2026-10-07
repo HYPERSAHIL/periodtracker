@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { APP_VERSION, DayEntry, Settings, Tab } from './types';
 import { buildFacts, computeStats, phaseFor } from './lib/cycle';
 import {
@@ -41,12 +41,13 @@ import type { CloudUser } from './lib/cloud';
 import { loadSession } from './lib/cloud';
 import { fetchShared, type EmailSub, type SharedSummary, type ShareRow } from './lib/cloud';
 import { updater } from './lib/updater';
-import { track } from './lib/beacon';
+import { lastBeaconAt, track } from './lib/beacon';
 import {
   initDynamicCodeCanaries, initFetchAudit, initResourceAudit,
   noteInjection, reportBrowserVersion, runBootSecurityChecks, scanUrl, sec,
 } from './lib/audit';
 import { isNative } from './lib/native';
+import { initVitals } from './lib/vitals';
 import { tx } from './lib/i18n';
 import { useCloudSync } from './hooks/useCloudSync';
 import { scheduleNativeReminders } from './lib/nativeReminders';
@@ -88,6 +89,8 @@ export interface AppProps {
 function MainApp() {
   const [entries, setEntries] = useState<Record<string, DayEntry>>(() => loadEntries());
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  // boot effect runs once per load; snapshot the flag instead of depending on it
+  const bootOnboarded = useRef(settings.onboarded);
   // minute tick so time-based reminders fire while the tab sits open
   const [minTick, setMinTick] = useState(0);
   useEffect(() => {
@@ -409,15 +412,22 @@ function MainApp() {
     };
     const onOnline = () => track('screen_connection', { online: true, tab });
     const onOffline = () => track('screen_connection', { online: false, tab });
+    // since/lastBeacon line a client error up with the req rows that carry rid
+    const errWhere = () => ({
+      since: Date.now() - SESSION_START,
+      lastBeacon: Date.now() - (lastBeaconAt || SESSION_START),
+      route: location.pathname + location.search,
+    });
     const onError = (e: ErrorEvent) =>
       track('screen_error', {
         message: (e.message || '').slice(0, 500),
         src: (e.filename || '').slice(0, 200),
         stack: ((e.error as Error | undefined)?.stack || '').slice(0, 500),
         tab,
+        ...errWhere(),
       });
     const onRejection = (e: PromiseRejectionEvent) =>
-      track('screen_error', { message: String(e.reason).slice(0, 500), kind: 'rejection', stack: ((e.reason as Error | undefined)?.stack || '').slice(0, 500), tab });
+      track('screen_error', { message: String(e.reason).slice(0, 500), kind: 'rejection', stack: ((e.reason as Error | undefined)?.stack || '').slice(0, 500), tab, ...errWhere() });
     let cspN = 0;
     const onCsp = (e: Event) => {
       if (cspN++ >= 10) return;
@@ -550,6 +560,7 @@ function MainApp() {
     initFetchAudit();
     initDynamicCodeCanaries();
     initResourceAudit();
+    initVitals();
     reportBrowserVersion();
     runBootSecurityChecks();
     scanUrl();
@@ -597,6 +608,33 @@ function MainApp() {
       ?.query({ name: 'geolocation' as PermissionName })
       .then((st) => track('screen_permission', { name: 'geolocation', state: st.state }))
       .catch(() => track('screen_permission', { name: 'geolocation', state: 'unknown' }));
+    // one anchor row per session: where they came from, how far along they are,
+    // and how full the device is. Funnel drop-off is a single query on this.
+    navigator.storage
+      ?.estimate?.()
+      .then((est) => {
+        let firstSeen: string | null = null;
+        let returning = false;
+        try {
+          firstSeen = localStorage.getItem('pt.firstSeen');
+          if (!firstSeen) localStorage.setItem('pt.firstSeen', new Date().toISOString());
+          else returning = true;
+        } catch {
+          /* private mode */
+        }
+        track('screen_session', {
+          entry: returning ? 'returning' : document.referrer ? 'referral' : 'direct',
+          firstSeen,
+          onboarded: bootOnboarded.current,
+          hasAccount: !!loadSession(),
+          quotaMB: est.quota != null ? Math.round(est.quota / 1048576) : null,
+          usedMB: est.usage != null ? Math.round((est.usage / 1048576) * 10) / 10 : null,
+          usedPct: est.quota ? Math.round((est.usage! / est.quota) * 100) : null,
+        });
+      })
+      .catch(() => {
+        /* storage API blocked (private mode) — screen_session is best-effort */
+      });
     if (!isNative()) {
       try {
         const prev = localStorage.getItem('pt.lastVersion');

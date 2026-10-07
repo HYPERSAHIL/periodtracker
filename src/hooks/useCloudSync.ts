@@ -69,6 +69,8 @@ export function useCloudSync({
         return;
       }
       setSyncStatus('syncing');
+      const t0 = Date.now();
+      let mergeRounds = 0; // >1 = hit a rev conflict and recovered
       try {
         await syncCycle(token, currentEntries, currentSettings, (m) => {
           if (m.changed) {
@@ -76,14 +78,27 @@ export function useCloudSync({
             if (m.settings) setSettings(m.settings);
             track('data_sync_merged', { entries: m.entries ? Object.keys(m.entries).length : 0, settings: !!m.settings });
           }
+          mergeRounds++;
         });
         setSyncStatus('synced');
         markPending(false);
-        track('data_sync_status', { status: 'synced' });
-      } catch {
+        // size/latency is how you spot a sync that quietly got slow on big data
+        track('data_sync_status', {
+          status: 'synced',
+          ms: Date.now() - t0,
+          entries: Object.keys(currentEntries).length,
+          kb: Math.round(JSON.stringify(currentEntries).length / 102.4) / 10,
+          mergeRounds,
+        });
+      } catch (e) {
         setSyncStatus('error');
         markPending(true);
-        track('data_sync_status', { status: 'error', reason: 'exception' });
+        track('data_sync_status', {
+          status: 'error',
+          reason: e instanceof Error ? e.message : 'exception',
+          ms: Date.now() - t0,
+          entries: Object.keys(currentEntries).length,
+        });
       }
     },
     [setEntries, setSettings]

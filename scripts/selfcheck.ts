@@ -377,3 +377,26 @@ console.log('selfcheck: all 15 groups passed');
 }
 
 console.log('selfcheck: all 16 groups passed');
+
+// 17. observability floor: vitals, session anchor, sync depth, quota detail
+{
+  const vitals = readFileSync(new URL('../src/lib/vitals.ts', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  const sync = readFileSync(new URL('../src/hooks/useCloudSync.ts', import.meta.url), 'utf8');
+  const store = readFileSync(new URL('../src/lib/storage.ts', import.meta.url), 'utf8');
+  const beacon = readFileSync(new URL('../src/lib/beacon.ts', import.meta.url), 'utf8');
+  for (const m of ['largest-contentful-paint', 'layout-shift', 'event', 'longtask'])
+    assert.ok(vitals.includes(m), `vitals observes ${m}`);
+  assert.ok(vitals.includes("track('screen_vitals'"), 'vitals emits one screen_vitals beacon');
+  assert.ok(vitals.includes('buffered: true'), 'vitals observers are buffered');
+  assert.ok(app.includes('initVitals()'), 'App boots the vitals observer');
+  assert.ok(app.includes("track('screen_session'"), 'session anchor row is emitted');
+  assert.ok(app.includes('usedPct'), 'session anchor carries storage pressure');
+  assert.ok(app.includes('lastBeacon:'), 'error rows correlate to the last beacon');
+  assert.ok(beacon.includes('export let lastBeaconAt'), 'beacon exposes last send time');
+  assert.ok(sync.includes('mergeRounds'), 'sync reports merge rounds');
+  assert.ok(sync.includes('kb:'), 'sync reports payload size');
+  assert.ok(store.includes('QuotaExceededError'), 'save failures distinguish quota exhaustion');
+}
+
+console.log('selfcheck: all 17 groups passed');
