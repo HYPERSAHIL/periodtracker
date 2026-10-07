@@ -4,6 +4,10 @@
  * behind the Material Theme Builder) and pasted as static values: official
  * palette math, zero runtime dependency, zero bundle cost.
  *
+ * One block for both themes: light-dark() resolves against the color-scheme
+ * that styles.css already sets (:root = light, [data-theme='dark'] = dark), so
+ * the app's existing System/Light/Dark setting drives these tokens with no JS.
+ *
  * Imported AFTER styles.css on purpose — this file only adds the M3 role
  * tokens and re-points four semantic vars at them. Full revert:
  *   rm src/theme-m3.css && drop the import in src/main.tsx
@@ -11,43 +15,48 @@
  */
 
 :root {
-  /* brand rose #e11d63 → Material 3 light scheme */
-  --md-sys-color-primary: #bc004e;
-  --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #ffd9de;
-  --md-sys-color-on-primary-container: #3f0015;
-  --md-sys-color-secondary: #75565b;
-  --md-sys-color-on-secondary: #ffffff;
-  --md-sys-color-secondary-container: #ffd9de;
-  --md-sys-color-on-secondary-container: #2b1519;
-  --md-sys-color-tertiary: #7a5832;
-  --md-sys-color-on-tertiary: #ffffff;
-  --md-sys-color-tertiary-container: #ffddbb;
-  --md-sys-color-on-tertiary-container: #2b1700;
-  --md-sys-color-error: #ba1a1a;
-  --md-sys-color-on-error: #ffffff;
-  --md-sys-color-error-container: #ffdad6;
-  --md-sys-color-on-error-container: #410002;
-  --md-sys-color-surface: #fffbff;
-  --md-sys-color-on-surface: #201a1b;
-  --md-sys-color-surface-variant: #f3dddf;
-  --md-sys-color-on-surface-variant: #524345;
-  --md-sys-color-outline: #847375;
-  --md-sys-color-outline-variant: #d6c2c4;
-  --md-sys-color-shadow: #000000;
-  --md-sys-color-scrim: #000000;
-  --md-sys-color-inverse-surface: #362f2f;
-  --md-sys-color-inverse-on-surface: #fbeeee;
-  --md-sys-color-inverse-primary: #ffb2bf;
-  /* surface containers — neutral palette at M3 Expressive tones */
-  --md-sys-color-surface-dim: #e3d7d8;
-  --md-sys-color-surface-bright: #fff8f7;
-  --md-sys-color-surface-container-lowest: #ffffff;
-  --md-sys-color-surface-container-low: #fdf1f1;
-  --md-sys-color-surface-container: #f8ebeb;
-  --md-sys-color-surface-container-high: #f2e5e6;
-  --md-sys-color-surface-container-highest: #ece0e0;
-  --md-sys-color-surface-tint: #bc004e;
+  /* primary #bc004e / dark #ffb2bf — tone 40 / tone 80 of the brand rose */
+  --md-sys-color-primary: light-dark(#bc004e, #ffb2bf);
+  --md-sys-color-on-primary: light-dark(#ffffff, #660027);
+  --md-sys-color-primary-container: light-dark(#ffd9de, #90003a);
+  --md-sys-color-on-primary-container: light-dark(#3f0015, #ffd9de);
+
+  --md-sys-color-secondary: light-dark(#75565b, #e4bdc2);
+  --md-sys-color-on-secondary: light-dark(#ffffff, #43292e);
+  --md-sys-color-secondary-container: light-dark(#ffd9de, #5c3f44);
+  --md-sys-color-on-secondary-container: light-dark(#2b1519, #ffd9de);
+
+  --md-sys-color-tertiary: light-dark(#7a5832, #ebbe90);
+  --md-sys-color-on-tertiary: light-dark(#ffffff, #452a08);
+  --md-sys-color-tertiary-container: light-dark(#ffddbb, #5f401d);
+  --md-sys-color-on-tertiary-container: light-dark(#2b1700, #ffddbb);
+
+  --md-sys-color-error: light-dark(#ba1a1a, #ffb4ab);
+  --md-sys-color-on-error: light-dark(#ffffff, #690005);
+  --md-sys-color-error-container: light-dark(#ffdad6, #93000a);
+  --md-sys-color-on-error-container: light-dark(#410002, #ffb4ab);
+
+  --md-sys-color-surface: light-dark(#fffbff, #201a1b);
+  --md-sys-color-on-surface: light-dark(#201a1b, #ece0e0);
+  --md-sys-color-surface-variant: light-dark(#f3dddf, #524345);
+  --md-sys-color-on-surface-variant: light-dark(#524345, #d6c2c4);
+  --md-sys-color-outline: light-dark(#847375, #9f8c8e);
+  --md-sys-color-outline-variant: light-dark(#d6c2c4, #524345);
+  --md-sys-color-shadow: light-dark(#000000, #000000);
+  --md-sys-color-scrim: light-dark(#000000, #000000);
+  --md-sys-color-inverse-surface: light-dark(#362f2f, #ece0e0);
+  --md-sys-color-inverse-on-surface: light-dark(#fbeeee, #362f2f);
+  --md-sys-color-inverse-primary: light-dark(#ffb2bf, #bc004e);
+
+  /* surface containers — neutral palette, ramp inverted in dark (spec 2025) */
+  --md-sys-color-surface-dim: light-dark(#e3d7d8, #171213);
+  --md-sys-color-surface-bright: light-dark(#fff8f7, #3f3738);
+  --md-sys-color-surface-container-lowest: light-dark(#ffffff, #120d0e);
+  --md-sys-color-surface-container-low: light-dark(#fdf1f1, #201a1b);
+  --md-sys-color-surface-container: light-dark(#f8ebeb, #241e1f);
+  --md-sys-color-surface-container-high: light-dark(#f2e5e6, #2f2829);
+  --md-sys-color-surface-container-highest: light-dark(#ece0e0, #3a3334);
+  --md-sys-color-surface-tint: light-dark(#bc004e, #ffb2bf);
 
   /* the whole adoption: four semantic vars now derive from M3 roles */
   --focus: 2px solid var(--md-sys-color-primary);

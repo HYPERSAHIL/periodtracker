@@ -411,6 +411,15 @@ console.log('selfcheck: all 17 groups passed');
   const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
   for (const role of ['primary', 'primary-container', 'surface', 'outline-variant', 'surface-container-high'])
     assert.ok(m3.includes(`--md-sys-color-${role}:`), `M3 token layer defines ${role}`);
+  // light-dark() pairs: a bare hex would pin one theme and break the other
+  assert.ok(
+    (m3.match(/light-dark\(/g) || []).length >= 30,
+    'M3 tokens are light-dark() pairs so both app themes resolve'
+  );
+  assert.ok(
+    /--md-sys-color-primary:\s*light-dark\(#bc004e,\s*#ffb2bf\)/.test(m3),
+    'M3 primary flips to its dark tone in dark mode'
+  );
   assert.ok(/--focus:.*--md-sys-color-primary/.test(m3), 'focus ring derives from M3 primary');
   assert.ok(/--danger:.*--md-sys-color-error/.test(m3), 'danger colour derives from M3 error');
   assert.ok(
