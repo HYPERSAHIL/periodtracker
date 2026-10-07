@@ -1394,8 +1394,24 @@ function adminPage() {
 /* Committed design system: warm paper + ink, one rose accent, flat surfaces.
    Locked choices: 3px radii, flat (no drop shadows), no gradient fills, no webfont
    or emoji icon sets. Severity colors (signal/ok/warn) are semantic only. */
-:root{--canvas:#faf8f6;--surface:#ffffff;--surface2:#f4f0ed;--surface3:#eae5e0;--ink:#1a1512;--ink2:#57504a;--ink3:#8c837b;--line:#e3dcd5;--line2:#cfc7bf;--acc:#d61f52;--acc-ink:#ffffff;--acc-tint:rgba(214,31,82,.09);--sig:#c2410c;--sig-tint:rgba(194,65,12,.10);--ok:#047857;--ok-tint:rgba(4,120,87,.10);--warn:#a16207;--warn-tint:rgba(161,98,7,.12);--serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;color-scheme:light}
-:root[data-pt-admin=dark]{--canvas:#141110;--surface:#1d1a18;--surface2:#262220;--surface3:#332e2b;--ink:#e8e2dc;--ink2:#a89f97;--ink3:#7d746c;--line:#302b28;--line2:#453e39;--acc:#ff5c7a;--acc-ink:#141110;--acc-tint:rgba(255,92,122,.14);--sig:#fb923c;--sig-tint:rgba(251,146,60,.14);--ok:#34d399;--ok-tint:rgba(52,211,153,.12);--warn:#fbbf24;--warn-tint:rgba(251,191,36,.12);color-scheme:dark}
+/* One token block for both themes: light-dark() resolves against color-scheme,
+   so native widgets (select, date input, scrollbar, caret) theme correctly too.
+   --acc-os carries the OS accent (Chrome Android/Windows/ChromeOS) — the web's
+   answer to Material You dynamic color; wired to nothing by default, swap
+   --acc:var(--acc-os) to follow the user's system accent. */
+:root{--canvas:light-dark(#faf8f6,#141110);--surface:light-dark(#ffffff,#1d1a18);--surface2:light-dark(#f4f0ed,#262220);--surface3:light-dark(#eae5e0,#332e2b);--ink:light-dark(#1a1512,#e8e2dc);--ink2:light-dark(#57504a,#a89f97);--ink3:light-dark(#8c837b,#7d746c);--line:light-dark(#e3dcd5,#302b28);--line2:light-dark(#cfc7bf,#453e39);--acc:light-dark(#d61f52,#ff5c7a);--acc-ink:light-dark(#ffffff,#141110);--acc-tint:light-dark(rgba(214,31,82,.09),rgba(255,92,122,.14));--sig:light-dark(#c2410c,#fb923c);--sig-tint:light-dark(rgba(194,65,12,.10),rgba(251,146,60,.14));--ok:light-dark(#047857,#34d399);--ok-tint:light-dark(rgba(4,120,87,.10),rgba(52,211,153,.12));--warn:light-dark(#a16207,#fbbf24);--warn-tint:light-dark(rgba(161,98,7,.12),rgba(251,191,36,.12));--acc-os:AccentColor;--serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;color-scheme:light dark}
+:root[data-pt-admin=light]{color-scheme:light}
+:root[data-pt-admin=dark]{color-scheme:dark}
+/* accessibility prefs the UA already tracks */
+@media(prefers-contrast:more){:root{--line:var(--line2);--ink2:var(--ink);--ink3:var(--ink2)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* numbers line up in tables; headings stop ragging */
+table{font-variant-numeric:tabular-nums}
+h1,h2,.sub,th{text-wrap:balance}
+/* content fades in on first paint (entry both ways, no JS) */
+@starting-style{.card,tr,.detail{opacity:0}}
+.card,tr,.detail{transition:opacity .12s ease}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.14s}
 *{box-sizing:border-box}
 body{margin:0;background:var(--canvas);color:var(--ink);font:400 14.5px/1.5 var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1180px;margin:0 auto;padding:26px 20px 70px}
@@ -1534,7 +1550,7 @@ main.login .detail{padding:24px}
 const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||'light'};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
@@ -1555,7 +1571,22 @@ function detailHtml(e){
     return span;
   }catch(x){return span}
 }
-function themeToggle(){S.dark=S.dark==='light'?'dark':'light';localStorage.setItem('ptAdminTheme',S.dark);document.documentElement.dataset.ptAdmin=S.dark;render()}
+// theme flip touches only the attribute — no re-render, no lost scroll/focus
+function themeToggle(){
+  S.dark=S.dark==='light'?'dark':'light';
+  localStorage.setItem('ptAdminTheme',S.dark);
+  document.documentElement.dataset.ptAdmin=S.dark;
+  const b=document.getElementById('themeBtn');
+  if(b)b.textContent=S.dark==='light'?'Dark mode':'Light mode';
+}
+/* follow OS theme changes until the owner picks one explicitly */
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){
+  if(localStorage.getItem('ptAdminTheme'))return;
+  S.dark=e.matches?'dark':'light';
+  document.documentElement.dataset.ptAdmin=S.dark;
+  const b=document.getElementById('themeBtn');
+  if(b)b.textContent=S.dark==='light'?'Dark mode':'Light mode';
+});
 function otpCopy(code,btn){
   try{navigator.clipboard.writeText(code).then(()=>{btn.textContent='Copied';setTimeout(render,1200)}).catch(()=>{});}
   catch(x){prompt('Copy the code:',code)}
@@ -1571,7 +1602,7 @@ function statCards(extra){
 }
 function shell(title,sub,tabs,body){
   return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div>'+
-    '<button class="ghost sm" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='light'?'Dark mode':'Light mode')+'</button></div>'+
+    '<button class="ghost sm" id="themeBtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='light'?'Dark mode':'Light mode')+'</button></div>'+
     '<p class="sub">'+esc(title)+' — '+esc(sub)+'</p>'+tabs+body;
 }
 function tabbar(){
@@ -1770,6 +1801,8 @@ function render0(){
     return;
   }
 }
+// cross-fade tab swaps where the browser supports it, plain swap where not
+function swap(fn){if(document.startViewTransition){document.startViewTransition(fn)}else{fn()}}
 function render(){render0();restoreFocus()}
 function login(){
   S.key=document.getElementById('k').value.trim();
@@ -1777,7 +1810,7 @@ function login(){
   load().then(()=>{S.view='list';S.err=null;render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});
 }
 function refresh(){load().then(()=>{S.err=null;render();if(S.tab==='activity')loadEvents()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
-function tabClick(id){S.tab=id;S.evPage=1;render();if(id==='activity')loadEvents()}
+function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEvents()}
 async function load(){
   const r=await Promise.all([api('/overview'),api('/users'),api('/events?view=grouped&limit=300&offset=0&tier=all&order=desc')]);
   S.overview=r[0]||null;

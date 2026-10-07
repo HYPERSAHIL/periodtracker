@@ -400,3 +400,19 @@ console.log('selfcheck: all 16 groups passed');
 }
 
 console.log('selfcheck: all 17 groups passed');
+
+// 18. Material 3 token layer — official roles present, imported AFTER styles.css
+{
+  const m3 = readFileSync(new URL('../src/theme-m3.css', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+  for (const role of ['primary', 'primary-container', 'surface', 'outline-variant', 'surface-container-high'])
+    assert.ok(m3.includes(`--md-sys-color-${role}:`), `M3 token layer defines ${role}`);
+  assert.ok(/--focus:.*--md-sys-color-primary/.test(m3), 'focus ring derives from M3 primary');
+  assert.ok(/--danger:.*--md-sys-color-error/.test(m3), 'danger colour derives from M3 error');
+  assert.ok(
+    main.indexOf("import './theme-m3.css'") > main.indexOf("import './styles.css'"),
+    'theme-m3.css is imported after styles.css so the bridge wins the cascade'
+  );
+}
+
+console.log('selfcheck: all 18 groups passed');

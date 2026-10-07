@@ -11,6 +11,8 @@ import '@fontsource/playfair-display/700.css';
 import App from './App';
 import { track } from './lib/beacon';
 import './styles.css';
+// must stay last: re-points four semantic vars at Material 3 roles
+import './theme-m3.css';
 
 registerSW({
   immediate: true,

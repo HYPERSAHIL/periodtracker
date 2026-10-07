@@ -1,0 +1,57 @@
+/**
+ * Material 3 (Material You) system colors — generated OFFLINE from the brand
+ * rose #e11d63 with @material/material-color-utilities 0.4.0 (the engine
+ * behind the Material Theme Builder) and pasted as static values: official
+ * palette math, zero runtime dependency, zero bundle cost.
+ *
+ * Imported AFTER styles.css on purpose — this file only adds the M3 role
+ * tokens and re-points four semantic vars at them. Full revert:
+ *   rm src/theme-m3.css && drop the import in src/main.tsx
+ * Original values live untouched in styles.css, so nothing else moves.
+ */
+
+:root {
+  /* brand rose #e11d63 → Material 3 light scheme */
+  --md-sys-color-primary: #bc004e;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #ffd9de;
+  --md-sys-color-on-primary-container: #3f0015;
+  --md-sys-color-secondary: #75565b;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #ffd9de;
+  --md-sys-color-on-secondary-container: #2b1519;
+  --md-sys-color-tertiary: #7a5832;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #ffddbb;
+  --md-sys-color-on-tertiary-container: #2b1700;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-surface: #fffbff;
+  --md-sys-color-on-surface: #201a1b;
+  --md-sys-color-surface-variant: #f3dddf;
+  --md-sys-color-on-surface-variant: #524345;
+  --md-sys-color-outline: #847375;
+  --md-sys-color-outline-variant: #d6c2c4;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+  --md-sys-color-inverse-surface: #362f2f;
+  --md-sys-color-inverse-on-surface: #fbeeee;
+  --md-sys-color-inverse-primary: #ffb2bf;
+  /* surface containers — neutral palette at M3 Expressive tones */
+  --md-sys-color-surface-dim: #e3d7d8;
+  --md-sys-color-surface-bright: #fff8f7;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #fdf1f1;
+  --md-sys-color-surface-container: #f8ebeb;
+  --md-sys-color-surface-container-high: #f2e5e6;
+  --md-sys-color-surface-container-highest: #ece0e0;
+  --md-sys-color-surface-tint: #bc004e;
+
+  /* the whole adoption: four semantic vars now derive from M3 roles */
+  --focus: 2px solid var(--md-sys-color-primary);
+  --danger: var(--md-sys-color-error);
+  --danger-bg: var(--md-sys-color-error-container);
+  --border: var(--md-sys-color-outline-variant);
+}
