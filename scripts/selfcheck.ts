@@ -397,6 +397,10 @@ console.log('selfcheck: all 16 groups passed');
   assert.ok(sync.includes('mergeRounds'), 'sync reports merge rounds');
   assert.ok(sync.includes('kb:'), 'sync reports payload size');
   assert.ok(store.includes('QuotaExceededError'), 'save failures distinguish quota exhaustion');
+  assert.ok(
+    /keepalive:\s*type === 'screen_vitals'/.test(beacon),
+    'unload-path beacons use keepalive or they die with the page'
+  );
 }
 
 console.log('selfcheck: all 17 groups passed');

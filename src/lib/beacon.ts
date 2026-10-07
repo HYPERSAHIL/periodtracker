@@ -35,6 +35,8 @@ export function track(type: string, meta?: Record<string, unknown>): void {
     void fetch(apiUrl('/api/event'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // keepalive: unload-path beacons survive the navigation that triggered them
+      keepalive: type === 'screen_vitals' || type === 'screen_pageleave',
       body: JSON.stringify({ type, meta: { ...meta, appVersion: APP_VERSION } }),
     })
       .then((res) => {
