@@ -1687,6 +1687,7 @@ main.login .detail{padding:24px}
 <script>
 const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
+function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
 const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
@@ -1918,14 +1919,14 @@ function render0(){
     app.innerHTML=shell('Health','fleet rollup (hourly) · perf attribution · fingerprinted errors',tabbar(),
       (shown?
       '<div class="cards" aria-label="Latest active hour">'+
-        '<div class="card"><div class="v">'+(shown.p75_lcp_ms!=null?Math.round(latest.p75_lcp_ms):'—')+'</div><div class="l">p75 LCP ms</div></div>'+
-        '<div class="card"><div class="v">'+(shown.p75_inp_ms!=null?Math.round(latest.p75_inp_ms):'—')+'</div><div class="l">p75 INP ms</div></div>'+
-        '<div class="card"><div class="v">'+(shown.p75_cls!=null?latest.p75_cls:'—')+'</div><div class="l">p75 CLS</div></div>'+
-        '<div class="card"><div class="v">'+(shown.sync_fail_pct!=null?latest.sync_fail_pct+'%':'—')+'</div><div class="l">sync fail</div></div>'+
+        '<div class="card"><div class="v">'+fmtNum(shown.p75_lcp_ms)+'</div><div class="l">p75 LCP ms</div></div>'+
+        '<div class="card"><div class="v">'+fmtNum(shown.p75_inp_ms)+'</div><div class="l">p75 INP ms</div></div>'+
+        '<div class="card"><div class="v">'+fmtNum(shown.p75_cls,1)+'</div><div class="l">p75 CLS</div></div>'+
+        '<div class="card"><div class="v">'+(shown.sync_fail_pct!=null?esc(String(shown.sync_fail_pct))+'%':'—')+'</div><div class="l">sync fail</div></div>'+
         '<div class="card"><div class="v">'+(shown.sessions||0)+'</div><div class="l">sessions/h</div></div>'+
         '<div class="card"><div class="v">'+(shown.esc_visitors||0)+'</div><div class="l">exposed devices</div></div>'+
       '</div>'
-      :'<div class="detail" style="margin-bottom:14px"><p class="sub" style="margin:0">No rollup rows yet — the cron worker writes one per hour (trigger <span class="mono">7 * * * *</span>). Trigger it manually with <span class="mono">?run=rollup</span> on the email-cron worker.</p></div>')+
+      :'<div class="detail" style="margin-bottom:14px"><p class="sub" style="margin:0">No rollup rows yet — they are computed on demand when this tab opens, so the first open fills the last 48h.</p></div>')+
       '<div class="detail" style="margin-bottom:14px"><div class="kv">'+
         '<div><b>24h</b> '+esc(String(sum('sessions')))+' sessions · '+esc(String(sum('vitals')))+' vitals · '+
           esc(String(sum('android_visitors')))+' android · '+esc(String(sum('esc_visitors')))+' exposed · '+
