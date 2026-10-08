@@ -1273,7 +1273,7 @@ async function rollupHour(env, bucket) {
   const byBucket = {};
   let exposed = 0;
   for (const r of esc.results || []) {
-    let m = {};
+    let m;
     try {
       m = JSON.parse(r.meta || '{}');
     } catch {
@@ -1312,26 +1312,28 @@ async function rollupHour(env, bucket) {
 
 /** Fill in every hour bucket that is missing or stale, oldest first. */
 async function refreshFleet(env) {
-  const last = await env.DB.prepare('SELECT bucket FROM fleet_health ORDER BY bucket DESC LIMIT 1').first();
-  const floorT = last && last.bucket ? new Date(`${last.bucket}:00:00.000Z`).getTime() : 0;
-  const nowHour = new Date().toISOString().slice(0, 13);
-  // close out the previous hour if nobody has; then keep up to 24h backfilled
-  const wanted = [];
+  const have = await env.DB.prepare('SELECT bucket FROM fleet_health WHERE bucket >= ?').bind(
+    new Date(Date.now() - 48 * 3600000).toISOString().slice(0, 13)
+  ).all();
+  const seen = new Set((have.results || []).map((r) => r.bucket));
+  // Fill every hour in the window that has no row yet. Anchoring on the newest
+  // bucket (previous approach) permanently skipped quiet hours that DID have
+  // traffic, so gaps anywhere in the range are filled, oldest first.
   const cur = new Date(Date.now() - 3600000);
   cur.setUTCMinutes(0, 0, 0);
-  for (let i = 0; i < 24; i++) {
-    const h = new Date(cur.getTime() - i * 3600000);
-    const b = h.toISOString().slice(0, 13);
-    if (h.getTime() >= floorT) wanted.push(b);
+  const missing = [];
+  for (let i = 47; i >= 0; i--) {
+    const b = new Date(cur.getTime() - i * 3600000).toISOString().slice(0, 13);
+    if (!seen.has(b)) missing.push(b);
   }
-  for (const b of wanted.slice(0, 6)) {
+  for (const b of missing.slice(0, 12)) {
     try {
       await rollupHour(env, b);
     } catch {
       /* a bad bucket must not break the tab */
     }
   }
-  return nowHour;
+  return missing.length;
 }
 
     if (method === 'GET' && path === '/api/admin/health') {
