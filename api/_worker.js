@@ -1890,6 +1890,13 @@ function render0(){
     const h=S.health||{};
     const fleet=h.fleet||[];
     const latest=fleet[0];
+    // headline = newest hour WITH traffic (the newest bucket is usually the
+    // quietest, so reading it first shows a row of em-dashes and hides reality)
+    const live=fleet.filter(r=>r.sessions>0||r.vitals>0);
+    const shown=live[0]||latest;
+    const last24=fleet.slice(0,24);
+    const sum=(k)=>last24.reduce((a,r)=>a+(r[k]||0),0);
+    const pctOf=(k)=>{const v=last24.map(r=>r[k]).filter(x=>typeof x==='number');return v.length?Math.round(v[v.length-1]):null;};
     const agg=(key)=>{
       const vals=fleet.map(r=>r[key]).filter(v=>typeof v==='number');
       return vals.length?vals[vals.length-1]:null;
@@ -1909,16 +1916,22 @@ function render0(){
       '<td data-l="GMS">'+(d.gms?'yes':'no')+'</td><td data-l="Autofill">'+esc(d.autofill||'—')+'</td>'+
       '<td data-l="Mode">'+esc((d.pwa&&d.pwa.displayMode)||'—')+'</td></tr>').join('');
     app.innerHTML=shell('Health','fleet rollup (hourly) · perf attribution · fingerprinted errors',tabbar(),
-      (latest?
-      '<div class="cards" aria-label="Latest hour">'+
-        '<div class="card"><div class="v">'+(latest.p75_lcp_ms!=null?Math.round(latest.p75_lcp_ms):'—')+'</div><div class="l">p75 LCP ms</div></div>'+
-        '<div class="card"><div class="v">'+(latest.p75_inp_ms!=null?Math.round(latest.p75_inp_ms):'—')+'</div><div class="l">p75 INP ms</div></div>'+
-        '<div class="card"><div class="v">'+(latest.p75_cls!=null?latest.p75_cls:'—')+'</div><div class="l">p75 CLS</div></div>'+
-        '<div class="card"><div class="v">'+(latest.sync_fail_pct!=null?latest.sync_fail_pct+'%':'—')+'</div><div class="l">sync fail</div></div>'+
-        '<div class="card"><div class="v">'+(latest.sessions||0)+'</div><div class="l">sessions/h</div></div>'+
-        '<div class="card"><div class="v">'+(latest.esc_visitors||0)+'</div><div class="l">exposed devices</div></div>'+
+      (shown?
+      '<div class="cards" aria-label="Latest active hour">'+
+        '<div class="card"><div class="v">'+(shown.p75_lcp_ms!=null?Math.round(latest.p75_lcp_ms):'—')+'</div><div class="l">p75 LCP ms</div></div>'+
+        '<div class="card"><div class="v">'+(shown.p75_inp_ms!=null?Math.round(latest.p75_inp_ms):'—')+'</div><div class="l">p75 INP ms</div></div>'+
+        '<div class="card"><div class="v">'+(shown.p75_cls!=null?latest.p75_cls:'—')+'</div><div class="l">p75 CLS</div></div>'+
+        '<div class="card"><div class="v">'+(shown.sync_fail_pct!=null?latest.sync_fail_pct+'%':'—')+'</div><div class="l">sync fail</div></div>'+
+        '<div class="card"><div class="v">'+(shown.sessions||0)+'</div><div class="l">sessions/h</div></div>'+
+        '<div class="card"><div class="v">'+(shown.esc_visitors||0)+'</div><div class="l">exposed devices</div></div>'+
       '</div>'
       :'<div class="detail" style="margin-bottom:14px"><p class="sub" style="margin:0">No rollup rows yet — the cron worker writes one per hour (trigger <span class="mono">7 * * * *</span>). Trigger it manually with <span class="mono">?run=rollup</span> on the email-cron worker.</p></div>')+
+      '<div class="detail" style="margin-bottom:14px"><div class="kv">'+
+        '<div><b>24h</b> '+esc(String(sum('sessions')))+' sessions · '+esc(String(sum('vitals')))+' vitals · '+
+          esc(String(sum('android_visitors')))+' android · '+esc(String(sum('esc_visitors')))+' exposed · '+
+          esc(String(sum('errors')))+' errors</div>'+
+        '<div><b>Newest active hour</b> '+(shown&&shown.bucket?esc(String(shown.bucket)):'none yet')+'</div>'+
+      '</div></div>'+
       (Object.keys(escAgg).length?'<div class="detail" style="margin-bottom:14px"><div class="kv"><div><b>Esc buckets (window)</b> '+
         Object.entries(escAgg).sort((a,b)=>b[1]-a[1]).map(([k,v])=>esc(k)+' × '+v).join(' · ')+'</div></div></div>':'')+
       (fleet.length?'<h2>Hourly trend</h2><div class="detail" style="margin-bottom:14px">'+
