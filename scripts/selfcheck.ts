@@ -6,6 +6,7 @@
  */
 import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
+import { createContext, runInContext } from 'node:vm';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
 import { buildFacts, computeStats, periodClusters } from '../src/lib/cycle';
@@ -620,4 +621,48 @@ console.log('selfcheck: all 18 groups passed');
   assert.equal(parseBackup('not json'), null, 'garbage rejected');
 }
 
-console.log('selfcheck: all 22 groups passed');
+
+// 23. The admin panel is one big template literal, so a backslash-escape mistake
+//     renders a blank page in the browser and nothing else. Render the real page
+//     and parse the script it actually emits. This caught a chip row where
+//     \' produced a bare quote and killed the whole panel.
+{
+  const workerSrc = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8')
+    .replace(/^export default\s+/m, 'const __workerDefault = ');
+  const sandbox: Record<string, unknown> = {
+    console,
+    URL,
+    URLSearchParams,
+    TextEncoder,
+    TextDecoder,
+    crypto: globalThis.crypto,
+    Response,
+    Request,
+    Headers,
+    fetch: globalThis.fetch,
+    AbortController,
+    setTimeout,
+    clearTimeout,
+  };
+  createContext(sandbox);
+  runInContext(workerSrc, sandbox, { filename: '_worker.js' });
+
+  const adminPage = sandbox.adminPage as (() => Response) | undefined;
+  assert.equal(typeof adminPage, 'function', 'adminPage is reachable from the worker source');
+  const html = await (adminPage as () => Response)().text();
+
+  const inline = html.match(/<script>([\s\S]*)<\/script>/);
+  assert.ok(inline && inline[1].length > 5000, 'inline admin script extracted from the rendered page');
+  try {
+    new Function(inline[1]);
+  } catch (e) {
+    assert.fail(`rendered admin script does not parse: ${(e as Error).message}`);
+  }
+
+  // the pieces the owner relies on, asserted on the real output
+  for (const needle of ['setEvPrefix', 'entryTable', 'nullsLast', 'notecount', 'Latest note'])
+    assert.ok(inline[1].includes(needle), `rendered admin script contains ${needle}`);
+  assert.ok(html.includes('Continue without an account') === false, 'admin page is unrelated to app copy');
+}
+
+console.log('selfcheck: all 23 groups passed');

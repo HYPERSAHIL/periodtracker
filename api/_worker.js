@@ -1415,6 +1415,10 @@ async function refreshFleet(env) {
       const where = [];
       const args = [];
       if (typeF) { where.push('e.type = ?'); args.push(typeF); }
+      // prefix view: the type list runs to 300 entries, so "show me every
+      // sec_* row" should not require picking each one from a dropdown
+      const prefix = (q.get('prefix') || '').trim().slice(0, 20);
+      if (prefix) { where.push('e.type LIKE ?'); args.push(prefix + '%'); }
       if (userF) { where.push('e.user_id = ?'); args.push(userF); }
       if (search) {
         where.push('(e.type LIKE ? OR e.meta LIKE ? OR e.ip LIKE ? OR u.email LIKE ? OR u.name LIKE ?)');
@@ -1657,6 +1661,10 @@ label.fld-inline{font:600 11px var(--mono);letter-spacing:.05em;text-transform:u
 .seg2 button{border:none;border-radius:0;background:var(--surface);color:var(--ink2);padding:8px 14px;font:600 12.5px var(--sans)}
 .seg2 button+button{border-left:1px solid var(--line2)}
 .seg2 button.on{background:var(--ink);color:var(--canvas)}
+.chipbtn{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);
+  padding:5px 11px;border-radius:999px;font:600 12px var(--sans);cursor:pointer}
+.chipbtn:hover{border-color:var(--acc);color:var(--ink)}
+.chipbtn.on{background:var(--ink);border-color:var(--ink);color:var(--canvas)}
 /* tables */
 .tblwrap{background:var(--surface);border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .tblscroll{overflow-x:auto}
@@ -1750,7 +1758,7 @@ const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',ePrefix:'',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   let r;
@@ -2061,7 +2069,15 @@ function render0(){
     const pages=Math.max(1,Math.ceil((S.evTotal||0)/100));
     if(S.evPage>pages)S.evPage=pages;
     const TIER_OPTS=[['default','Signal + context'],['signal','Signal only'],['context','Context only'],['noise','Noise only'],['all','Everything']];
-    const ctl='<div class="toolbar">'+
+    const PREFIXES=[['','All'],['sec_','Security'],['data_','Data'],['screen_','Screen'],
+                    ['onboarding_','Onboarding'],['day_','Logging'],['update_','Updates'],
+                    ['admin','Admin'],['email_','Email'],['share_','Shares']];
+    const chips='<div class="toolbar" style="gap:6px;margin-bottom:8px">'+
+      PREFIXES.map(p=>'<button class="chipbtn'+(S.ePrefix===p[0]?' on':'')+'" onclick="setEvPrefix(&apos;'+esc(p[0])+'&apos;)">'+
+        esc(p[1])+'</button>').join('')+
+      (S.ePrefix?'<span class="pg">prefix <b>'+esc(S.ePrefix)+'</b></span>':'')+
+      '</div>';
+    const ctl=chips+'<div class="toolbar">'+
       '<div class="seg2" role="group" aria-label="View mode">'+
         '<button class="'+(S.evView==='feed'?'on':'')+'" onclick="setEvView(\\'feed\\')">Feed</button>'+
         '<button class="'+(S.evView==='raw'?'on':'')+'" onclick="setEvView(\\'raw\\')">Raw</button>'+
@@ -2125,6 +2141,7 @@ let evTimer=0;
 function setEvView(v){if(S.evView===v)return;S.evView=v;S.evPage=1;S.exp={};render();loadEvents()}
 function setEType(v){S.eType=v;S.evPage=1;S.exp={};render();loadEvents()}
 function setEvTier(v){S.evTier=v;S.evPage=1;S.exp={};render();loadEvents()}
+function setEvPrefix(v){S.ePrefix=(S.ePrefix===v?'':v);S.eType='all';S.evPage=1;S.exp={};render();loadEvents()}
 function setEvOrder(){S.evOrder=S.evOrder==='desc'?'asc':'desc';S.evPage=1;render();loadEvents()}
 function userActivity(id){const u=(S.users||[]).find(x=>x.id===id);S.evUser=String(id);S.evUserLabel=(u&&(u.name||u.email))||('user '+String(id).slice(0,6));S.view='list';S.sel=null;S.tab='activity';S.evPage=1;S.exp={};render();loadEvents()}
 function clearEvUser(){S.evUser='';S.evUserLabel='';S.evPage=1;S.exp={};render();loadEvents()}
@@ -2145,6 +2162,7 @@ async function loadEvents(){
     '&tier='+S.evTier+'&order='+S.evOrder;
   if(S.evUser)p+='&user='+encodeURIComponent(S.evUser);
   if(S.eType!=='all')p+='&type='+encodeURIComponent(S.eType);
+  if(S.ePrefix)p+='&prefix='+encodeURIComponent(S.ePrefix);
   if(S.evQ)p+='&q='+encodeURIComponent(S.evQ);
   try{
     const r=await api(p);
