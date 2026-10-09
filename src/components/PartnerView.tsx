@@ -27,8 +27,7 @@ export default function PartnerView({
           <div className="ring" />
           <div className="ring r2" />
           <div aria-label="Current cycle day" className="cycle-day">
-            {summary.cycleDay ?? '-'}
-            <span>{tx(lang, 'cycle day')}</span>
+            {summary.cycleDay ?? '-'} <span>{tx(lang, 'cycle day')}</span>
           </div>
           <div className="phase">
             {summary.phase ? txd(lang, `phase.${summary.phase}`, summary.phase) : tx(lang, 'Cycle phase')}

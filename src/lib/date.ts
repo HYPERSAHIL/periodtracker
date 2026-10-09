@@ -70,13 +70,17 @@ export function monthLabel(year: number, month: number): string {
   return `${name} ${year}`;
 }
 
-export function prettyDate(iso: string, opts?: { withYear?: boolean; weekday?: boolean }): string {
+export function prettyDate(
+  iso: string,
+  opts?: { withYear?: boolean; weekday?: boolean; weekdayOnly?: boolean }
+): string {
   const d = fromISO(iso);
+  // stacked log rows show the weekday on its own line above the full date,
+  // otherwise the day and month print twice
   const parts = new Intl.DateTimeFormat(activeLocale(), {
-    month: 'short',
-    day: 'numeric',
-    ...(opts?.withYear ? { year: 'numeric' } : {}),
-    ...(opts?.weekday ? { weekday: 'short' } : {}),
+    ...(opts?.weekdayOnly ? {} : { month: 'short' as const, day: 'numeric' as const }),
+    ...(opts?.withYear ? { year: 'numeric' as const } : {}),
+    ...(opts?.weekday ? { weekday: 'short' as const } : {}),
   }).format(d);
   return parts;
 }

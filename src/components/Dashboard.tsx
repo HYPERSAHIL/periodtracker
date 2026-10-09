@@ -208,8 +208,7 @@ export default function Dashboard(p: AppProps) {
         <div className="ring" />
         <div className="ring r2" />
         <div aria-label="Current cycle day" className="cycle-day">
-          {stats.cycleDay ?? '-'}
-          <span>{tx(lang, 'cycle day')}{stats.cycleDay ? '' : tx(lang, ' · log a period to begin')}</span>
+          {stats.cycleDay ?? '-'} <span>{tx(lang, 'cycle day')}{stats.cycleDay ? '' : tx(lang, ' · log a period to begin')}</span>
         </div>
         <div className="phase">{txd(lang, `phase.${phase}`, info.label)}</div>
         <div className="since">{txd(lang, `phase.${phase}.blurb`, info.blurb)}</div>
@@ -337,7 +336,7 @@ export default function Dashboard(p: AppProps) {
             <div key={e.date} className="recent-item" onClick={() => p.openDay(e.date)} role="button" tabIndex={0}
               onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && p.openDay(e.date)}>
               <div className="dt">
-                <div className="d1">{prettyDate(e.date, { weekday: true })}</div>
+                <div className="d1">{prettyDate(e.date, { weekdayOnly: true, weekday: true })}</div>
                 <div className="d2">{prettyDate(e.date, { withYear: true })}</div>
               </div>
               <div className="info">
