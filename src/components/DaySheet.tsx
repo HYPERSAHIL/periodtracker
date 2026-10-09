@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DayEntry, FLOWS, MOODS, MUCUS_OPTIONS, PAIN_AREAS, SYMPTOMS, Settings } from '../types';
 import { DayFacts, Phase } from '../lib/cycle';
+import { useFocusTrap } from '../lib/focusTrap';
 import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
 import { track } from '../lib/beacon';
@@ -85,6 +86,7 @@ export default function DaySheet({
   // every way out of the sheet commits what is on screen. Only "Clear this
   // day" and "Delete this log" discard, and those are explicit buttons.
   const saveRef = useRef<() => void>(() => {});
+  const sheetRef = useFocusTrap(true);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -162,7 +164,11 @@ export default function DaySheet({
       note: d.note.trim(),
     });
   };
-  saveRef.current = save;
+  // assign in an effect, not during render: the compiler lint forbids ref
+  // writes in the render body and this must stay current for the Escape path
+  useEffect(() => {
+    saveRef.current = save;
+  });
 
   // Which sections the daily 30-second set covers; everything else is
   // one tap away in either layout. Order and hidden always win.
@@ -590,7 +596,7 @@ export default function DaySheet({
         save();
       }}
     >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={`Log for ${date}`}>
+      <div className="sheet" role="dialog" aria-modal="true" tabIndex={-1} ref={sheetRef} aria-label={`Log for ${date}`}>
         <div className="grab" />
         <h2>{prettyDate(date, { withYear: true, weekday: true })}</h2>
         <div className="sub">

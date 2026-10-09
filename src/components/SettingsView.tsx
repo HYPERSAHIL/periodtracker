@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppProps } from '../App';
 import { parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV, mergeImportedEntries, toBackup } from '../lib/storage';
+import { useFocusTrap } from '../lib/focusTrap';
 import { hashPin, randomSaltB64, weakPinReason } from '../lib/crypto';
 import { tx, txd } from '../lib/i18n';
 import { noteInjection } from '../lib/audit';
@@ -24,6 +25,7 @@ export default function SettingsView(p: AppProps) {
   const [confirmErase, setConfirmErase] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [pinModal, setPinModal] = useState(false);
+  const pinRef = useFocusTrap(pinModal);
   const [pin, setPin] = useState('');
   const [shares, setShares] = useState<ShareRow[] | null>(null);
   const [shareMsg, setShareMsg] = useState<string | null>(null);
@@ -1059,7 +1061,7 @@ export default function SettingsView(p: AppProps) {
 
       {pinModal && (
         <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && setPinModal(false)}>
-          <div className="sheet" role="dialog" aria-modal="true">
+          <div className="sheet" role="dialog" aria-modal="true" tabIndex={-1} ref={pinRef}>
             <div className="grab" />
             <h2><IconLock /> {tx(lang, 'App PIN')}</h2>
             <p className="hint" style={{ marginBottom: 14 }}>
