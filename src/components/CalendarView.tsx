@@ -63,6 +63,8 @@ export default function CalendarView(p: AppProps) {
         key={iso}
         className={cls}
         onClick={() => p.openDay(iso)}
+        disabled={iso > todayISO()}
+        aria-disabled={iso > todayISO()}
         aria-label={mini ? iso : `${iso}${label ? `: ${label}` : ''}`}
       >
         {fromISO(iso).getDate()}

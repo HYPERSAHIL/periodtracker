@@ -736,6 +736,12 @@ function MainApp() {
   }, [entries]);
 
   const openDay = useCallback((date: string) => {
+    // logging the future is not a thing a calendar app should allow; a stray
+    // tap on a future cell used to open the sheet, which then saved junk
+    if (date > todayISO()) {
+      track('day_future_blocked', { date });
+      return;
+    }
     setSheetDate(date);
     track('day_opened', { date });
   }, []);

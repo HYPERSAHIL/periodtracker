@@ -2127,3 +2127,144 @@ h3 svg,
   margin: 0 auto 10px;
   display: block;
 }
+
+/* future cells are inert: no pointer, no press animation, visibly muted */
+.day:disabled,
+.day[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.4;
+  background: transparent;
+  border-color: transparent;
+}
+
+.day:disabled:active,
+.day[aria-disabled='true']:active {
+  transform: none;
+}
+
+/* ---------- day sheet: decluttered layouts ---------- */
+.sheet-layout {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 10px 0 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.sheet-layout .seg-b {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.sheet-layout .seg-b.on {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Layout A: quiet chip row for everything outside the daily set */
+.sheet-more {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.sheet-more-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.sheet-more-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+.sheet-open-sec {
+  margin-top: 10px;
+}
+
+/* Layout B: grouped, collapsible headers */
+.sheet-group {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sheet-group:last-of-type {
+  border-bottom: 0;
+}
+
+.sheet-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 14px 0;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.sheet-group-head .sg-label {
+  flex: 1;
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.sheet-group-head .sg-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--rose-600);
+  min-width: 14px;
+  text-align: right;
+}
+
+.sheet-group-head .sg-chev,
+.sheet-more-head .sg-chev {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.5;
+  transition: transform 0.15s ease;
+  flex: none;
+}
+
+.sheet-group.open .sheet-group-head .sg-chev,
+.sheet-more-head[aria-expanded='true'] .sg-chev {
+  transform: rotate(-135deg);
+}
+
+.sheet-group > .field {
+  padding-bottom: 14px;
+}
+
+.sheet-group-head:hover .sg-label {
+  color: var(--rose-600);
+}

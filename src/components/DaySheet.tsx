@@ -167,6 +167,13 @@ export default function DaySheet({
     });
   };
 
+  // Which sections the daily 30-second set covers; everything else is
+  // one tap away in either layout. Order and hidden always win.
+  const DAILY = ['flow', 'checkin', 'symptoms'];
+  const [sheetLayout, setSheetLayout] = useState<'auto' | 'grouped'>('auto');
+  const [openExtra, setOpenExtra] = useState<Record<string, boolean>>({});
+  const [moreOpen, setMoreOpen] = useState(false);
+
   const order = settings.trackerOrder.length
     ? settings.trackerOrder
     : ['flow', 'checkin', 'symptoms', 'mood', 'discharge', 'measurements', 'tests', 'intimacy', 'sleep', 'activity', 'lifestyle', 'meds', 'note'];
@@ -598,7 +605,99 @@ export default function DaySheet({
           {facts?.ovulation && <span className="tag leaf">{tx(lang, 'Ovulation (est.)')}</span>}
         </div>
 
-        {visible.map((id) => section(id))}
+        <div className="sheet-layout" role="group" aria-label={tx(lang, 'Log layout')}>
+          {(['auto', 'grouped'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={'seg-b' + (sheetLayout === k ? ' on' : '')}
+              onClick={() => {
+                setSheetLayout(k);
+                track('day_sheet_layout', { layout: k });
+              }}
+            >
+              {k === 'auto' ? tx(lang, 'Simple') : tx(lang, 'Grouped')}
+            </button>
+          ))}
+        </div>
+        {(() => {
+          const daily = visible.filter((id) => DAILY.includes(id));
+          const extra = visible.filter((id) => !DAILY.includes(id));
+          const filled = (id: string) => !isSectionEmpty(id, d);
+          const extraFilled = extra.filter(filled);
+          if (!extra.length) return daily.map((id) => section(id));
+
+          // Layout B (grouped): everything visible, sections fold under headers
+          if (sheetLayout === 'grouped') {
+            const groups = groupSections(daily, extra);
+            return (
+              <>
+                {groups.map((g) => {
+                  const open = g.open ? true : openExtra[g.key];
+                  return (
+                    <div key={g.key} className={'sheet-group' + (open ? ' open' : '')}>
+                      <button
+                        type="button"
+                        className="sheet-group-head"
+                        aria-expanded={!!open}
+                        onClick={() => setOpenExtra((p) => ({ ...p, [g.key]: !p[g.key] }))}
+                      >
+                        <span className="sg-label">{tx(lang, g.label)}</span>
+                        <span className="sg-count">
+                          {g.ids.filter(filled).length > 0 ? g.ids.filter(filled).length : ''}
+                        </span>
+                        <span className="sg-chev" aria-hidden />
+                      </button>
+                      {open ? g.ids.map((id) => section(id)) : null}
+                    </div>
+                  );
+                })}
+              </>
+            );
+          }
+
+          // Layout A (progressive): the daily set, then one quiet row of chips
+          return (
+            <>
+              {daily.map((id) => section(id))}
+              <div className="sheet-more">
+                <button
+                  type="button"
+                  className="sheet-more-head"
+                  aria-expanded={moreOpen}
+                  onClick={() => {
+                    setMoreOpen(!moreOpen);
+                    track('day_sheet_more_toggled', { open: !moreOpen, extra: extra.length, filled: extraFilled.length });
+                  }}
+                >
+                  <span>{tx(lang, 'More sections')}</span>
+                  <span className="sg-chev" aria-hidden />
+                </button>
+                {moreOpen || extraFilled.length > 0 ? (
+                  <div className="sheet-more-grid">
+                    {extra.map((id) => {
+                      const on = openExtra[id] || filled(id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          className={'chip' + (on ? ' on' : '')}
+                          aria-expanded={!!on}
+                          onClick={() => setOpenExtra((p) => ({ ...p, [id]: !p[id] }))}
+                        >
+                          {txd(lang, `sec.${id}`, id)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {extra.filter((id) => openExtra[id]).map((id) => (
+                  <div key={id} className="sheet-open-sec">{section(id)}</div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
 
         <button className="btn primary" onClick={save}>
           {isEmpty ? tx(lang, 'Clear this day') : tx(lang, 'Save')}
@@ -722,4 +821,46 @@ function VoiceNote({ lang, onText }: { lang: string; onText: (t: string) => void
       {listening ? <><IconStop /> {tx(lang, 'Stop listening')}</> : <><IconMic /> {tx(lang, 'Dictate note')}</>}
     </button>
   );
+}
+
+/** A section counts as filled when any of its own fields carry a value. */
+function isSectionEmpty(id: string, d: DayEntry): boolean {
+  switch (id) {
+    case 'flow': return !d.flow && !d.clots;
+    case 'checkin': return !d.checkedIn;
+    case 'symptoms': return d.symptoms.length === 0 && !d.symptomSeverity;
+    case 'mood': return d.moods.length === 0;
+    case 'discharge': return !d.mucus;
+    case 'measurements': return d.bbt == null && d.weight == null;
+    case 'tests': return !d.lhTest && !d.pregnancyTest;
+    case 'intimacy': return !d.intercourse && !d.drive;
+    case 'sleep': return d.sleepHours == null && !d.sleepQuality;
+    case 'activity': return d.exerciseMinutes == null && d.steps == null && d.water == null;
+    case 'lifestyle': return !d.alcohol && !d.caffeine && !d.smoked;
+    case 'meds': return !d.supplements && !d.pillTaken && !d.pillMissed;
+    case 'pain': return d.painLevel == null && d.painAreas.length === 0 && !d.routineImpact;
+    case 'headache': return !d.migraine && !d.migraineAura && !d.migraineMed && !d.migraineHelped;
+    case 'endo': return !d.giIssues && !d.bladderPain && !d.endoFlare;
+    case 'note': return !d.note.trim();
+    default: return true;
+  }
+}
+
+interface SheetGroup {
+  key: string;
+  label: string;
+  open: boolean;
+  ids: string[];
+}
+
+/** Apple-Settings style buckets; open = expanded by default. */
+function groupSections(daily: string[], extra: string[]): SheetGroup[] {
+  const pick = (ids: string[]) => ids.filter((i) => extra.includes(i));
+  return [
+    { key: 'daily', label: 'Daily', open: true, ids: daily },
+    { key: 'body', label: 'Body', open: false, ids: pick(['discharge', 'measurements', 'pain', 'endo']) },
+    { key: 'health', label: 'Health', open: false, ids: pick(['tests', 'meds', 'headache']) },
+    { key: 'life', label: 'Life', open: false, ids: pick(['intimacy', 'sleep', 'activity', 'lifestyle']) },
+    { key: 'journal', label: 'Journal', open: false, ids: pick(['note']) },
+  ].filter((g) => g.ids.length > 0);
 }

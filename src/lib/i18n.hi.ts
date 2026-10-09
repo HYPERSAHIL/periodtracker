@@ -1,5 +1,14 @@
 // Hindi UI strings. Key = exact English source. Missing key → English fallback.
 export const HI: Record<string, string> = {
+  'More sections': 'और सेक्शन',
+  'Log layout': 'लॉग लेआउट',
+  'Simple': 'सिंपल',
+  'Grouped': 'समूहित',
+  'Daily': 'रोज़',
+  'Body': 'शरीर',
+  'Health': 'स्वास्थ्य',
+  'Life': 'जीवन',
+  'Journal': 'डायरी',
   // App shell + nav
   'Period Tracker': 'पीरियड ट्रैकर',
   'Private cycle tracking': 'निजी साइकिल ट्रैकिंग',
