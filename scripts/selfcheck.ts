@@ -10,7 +10,15 @@ import { createContext, runInContext } from 'node:vm';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
 import { buildFacts, computeStats, periodClusters } from '../src/lib/cycle';
-import { loadEntries, mergeImportedEntries, parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV } from '../src/lib/storage';
+import {
+  loadEntries,
+  loadSettings,
+  mergeImportedEntries,
+  parseBackup,
+  parseCSVEntries,
+  parseHealthXML,
+  parseWearableCSV,
+} from '../src/lib/storage';
 import { adherenceConfidence, detectThermalShift, perimenstrualMigraine, variabilityPhenotype } from '../src/lib/stats';
 import { guideAnswer } from '../src/lib/guide';
 import { normLang, tx } from '../src/lib/i18n';
@@ -706,4 +714,70 @@ console.log('selfcheck: all 18 groups passed');
   }
 }
 
-console.log('selfcheck: all 24 groups passed');
+
+// 25. Import parsers are the last place a bad date can enter. The bare shape
+//     regex let 2026-13-45 through in three of the four paths even after
+//     parseBackup was hardened, which reproduces the render crash it causes.
+{
+  const csv = parseCSVEntries(
+    [
+      'date,flow,symptoms,moods,note,bbt,weight',
+      '2026-03-04,medium,Cramps|Calm,Sad,"multi, word note",36.5,54',
+      '2026-13-45,heavy,Cramps,,phantom,25,10',
+      '2026-02-30,light,,,,,',
+      'not-a-date,light,,,,,',
+      '2024-02-29,light,,,,,',
+    ].join('\n')
+  );
+  assert.ok(csv, 'csv parsed');
+  assert.deepEqual(Object.keys(csv!).sort(), ['2024-02-29', '2026-03-04'], 'csv keeps only real calendar days');
+  assert.equal(csv!['2026-03-04'].note, 'multi, word note', 'quoted commas survive');
+  assert.deepEqual(csv!['2026-03-04'].symptoms, ['Cramps', 'Calm'], 'pipe list split');
+  assert.deepEqual(csv!['2026-03-04'].moods, ['Sad'], 'column alignment survives a quoted comma');
+
+  // a csv with no usable rows is a failed import, not an empty success
+  assert.equal(parseCSVEntries('date,flow\n2026-13-45,heavy'), null, 'csv with only bad dates rejected');
+  assert.equal(parseCSVEntries('nope,flow\n2026-01-01,heavy'), null, 'csv without a date column rejected');
+
+  // apple health: a malformed stamp must not create a day
+  const xml =
+    '<?xml version="1.0"?><HealthData><Record type="HKQuantityTypeIdentifierBodyMass" ' +
+    'startDate="2026-03-04 07:00:00 +0530" sourceName="Withings" value="54"/>' +
+    '<Record type="HKQuantityTypeIdentifierBodyMass" ' +
+    'startDate="2026-13-45 07:00:00 +0530" sourceName="Withings" value="60"/>' +
+    '</HealthData>';
+  const health = parseHealthXML(xml);
+  if (health) {
+    assert.ok(!('2026-13-45' in health), 'impossible Apple Health stamp dropped');
+  }
+
+  // wearable csv already had a calendar check; make sure it stays that way
+  const wear = parseWearableCSV('date,weight\n2026-03-04,54\n2026-02-30,55', { dayFirst: false });
+  if (wear && Array.isArray(wear.rows)) {
+    assert.ok(!wear.rows.some((r) => r.date === '2026-02-30'), 'impossible wearable date dropped');
+  }
+
+  // settings normalisation: the two date fields that outlived the first fix
+  const store = new Map<string, string>();
+  const g = globalThis as unknown as {
+    localStorage: { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void };
+  };
+  const prev = g.localStorage;
+  g.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => void store.set(k, v),
+  } as typeof g.localStorage;
+  try {
+    store.set(
+      'pt.settings.v1',
+      JSON.stringify({ ...DEFAULT_SETTINGS, pmddCheckStart: '2026-13-45', postpartum: { birthDate: '2026-02-30' } })
+    );
+    const loaded = loadSettings();
+    assert.equal(loaded.pmddCheckStart, null, 'impossible pmddCheckStart cleared');
+    assert.equal(loaded.postpartum, null, 'impossible postpartum birth date cleared');
+  } finally {
+    g.localStorage = prev;
+  }
+}
+
+console.log('selfcheck: all 25 groups passed');

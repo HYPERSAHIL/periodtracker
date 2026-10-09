@@ -232,13 +232,11 @@ export function loadSettings(): Settings {
     if (ppMood == null || typeof ppMood.score !== 'number' || typeof ppMood.date !== 'string') {
       s.ppMood = null;
     }
-    s.pmddCheckStart = typeof s.pmddCheckStart === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.pmddCheckStart) ? s.pmddCheckStart : null;
+    s.pmddCheckStart = isoDay(s.pmddCheckStart) ? s.pmddCheckStart : null;
     if (s.postpartum != null) {
       const pp = s.postpartum as { birthDate?: unknown; exclusiveBF?: unknown };
       s.postpartum =
-        typeof pp.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pp.birthDate)
-          ? { birthDate: pp.birthDate, exclusiveBF: pp.exclusiveBF === true }
-          : null;
+        isoDay(pp.birthDate) ? { birthDate: pp.birthDate, exclusiveBF: pp.exclusiveBF === true } : null;
     }
     if (Array.isArray(s.kickLog)) s.kickLog = s.kickLog.filter((k) => k && typeof k.startedAt === 'number');
     else if (s.kickLog !== undefined) delete s.kickLog;
@@ -488,7 +486,7 @@ function parseCSVLine(line: string): string[] {
       head.forEach((h, i) => {
         row[h] = cells[i] ?? '';
       });
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
+      if (!isoDay(row.date)) continue;
       // enum-id columns are case-insensitive (hand-edited files say "Heavy")
       const enumId = (v: unknown): string | null => {
         const t = String(v ?? '').trim().toLowerCase();
@@ -522,7 +520,9 @@ function parseCSVLine(line: string): string[] {
         updatedAt: Date.now(),
       });
     }
-    return out;
+    // A file whose every row was unusable is a failed import. Returning {} made
+    // the panel report "CSV imported (0 days)" for a file it never understood.
+    return Object.keys(out).length ? out : null;
   } catch {
     return null;
   }
@@ -550,7 +550,8 @@ function parseCSVLine(line: string): string[] {
     };
     const dayOf = (dt: string | null): string | null => {
       const m = dt?.match(/^(\d{4}-\d{2}-\d{2})/);
-      return m ? m[1] : null;
+      // the shape is not the calendar: a bad stamp must not become a phantom day
+      return m && isoDay(m[1]) ? m[1] : null;
     };
     const stamp = (dt: string | null): number => {
       const m = dt?.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
