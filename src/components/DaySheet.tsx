@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  DayEntry,
-  FLOWS,
-  MOODS,
-  MUCUS_OPTIONS,
-  PAIN_AREAS,
-  SYMPTOMS,
-  Settings,
-} from '../types';
+import { DayEntry, FLOWS, MOODS, MUCUS_OPTIONS, PAIN_AREAS, SYMPTOMS, Settings, TRACKER_SECTIONS } from '../types';
 import { DayFacts, Phase } from '../lib/cycle';
 import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
@@ -685,7 +677,7 @@ export default function DaySheet({
                           aria-expanded={!!on}
                           onClick={() => setOpenExtra((p) => ({ ...p, [id]: !p[id] }))}
                         >
-                          {txd(lang, `sec.${id}`, id)}
+                          {txd(lang, `sec.${id}`, secLabel(id))}
                         </button>
                       );
                     })}
@@ -822,6 +814,8 @@ function VoiceNote({ lang, onText }: { lang: string; onText: (t: string) => void
     </button>
   );
 }
+
+const secLabel = (id: string) => TRACKER_SECTIONS.find((t) => t.id === id)?.label ?? id;
 
 /** A section counts as filled when any of its own fields carry a value. */
 function isSectionEmpty(id: string, d: DayEntry): boolean {
