@@ -31,6 +31,32 @@
       Period Tracker needs JavaScript to run. Everything is computed on your device. No script,
       no app.
     </noscript>
+    <script>
+      // A deploy purges the hashed bundle this shell points at. The module then
+      // never runs and the page sits blank. One automatic reload fetches the
+      // fresh shell; the guard stops it looping on a genuinely missing file.
+      (function () {
+        var reloading = false;
+        addEventListener(
+          'error',
+          function (e) {
+            var el = e.target;
+            var src = el && (el.src || el.href);
+            if (!src || src.indexOf('/assets/') === -1 || reloading) return;
+            reloading = true;
+            location.reload();
+          },
+          true
+        );
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (!reloading && root && !root.childElementCount) {
+            reloading = true;
+            location.reload();
+          }
+        }, 4000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

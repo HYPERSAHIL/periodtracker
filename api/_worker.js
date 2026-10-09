@@ -80,7 +80,9 @@ export default {
       ) {
         return new Response('not found', {
           status: 404,
-          headers: { 'content-type': 'text/plain; charset=utf-8' },
+          // no-store: a cached 404 for a hashed asset keeps replaying even
+          // after the file appears, which leaves the page stuck blank
+          headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
         });
       }
       const out = withSecHeaders(res, ct.includes('text/html'));
