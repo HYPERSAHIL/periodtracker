@@ -26,7 +26,6 @@ export default function Onboarding({
   const [dueDate, setDueDate] = useState(addDays(todayISO(), 200));
   const [dueFromScan, setDueFromScan] = useState(true); // true: due date known; false: compute from LMP
   const [lang, setLang] = useState<Lang>('en');
-  const [teen, setTeen] = useState(false);
   const [irregular, setIrregular] = useState(false);
   const [priorMethod, setPriorMethod] = useState<ContraceptionMethod | null>(null);
   const [tryingSince, setTryingSince] = useState('');
@@ -64,9 +63,8 @@ export default function Onboarding({
       onboarded: true,
       mode,
       lang,
-      teen,
       irregular: !isPregnant && !isPostpartum && irregular,
-      showFertileWindow: teen ? false : true,
+      showFertileWindow: true,
       lastPeriodStart: isPregnant || isPostpartum ? null : lastStart || todayISO(),
       avgPeriodLength: periodLength,
       avgCycleLength: cycleLength,
@@ -125,7 +123,7 @@ export default function Onboarding({
             </div>
           </div>
           <div className="mode-grid">
-            {MODES.filter((m) => m === mode || !teen || (m !== 'ttc' && m !== 'pregnant')).map((m) => (
+            {MODES.map((m) => (
               <button
                 key={m}
                 type="button"
@@ -141,9 +139,6 @@ export default function Onboarding({
           <div className="grow" />
           <button className="btn primary" onClick={() => go(1, 'fwd')}>
             {tx(lang, 'Continue')}
-          </button>
-          <button className="btn ghost sm" style={{ marginTop: 10 }} onClick={() => { setTeen(!teen); track('onboarding_teen_mode', { on: !teen }); }} aria-pressed={teen}>
-            {teen ? `✓ ${tx(lang, 'Teen mode')}` : tx(lang, 'Teen mode: simpler, fertility content hidden')}
           </button>
         </div>
       )}
