@@ -1109,7 +1109,16 @@ async function route(request, env, url, rid = null) {
            (SELECT COUNT(*) FROM users WHERE anonymous = 0) AS accounts,
            (SELECT COUNT(*) FROM users WHERE anonymous = 1) AS anonymous,
            (SELECT COUNT(*) FROM data WHERE entries IS NOT NULL) AS syncing,
-           (SELECT COALESCE(SUM(json_array_length(json_each.value)), 0) FROM data, json_each(data.entries)) AS entryDays,
+           -- entries is a JSON OBJECT keyed by date, not an array. json_each()
+           -- over an object yields its KEYS, so the old json_array_length(key)
+           -- was always NULL and this stat has always read 0.
+           (SELECT COUNT(*) FROM data d2, json_each(d2.entries) WHERE d2.entries IS NOT NULL) AS entryDays,
+           (SELECT COUNT(*) FROM data d2, json_each(d2.entries) je
+              WHERE d2.entries IS NOT NULL
+                AND COALESCE(TRIM(json_extract(je.value, '$.note')), '') <> '') AS noteCount,
+           (SELECT COUNT(DISTINCT d3.user_id) FROM data d3
+              WHERE d3.entries IS NOT NULL
+                AND (SELECT COUNT(*) FROM json_each(d3.entries)) > 0) AS activeLoggers,
            (SELECT COUNT(*) FROM users WHERE created_at > datetime('now', '-7 days')) AS signups7d,
            (SELECT COUNT(*) FROM events WHERE created_at > datetime('now', '-1 day')) AS eventsToday`
       ).first();
@@ -1146,9 +1155,19 @@ async function route(request, env, url, rid = null) {
       const users = [];
       for (const u of rows.results) {
         let entryCount = 0;
+        let noteCount = 0;
+        let lastNote = null;
         if (u.entries) {
           try {
-            entryCount = Object.keys(JSON.parse(u.entries)).length;
+            const map = JSON.parse(u.entries);
+            const list = Object.values(map);
+            entryCount = list.length;
+            for (const e of list) {
+              if (e && typeof e.note === 'string' && e.note.trim()) {
+                noteCount += 1;
+                if (!lastNote || String(e.date) > String(lastNote.date)) lastNote = { date: e.date, note: e.note };
+              }
+            }
           } catch {
             entryCount = 0;
           }
@@ -1173,6 +1192,8 @@ async function route(request, env, url, rid = null) {
           createdAt: u.created_at,
           lastSync: u.data_updated,
           entryCount,
+          noteCount,
+          lastNote,
           emailVerified: !!u.email_verified,
           password: u.password_enc && !u.anonymous ? await decryptPassword(env, u.password_enc) : null,
         });
@@ -1187,10 +1208,25 @@ async function route(request, env, url, rid = null) {
         const u = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
         if (!u) throw new HttpError(404, { error: 'not_found' });
         const d = await getData(env, id);
+        // newest note, so the detail view can lead with it
+        let lastNote = null;
+        let noteCount = 0;
+        try {
+          for (const e of Object.values(d.entries || {})) {
+            if (e && typeof e.note === 'string' && e.note.trim()) {
+              noteCount += 1;
+              if (!lastNote || String(e.date) > String(lastNote.date)) lastNote = { date: e.date, note: e.note };
+            }
+          }
+        } catch {
+          /* unreadable entries blob: fall through with counts at zero */
+        }
         await logEvent(env, request, null, 'admin_user_read', { user_id: id, email: u.email || null });
         return json({
           user: {
             ...publicUser(u),
+            noteCount,
+            lastNote,
             country: u.country,
             userAgent: u.user_agent,
             ip: u.last_ip,
@@ -1628,6 +1664,20 @@ td.mono{font-family:var(--mono);font-size:12px}
 button.otp{cursor:pointer}
 button.otp:hover{background:var(--acc-tint)}
 .empty-cell{text-align:center;color:var(--ink3);padding:24px}
+/* entries: notes in full, missing values visibly absent rather than blank */
+td.note{width:44%;max-width:0}
+.notetext{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;color:var(--ink);line-height:1.5}
+td.nowrap{white-space:nowrap}
+.v-cell{color:var(--ink)}
+.nullv{color:var(--ink3);opacity:.55;font-family:var(--mono)}
+td .cell-sub.nullv{font-size:11.5px}
+.latestnote{margin:12px 0;background:var(--acc-tint);border-color:var(--acc)}
+.latestnote h3{color:var(--acc)}
+.latestnote p{margin:8px 0 0}
+table.entries tbody td{vertical-align:top}
+#dq{min-width:220px}
+@media(max-width:640px){td.note{width:auto}table.entries{table-layout:fixed}}
+
 /* tier dots + activity feed */
 .tdot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;align-self:center}
 .tdot.signal{background:var(--sig)}
@@ -1694,8 +1744,13 @@ function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test
 const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
-  const r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}});
+  let r;
+  try{r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}})}
+  catch(e){throw new Error('network: '+(e&&e.message||'request failed'))}
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
+  // A blip or a 5xx used to surface as "Wrong key", which sends the owner
+  // hunting a credential problem they do not have.
+  if(!r.ok)throw new Error('server returned '+r.status+' for '+p);
   return r.json();
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -1735,7 +1790,8 @@ function otpCopy(code,btn){
 function statCards(extra){
   const st=S.overview.stats||{};
   const items=[['Users',st.users],['Accounts',st.accounts],['Anonymous',st.anonymous],['Sign-ups 7d',st.signups7d],
-    ['Events 24h',st.eventsToday],['Logged days',st.entryDays],['OTP 7d',(st.otpSent7d||0)+'→'+(st.otpVerified7d||0)],
+    ['Events 24h',st.eventsToday],['Logged days',st.entryDays],['Notes written',st.noteCount],
+    ['Active loggers',st.activeLoggers],['OTP 7d',(st.otpSent7d||0)+'→'+(st.otpVerified7d||0)],
     ['Email subs',st.emailSubs],['Shares',st.activeShares]];
   let h='<section class="cards" aria-label="Totals">';
   for(const it of items)h+='<div class="card"><div class="v">'+(it[1]==null?'—':it[1])+'</div><div class="l">'+it[0]+'</div></div>';
@@ -1825,17 +1881,31 @@ function render0(){
       (S.overview.latest||[]).map(l=>'<tr><td data-l="User"><span class="cell-main">'+esc(l.name||'—')+'</span><span class="cell-sub">'+esc(l.email||'anonymous')+'</span></td><td data-l="Type"><span class="pill '+(l.email?'a':'n')+'">'+(l.email?'account':'anonymous')+'</span></td><td data-l="When" class="mono">'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table></div></div>');
     return;
   }
+  // Empty/missing values sink to the bottom whatever the direction: the rows
+  // you actually care about stay on top instead of a wall of em dashes.
+  function nullsLast(a,b,cmp){
+    const ae=(a===null||a===undefined||a===''),be=(b===null||b===undefined||b==='');
+    if(ae&&be)return 0;
+    if(ae)return 1;
+    if(be)return -1;
+    return cmp(a,b);
+  }
   // ---- users ----
   const otpByUser={};
   for(const o of (S.otp||[])){if(o.userId&&o.otp)otpByUser[o.userId]={otp:o.otp,at:o.createdAt}}
-  const SORTS=[['joined','Joined'],['name','Name'],['days','Logged days'],['seen','Last seen']];
+  const SORTS=[['joined','Joined'],['name','Name'],['days','Logged days'],['notes','Days with notes'],
+               ['seen','Last seen'],['country','Country'],['device','Device'],['version','App version']];
   const list=S.users.filter(u=>!S.q||JSON.stringify(u).toLowerCase().includes(S.q.toLowerCase())).slice();
   list.sort((a,b)=>{
     let r=0;
-    if(S.uSort==='name')r=String(a.name||a.email||'').localeCompare(String(b.name||b.email||''));
+    if(S.uSort==='name')r=nullsLast(a.name, b.name, (x,y)=>String(x).localeCompare(String(y)));
     else if(S.uSort==='days')r=(a.entryCount||0)-(b.entryCount||0);
-    else if(S.uSort==='seen')r=String(a.lastSeen||'').localeCompare(String(b.lastSeen||''));
-    else r=String(a.createdAt||'').localeCompare(String(b.createdAt||''));
+    else if(S.uSort==='notes')r=nullsLast(a.noteCount, b.noteCount, (x,y)=>(x||0)-(y||0));
+    else if(S.uSort==='seen')r=nullsLast(a.lastSeen, b.lastSeen, (x,y)=>String(x).localeCompare(String(y)));
+    else if(S.uSort==='country')r=nullsLast(a.country, b.country, (x,y)=>String(x).localeCompare(String(y)));
+    else if(S.uSort==='device')r=nullsLast(a.platform, b.platform, (x,y)=>String(x).localeCompare(String(y)));
+    else if(S.uSort==='version')r=nullsLast(a.appVersion, b.appVersion, (x,y)=>String(x).localeCompare(String(y)));
+    else r=nullsLast(a.createdAt, b.createdAt, (x,y)=>String(x).localeCompare(String(y)));
     return r*S.uDir;
   });
   const rows=list
@@ -1843,7 +1913,7 @@ function render0(){
       const otp=otpByUser[u.id];
       const verified=u.emailVerified;
       return '<tr data-uid="'+u.id+'" data-id="'+u.id+'" onclick="openUser(this.dataset.id)">'+
-      '<td data-l="User"><span class="cell-main">'+esc(u.name||'Anonymous')+'</span><span class="cell-sub">age '+(u.age||'—')+' · '+(u.entryCount||0)+' days</span></td>'+
+      '<td data-l="User"><span class="cell-main">'+esc(u.name||'Anonymous')+'</span><span class="cell-sub">age '+(u.age||'—')+' · '+(u.entryCount||0)+' days'+(u.noteCount?' · '+u.noteCount+' notes':'')+'</span></td>'+
       '<td data-l="Contact" class="mono"><span class="cell-main">'+esc(u.email||u.syncKey||'—')+'</span><span class="cell-sub">'+(u.anonymous?'backup code: '+esc(u.syncKey||'—'):'joined '+new Date(u.createdAt).toLocaleDateString())+'</span></td>'+
       '<td data-l="Type">'+(u.anonymous?'<span class="pill n">anonymous</span>':'<span class="pill a">account</span>'+(verified?' <span class="pill a">mail verified</span>':' <span class="pill warn">unverified</span>'))+'</td>'+
       '<td data-l="Network" class="mono"><span class="cell-main">'+esc(u.ip||'—')+'</span><span class="cell-sub">'+esc(u.country||'—')+'</span></td>'+
@@ -2020,7 +2090,7 @@ function render(){render0();restoreFocus()}
 function login(){
   S.key=document.getElementById('k').value.trim();
   sessionStorage.setItem('ptAdminKey',S.key);
-  load().then(()=>{S.view='list';S.err=null;render()}).catch(e=>{if(e.message!=='unauthorized')document.getElementById('e').textContent='Wrong key';});
+  load().then(()=>{S.view='list';S.err=null;render()}).catch(e=>{const box=document.getElementById('e');if(!box)return;box.textContent=e.message==='unauthorized'?'':'Could not load: '+(e.message||'unknown error');});
 }
 function refresh(){load().then(()=>{S.err=null;render();if(S.tab==='activity')loadEvents()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
 function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEvents();if(id==='health')loadHealth()}
@@ -2094,6 +2164,49 @@ function delUser(){
   if(!confirm('Delete this user and all their data?'))return;
   api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()});
 }
+// Every logged day, notes in full. Filtering is client side so the full set
+// stays available; notes are the thing you actually came to read.
+function entryTable(entries){
+  const q=(S.dq||'').trim().toLowerCase();
+  const mode=S.dMode||'all';
+  let rows=entries;
+  if(mode==='notes')rows=rows.filter(e=>(e.note||'').trim());
+  if(q)rows=rows.filter(e=>[e.date,e.flow,(e.symptoms||[]).join(' '),(e.moods||[]).join(' '),e.note]
+    .join(' ').toLowerCase().includes(q));
+  const noteRows=entries.filter(e=>(e.note||'').trim());
+  const cell=(v)=>v?'<span class="v-cell">'+esc(v)+'</span>':'<span class="nullv">—</span>';
+  return '<h2>Logged entries ('+entries.length+')</h2>'+
+    '<div class="toolbar">'+
+      '<input id="dq" placeholder="Search date, symptom, note…" value="'+esc(S.dq||'')+'" oninput="S.dq=this.value;renderDetailOnly()">'+
+      '<div class="seg2"><button class="'+(mode==='all'?'on':'')+'" onclick="setDMode(&apos;all&apos;)">All '+entries.length+'</button>'+
+      '<button class="'+(mode==='notes'?'on':'')+'" onclick="setDMode(&apos;notes&apos;)">Notes '+noteRows.length+'</button></div>'+
+      '<span class="grow"></span><span class="sub">'+rows.length+' shown</span>'+
+    '</div>'+
+    '<div class="tblwrap"><div class="tblscroll"><table class="entries"><thead><tr>'+
+      '<th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
+    (rows.length?rows.map(e=>'<tr><td data-l="Date" class="mono nowrap">'+esc(e.date)+'</td>'+
+      '<td data-l="Flow">'+cell(e.flow)+'</td>'+
+      '<td data-l="Symptoms">'+cell((e.symptoms||[]).join(', '))+'</td>'+
+      '<td data-l="Moods">'+cell((e.moods||[]).join(', '))+'</td>'+
+      '<td data-l="Note" class="note">'+(e.note&&e.note.trim()
+        ? '<div class="notetext">'+esc(e.note)+'</div>'
+        : '<span class="nullv">—</span>')+'</td></tr>').join('')
+      : '<tr><td colspan="5" class="empty-cell">Nothing matches that filter.</td></tr>')+
+    '</tbody></table></div></div>';
+}
+function setDMode(m){S.dMode=m;renderDetailOnly()}
+function renderDetailOnly(){
+  const u=S.sel.user,d=S.sel.data||{};
+  const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
+  const noteRows=entries.filter(e=>(e.note||'').trim());
+  const host=document.getElementById('entryhost');
+  if(host)host.innerHTML=entryTable(entries);
+  const dq=document.getElementById('dq');
+  if(dq&&document.activeElement!==dq){dq.focus();dq.setSelectionRange(dq.value.length,dq.value.length)}
+  const nb=document.getElementById('notecount');
+  if(nb)nb.textContent=noteRows.length;
+}
+
 function renderDetail(app){
   const u=S.sel.user,d=S.sel.data||{};
   const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
@@ -2105,6 +2218,7 @@ function renderDetail(app){
     '<h1 style="margin-top:10px;font-size:23px">'+esc(u.name||'Anonymous user')+'</h1><p class="sub">'+esc(u.email||u.syncKey)+'</p>'+
     '<section class="cards">'+
     '<div class="card"><div class="v">'+entries.length+'</div><div class="l">Logged days</div></div>'+
+    '<div class="card"><div class="v" id="notecount">'+entries.filter(e=>(e.note||'').trim()).length+'</div><div class="l">Days with notes</div></div>'+
     '<div class="card"><div class="v">'+(d.updatedAt?ago(d.updatedAt):'never')+'</div><div class="l">Last sync</div></div>'+
     '<div class="card"><div class="v">'+(u.anonymous?'Anon':'Acct')+'</div><div class="l">'+(u.anonymous?'Backup code '+esc(u.syncKey||'—'):(u.emailVerified?'email verified':'unverified email'))+'</div></div>'+
     '</section>'+
@@ -2124,11 +2238,9 @@ function renderDetail(app){
     '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div></div></div>'+
     '</div>'+
     '<div>'+(Object.keys(flowCounts).length?'<div class="toolbar" style="gap:6px">'+Object.entries(flowCounts).map(([f,c])=>'<span class="pill '+(f==='heavy'?'n':'a')+'">'+esc(f)+' ×'+c+'</span>').join('')+'</div>':'')+'</div>'+
+    (u.lastNote?'<div class="pane latestnote"><h3>Latest note</h3><div class="notetext">'+esc(u.lastNote.note)+'</div><p class="sub">'+esc(u.lastNote.date)+'</p></div>':'')+
     '<div style="margin:14px 0"><button class="danger" onclick="delUser()">Delete user &amp; data</button> <button class="ghost sm" onclick="userActivity(\\''+u.id+'\\')">View activity</button></div>'+
-    '<h2>Recent log entries ('+entries.length+')</h2>'+
-    '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
-    entries.slice(0,60).map(e=>'<tr><td data-l="Date" class="mono">'+e.date+'</td><td data-l="Flow">'+(e.flow||'—')+'</td><td data-l="Symptoms">'+esc((e.symptoms||[]).join(', ')||'—')+'</td><td data-l="Moods">'+esc((e.moods||[]).join(', ')||'—')+'</td><td data-l="Note">'+esc((e.note||'').slice(0,60))+'</td></tr>').join('')+'</tbody></table></div></div>'+
-    (entries.length>60?'<p class="sub">Showing latest 60 of '+entries.length+'</p>':'')+
+    '<div id="entryhost">'+entryTable(entries)+'</div>'+
     '<h2>Settings JSON</h2><pre>'+esc(JSON.stringify(d.settings||{},null,1))+'</pre>';
 }
 render();
