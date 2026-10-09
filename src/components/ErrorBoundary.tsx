@@ -1,6 +1,7 @@
 import { Component, ReactNode } from 'react';
 import { tx } from '../lib/i18n';
 import { track } from '../lib/beacon';
+import { reportError } from '../lib/errfp';
 
 /** One corrupt entry must blank a tab, never the whole app. */
 export default function withBoundary(node: ReactNode, label: string, lang?: string) {
@@ -19,7 +20,10 @@ class Boundary extends Component<{ label: string; children: ReactNode; lang?: st
   }
 
   componentDidCatch(error: Error) {
-    track('screen_error', { message: error.message.slice(0, 500), kind: 'render', label: this.props.label });
+    // through reportError, not straight to track(): a boundary crash used to
+    // arrive with no fp, so the admin's "Errors by fingerprint" table could not
+    // group the very errors most worth grouping
+    reportError('error', error.message, error.stack ?? '', '', { kind: 'render', label: this.props.label });
   }
 
   render() {

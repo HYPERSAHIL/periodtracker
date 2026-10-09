@@ -105,7 +105,11 @@ export default {
       return res;
     } catch (e) {
       const status = e && e.status ? e.status : 500;
-      const payload = e && e.payload ? e.payload : { error: 'server_error' };
+      // "server_error" with no detail made an outage undiagnosable: the owner
+      // could see five tabs failing and no way to learn why.
+      const payload = e && e.payload
+        ? e.payload
+        : { error: 'server_error', detail: String((e && (e.message || e)) || 'unknown').slice(0, 300) };
       try {
         const u = await loadSessionFromAuth(env, request).catch(() => null);
         await logEvent(env, request, u ? u.id : null, 'req_err', { rid, ms: Date.now() - t0, status, err: payload.error || 'server_error' });
@@ -1103,8 +1107,16 @@ async function route(request, env, url, rid = null) {
     await logEvent(env, request, null, 'admin', { endpoint: path });
 
     if (method === 'GET' && path === '/api/admin/overview') {
+      // one json_each scan, materialised once, instead of three separate scans
+      // over every user's blob: this endpoint runs on each panel load and D1
+      // bills rows read
       const r = await env.DB.prepare(
-        `SELECT
+        `WITH ent AS MATERIALIZED (
+           SELECT d2.user_id AS uid, je.value AS e
+           FROM data d2, json_each(d2.entries) AS je
+           WHERE d2.entries IS NOT NULL
+         )
+         SELECT
            (SELECT COUNT(*) FROM users) AS users,
            (SELECT COUNT(*) FROM users WHERE anonymous = 0) AS accounts,
            (SELECT COUNT(*) FROM users WHERE anonymous = 1) AS anonymous,
@@ -1112,13 +1124,9 @@ async function route(request, env, url, rid = null) {
            -- entries is a JSON OBJECT keyed by date, not an array. json_each()
            -- over an object yields its KEYS, so the old json_array_length(key)
            -- was always NULL and this stat has always read 0.
-           (SELECT COUNT(*) FROM data d2, json_each(d2.entries) WHERE d2.entries IS NOT NULL) AS entryDays,
-           (SELECT COUNT(*) FROM data d2, json_each(d2.entries) je
-              WHERE d2.entries IS NOT NULL
-                AND COALESCE(TRIM(json_extract(je.value, '$.note')), '') <> '') AS noteCount,
-           (SELECT COUNT(DISTINCT d3.user_id) FROM data d3
-              WHERE d3.entries IS NOT NULL
-                AND (SELECT COUNT(*) FROM json_each(d3.entries)) > 0) AS activeLoggers,
+           (SELECT COUNT(*) FROM ent) AS entryDays,
+           (SELECT COUNT(*) FROM ent WHERE COALESCE(TRIM(json_extract(e, '$.note')), '') <> '') AS noteCount,
+           (SELECT COUNT(DISTINCT uid) FROM ent) AS activeLoggers,
            (SELECT COUNT(*) FROM users WHERE created_at > datetime('now', '-7 days')) AS signups7d,
            (SELECT COUNT(*) FROM events WHERE created_at > datetime('now', '-1 day')) AS eventsToday`
       ).first();
@@ -1721,6 +1729,11 @@ table.entries tbody td{vertical-align:top}
 #dq{min-width:220px}
 @media(max-width:640px){td.note{width:auto}table.entries{table-layout:fixed}}
 
+/* partial-outage banner */
+.errbar{background:var(--sig-tint);border:1px solid var(--sig);color:var(--ink);
+  border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+.errbar b{font-weight:700;margin-right:6px}
+
 /* at-a-glance strip above a feed */
 .glance{display:flex;flex-wrap:wrap;gap:0;background:var(--surface);
   border:1px solid var(--line);border-radius:4px;margin-bottom:14px;overflow:hidden}
@@ -1830,6 +1843,15 @@ async function api(p,opt={}){
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}
 function ago(iso){const s=(Date.now()-new Date(iso))/1000;if(s<60)return Math.floor(s)+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
+// LayoutShift attribution reasons are machine words; say what they mean.
+const ATTR_REASONS={hidden:'Hidden by browser privacy','user-input':'User input',
+                    'script-inserted':'Inserted by script','script-removed':'Removed by script',
+                    'style-change':'Style change',forced:'Forced reflow'};
+function attrReason(r){
+  const k=String(r||'').trim();
+  if(!k)return 'unspecified';
+  return ATTR_REASONS[k]||k;
+}
 function tierDot(t){return '<span class="tdot '+tierOf(t)+'" title="'+tierOf(t)+' tier"></span>'}
 function userLabel(g){return g.user_name||g.user_email||(g.user_id?('user '+g.user_id.slice(0,6)):'no user')}
 function detailHtml(e){
@@ -1874,7 +1896,7 @@ function statCards(extra){
 function shell(title,sub,tabs,body){
   return '<div class="brand"><div class="dot"></div><div><h1>Period Tracker <span>/ Admin</span></h1></div>'+
     '<button class="ghost sm" id="themeBtn" onclick="themeToggle()" title="Toggle theme">'+(S.dark==='light'?'Dark mode':'Light mode')+'</button></div>'+
-    '<p class="sub">'+esc(title)+' — '+esc(sub)+'</p>'+tabs+body;
+    '<p class="sub">'+esc(title)+' — '+esc(sub)+'</p>'+tabs+errBanner()+body;
 }
 function tabbar(){
   return '<nav class="tabs" role="tablist">'+TABS.map(([id,label])=>
@@ -2087,7 +2109,7 @@ function render0(){
       '</div>':'')+
       '<h2>Worst offenders (CLS / INP)</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>When</th><th>Biggest shifts</th><th>Slowest interactions</th></tr></thead><tbody>'+
       ((h.attribution||[]).slice(0,8).map(a=>
-        '<tr><td data-l="When" class="mono">'+esc(String(a.reason||''))+'</td>'+
+        '<tr><td data-l="When" class="mono">'+esc(attrReason(a.reason))+'</td>'+
         '<td data-l="CLS">'+((a.clsTop||[]).slice(0,3).map(c=>'<span class="mono">'+c.v+'</span> '+(c.src?esc(c.src):'<i>unknown node</i>')).join('<br>')||'—')+'</td>'+
         '<td data-l="INP">'+((a.inpTop||[]).slice(0,3).map(i=>'<span class="mono">'+i.ms+'ms</span> '+(i.target?esc(i.target):'<i>unknown</i>')).join('<br>')||'—')+'</td></tr>').join('')
         ||'<tr><td colspan="3" class="empty-cell">No attributed shifts captured yet.</td></tr>')+
@@ -2095,7 +2117,7 @@ function render0(){
       '<h2>Errors by fingerprint</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>FP</th><th>Count</th><th>Message</th><th>Last</th></tr></thead><tbody>'+
       ((h.errors||[]).map(e=>
         '<tr><td data-l="FP" class="mono">'+esc(e.fp||'—')+'</td><td data-l="Count" class="mono">'+esc(e.n)+'</td>'+
-        '<td data-l="Message">'+esc((e.message||'').slice(0,90))+'</td><td data-l="Last" class="mono">'+esc(e.last||'')+'</td></tr>').join('')
+        '<td data-l="Message">'+esc((e.message||'').slice(0,90))+'</td><td data-l="Last" class="mono" title="'+esc(e.last||'')+'">'+ago(e.last)+'</td></tr>').join('')
         ||'<tr><td colspan="4" class="empty-cell">No errors in this window.</td></tr>')+
       '</tbody></table></div></div>'+
       '<h2>Android / WebView surface</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>WebView</th><th>SDK</th><th>Model</th><th>Patch</th><th>GMS</th><th>Autofill</th><th>Mode</th></tr></thead><tbody>'+
@@ -2186,22 +2208,42 @@ function login(){
 }
 function refresh(){load().then(()=>{S.err=null;render();if(S.tab==='activity')loadEvents()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
 function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEvents();if(id==='health')loadHealth()}
+// One failing endpoint must not blank the whole panel. Load them
+// independently, remember what failed and why, and render everything that did
+// come back. (A D1 daily read-limit blowout used to take out all seven tabs.)
+function soft(key,url,assign,fallback){
+  return api(url).then(r=>{S.errs[key]=null;assign(r)})
+    .catch(e=>{S.errs[key]=String((e&&e.message)||e);assign(fallback)});
+}
 async function load(){
-  const r=await Promise.all([api('/overview'),api('/users'),api('/events?view=grouped&limit=300&offset=0&tier=all&order=desc')]);
-  S.overview=r[0]||null;
-  S.users=(r[1]&&r[1].users)||[];
-  S.mix=(r[2]&&r[2].events)||[];
-  S.mixTotal=(r[2]&&r[2].total)||0;
-  if(r[2]&&r[2].types&&r[2].types.length)S.types=r[2].types;
-  api('/release').then(r2=>{S.release=r2.release||null}).catch(()=>{});
-  api('/probes').then(r2=>{S.probes=r2.probes||[]}).catch(()=>{S.probes=[]});
-  api('/otp').then(r2=>{S.otp=r2.otp||[]}).catch(()=>{S.otp=[]});
-  api('/events?view=raw&q=deliverability_&limit=20&tier=all&order=desc').then(r2=>{S.deliv=(r2&&r2.events)||[]}).catch(()=>{S.deliv=[]});
+  S.errs=S.errs||{};
+  await Promise.all([
+    soft('overview','/overview',r=>{S.overview=r||null},null),
+    soft('users','/users',r=>{S.users=(r&&r.users)||[]},{users:[]}),
+    soft('events','/events?view=grouped&limit=300&offset=0&tier=all&order=desc',
+      r=>{S.mix=(r&&r.events)||[];S.mixTotal=(r&&r.total)||0;
+          if(r&&r.types&&r.types.length)S.types=r.types;},{events:[],types:[],total:0}),
+  ]);
+  soft('release','/release',r=>{S.release=(r&&r.release)||null},{});
+  soft('probes','/probes',r=>{S.probes=(r&&r.probes)||[]},{probes:[]});
+  soft('otp','/otp',r=>{S.otp=(r&&r.otp)||[]},{otp:[]});
+  soft('deliverability','/events?view=raw&q=deliverability_&limit=20&tier=all&order=desc',
+    r=>{S.deliv=(r&&r.events)||[]},{events:[]});
   loadHealth();
+}
+// a banner naming exactly which reads failed, so a partial outage is legible
+function errBanner(){
+  const keys=Object.keys(S.errs||{}).filter(k=>S.errs[k]);
+  if(!keys.length)return '';
+  return '<div class="errbar" role="status"><b>Partial data</b> could not load: '+
+    esc(keys.join(', '))+'.</div>';
 }
 // ---- health tab loader ----
 function loadHealth(){
-  api('/health?hours=48').then(r=>{S.health=r;if(S.tab==='health')render()}).catch(e=>{S.health={fleet:[],attribution:[],errors:[],devices:[],err:String(e)}});
+  api('/health?hours=48').then(r=>{S.health=r;S.errs=S.errs||{};S.errs.health=null;if(S.tab==='health')render()})
+    .catch(e=>{S.errs=S.errs||{};S.errs.health=String((e&&e.message)||e);
+      S.health={fleet:[],attribution:[],errors:[],devices:[],err:String((e&&e.message)||e)};
+      if(S.tab==='health')render()});
 }
 // ---- activity controls (all filtering/paging is server-side) ----
 let evTimer=0;
