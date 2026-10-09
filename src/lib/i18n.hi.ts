@@ -278,6 +278,7 @@ export const HI: Record<string, string> = {
   'phase.luteal': 'ल्यूटियल फेज़',
   'phase.luteal.blurb': 'ओव्यूलेशन के बाद। PMS लक्षण इसी फेज़ में सबसे आम हैं।',
   'phase.unknown': 'साइकिल फेज़',
+  'Tracking starts with your first log': 'ट्रैकिंग आपके पहले लॉग से शुरू होती है',
   'Cycle phase': 'साइकिल फेज़',
   'phase.unknown.blurb': 'फेज़ ट्रैकिंग और अनुमानों के लिए पीरियड लॉग करें।',
   'Days since last period': 'पिछले पीरियड से दिन',

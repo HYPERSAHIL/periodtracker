@@ -279,14 +279,12 @@ export const MOODS: { id: string; emoji: string }[] = [  { id: 'Happy', emoji: '
   { id: 'Foggy', emoji: '🌀' },
 ];
 
-export type ModeIcon = 'IconSparkle' | 'IconSprout' | 'IconBaby' | 'IconLeaf' | 'IconMilk';
-
-export const MODE_INFO: Record<Mode, { label: string; blurb: string; icon: ModeIcon }> = {
-  cycle: { label: 'Track my cycle', blurb: 'Periods, symptoms, and predictions', icon: 'IconSparkle' },
-  ttc: { label: 'Trying to conceive', blurb: 'Fertility signs, ovulation tests, fertile days', icon: 'IconSprout' },
-  pregnant: { label: "I'm pregnant", blurb: 'Week by week tracking until due date', icon: 'IconBaby' },
-  perimenopause: { label: 'Perimenopause', blurb: 'Irregular cycles and changing symptoms', icon: 'IconLeaf' },
-  postpartum: { label: 'Postpartum', blurb: 'Recovery, feeding, first period watch', icon: 'IconMilk' },
+export const MODE_INFO: Record<Mode, { label: string; blurb: string; emoji: string }> = {
+  cycle: { label: 'Track my cycle', blurb: 'Periods, symptoms, and predictions', emoji: '🌸' },
+  ttc: { label: 'Trying to conceive', blurb: 'Fertility signs, ovulation tests, fertile days', emoji: '🌱' },
+  pregnant: { label: "I'm pregnant", blurb: 'Week by week tracking until due date', emoji: '🤰' },
+  perimenopause: { label: 'Perimenopause', blurb: 'Irregular cycles and changing symptoms', emoji: '🍂' },
+  postpartum: { label: 'Postpartum', blurb: 'Recovery, feeding, first period watch', emoji: '🍼' },
 };
 
 export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal: boolean }> = {

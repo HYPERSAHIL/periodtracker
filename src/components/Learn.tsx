@@ -3,8 +3,6 @@ import { AppProps } from '../App';
 import { ARTICLES, PERI_RELIEF, PREG_CHECKLISTS, PREG_FAQS, TTC_CARDS, articlesByCategory, searchContent } from '../lib/content';
 import { tx } from '../lib/i18n';
 import { track } from '../lib/beacon';
-import { IconBaby, IconBag, IconLeaf, IconSprout } from './Icons';
-
 type View =
   | { kind: 'home' }
   | { kind: 'article'; slug: string }
@@ -302,7 +300,7 @@ export default function Learn(p: AppProps) {
         {!p.settings.teen && (
         <button className="topic-row" onClick={() => { setView({ kind: 'ttc' }); track('screen_learn_topic', { topic: 'ttc' }); }}>
           <span className="tr-main">
-            <span className="tr-title"><IconSprout /> {tx(lang, 'Trying to conceive')}</span>
+            <span className="tr-title">🌱 {tx(lang, 'Trying to conceive')}</span>
             <span className="tr-sub">{tx(lang, '6 essentials: timing, tests, folic acid, when to seek help')}</span>
           </span>
           <span aria-hidden>›</span>
@@ -311,7 +309,7 @@ export default function Learn(p: AppProps) {
         {!p.settings.teen && (
         <button className="topic-row" onClick={() => { setView({ kind: 'pregnancy' }); track('screen_learn_topic', { topic: 'pregnancy' }); }}>
           <span className="tr-main">
-            <span className="tr-title"><IconBaby /> {tx(lang, 'Pregnancy checklists & FAQs')}</span>
+            <span className="tr-title">🤰 {tx(lang, 'Pregnancy checklists & FAQs')}</span>
             <span className="tr-sub">{tx(lang, 'Trimester checklists and 6 common questions')}</span>
           </span>
           <span aria-hidden>›</span>
@@ -319,14 +317,14 @@ export default function Learn(p: AppProps) {
         )}
         <button className="topic-row" onClick={() => { setView({ kind: 'peri' }); track('screen_learn_topic', { topic: 'peri' }); }}>
           <span className="tr-main">
-            <span className="tr-title"><IconLeaf /> {tx(lang, 'Perimenopause relief')}</span>
+            <span className="tr-title">🍂 {tx(lang, 'Perimenopause relief')}</span>
             <span className="tr-sub">{tx(lang, 'Self care and clinician questions by symptom domain')}</span>
           </span>
           <span aria-hidden>›</span>
         </button>
         <button className="topic-row" onClick={() => { setView({ kind: 'school' }); track('screen_learn_topic', { topic: 'school' }); }}>
           <span className="tr-main">
-            <span className="tr-title"><IconBag /> {tx(lang, 'School readiness')}</span>
+            <span className="tr-title">🎒 {tx(lang, 'School readiness')}</span>
             <span className="tr-sub">{tx(lang, 'Emergency kit, toilets, trusted teacher, first-talk checklist')}</span>
           </span>
           <span aria-hidden>›</span>

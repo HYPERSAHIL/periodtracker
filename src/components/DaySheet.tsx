@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DayEntry, FLOWS, MOODS, MUCUS_OPTIONS, PAIN_AREAS, SYMPTOMS, Settings, TRACKER_SECTIONS } from '../types';
+import { DayEntry, FLOWS, MOODS, MUCUS_OPTIONS, PAIN_AREAS, SYMPTOMS, Settings } from '../types';
 import { DayFacts, Phase } from '../lib/cycle';
 import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
@@ -162,9 +162,8 @@ export default function DaySheet({
   // Which sections the daily 30-second set covers; everything else is
   // one tap away in either layout. Order and hidden always win.
   const DAILY = ['flow', 'checkin', 'symptoms'];
-  const [sheetLayout, setSheetLayout] = useState<'auto' | 'grouped'>('auto');
-  const [openExtra, setOpenExtra] = useState<Record<string, boolean>>({});
   const [moreOpen, setMoreOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   const order = settings.trackerOrder.length
     ? settings.trackerOrder
@@ -590,65 +589,20 @@ export default function DaySheet({
         <div className="grab" />
         <h2>{prettyDate(date, { withYear: true, weekday: true })}</h2>
         <div className="sub">
-          <span className="tag gray">{txd(lang, `phase.${phase}`, phase[0].toUpperCase() + phase.slice(1) + ' phase')}</span>
+          <span className="tag gray">{tx(lang, phase === 'unknown' ? 'Tracking starts with your first log' : txd(lang, `phase.${phase}`, phase))}</span>
           {facts?.period && <span className="tag rose">{tx(lang, 'Logged period')}</span>}
           {facts?.predicted && !facts?.period && <span className="tag rose">{tx(lang, 'Predicted period')}</span>}
           {facts?.fertile && <span className="tag leaf">{tx(lang, 'Fertile window')}</span>}
           {facts?.ovulation && <span className="tag leaf">{tx(lang, 'Ovulation (est.)')}</span>}
         </div>
 
-        <div className="sheet-layout" role="group" aria-label={tx(lang, 'Log layout')}>
-          {(['auto', 'grouped'] as const).map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={'seg-b' + (sheetLayout === k ? ' on' : '')}
-              onClick={() => {
-                setSheetLayout(k);
-                track('day_sheet_layout', { layout: k });
-              }}
-            >
-              {k === 'auto' ? tx(lang, 'Simple') : tx(lang, 'Grouped')}
-            </button>
-          ))}
-        </div>
         {(() => {
           const daily = visible.filter((id) => DAILY.includes(id));
           const extra = visible.filter((id) => !DAILY.includes(id));
           const filled = (id: string) => !isSectionEmpty(id, d);
-          const extraFilled = extra.filter(filled);
           if (!extra.length) return daily.map((id) => section(id));
-
-          // Layout B (grouped): everything visible, sections fold under headers
-          if (sheetLayout === 'grouped') {
-            const groups = groupSections(daily, extra);
-            return (
-              <>
-                {groups.map((g) => {
-                  const open = g.open ? true : openExtra[g.key];
-                  return (
-                    <div key={g.key} className={'sheet-group' + (open ? ' open' : '')}>
-                      <button
-                        type="button"
-                        className="sheet-group-head"
-                        aria-expanded={!!open}
-                        onClick={() => setOpenExtra((p) => ({ ...p, [g.key]: !p[g.key] }))}
-                      >
-                        <span className="sg-label">{tx(lang, g.label)}</span>
-                        <span className="sg-count">
-                          {g.ids.filter(filled).length > 0 ? g.ids.filter(filled).length : ''}
-                        </span>
-                        <span className="sg-chev" aria-hidden />
-                      </button>
-                      {open ? g.ids.map((id) => section(id)) : null}
-                    </div>
-                  );
-                })}
-              </>
-            );
-          }
-
-          // Layout A (progressive): the daily set, then one quiet row of chips
+          const groups = groupSections(daily, extra);
+          const extraFilled = extra.filter(filled).length;
           return (
             <>
               {daily.map((id) => section(id))}
@@ -659,33 +613,38 @@ export default function DaySheet({
                   aria-expanded={moreOpen}
                   onClick={() => {
                     setMoreOpen(!moreOpen);
-                    track('day_sheet_more_toggled', { open: !moreOpen, extra: extra.length, filled: extraFilled.length });
+                    track('day_sheet_more_toggled', { open: !moreOpen, filled: extraFilled });
                   }}
                 >
-                  <span>{tx(lang, 'More sections')}</span>
+                  <span>
+                    {tx(lang, 'More sections')}
+                    {extraFilled > 0 ? <span className="sg-count"> {extraFilled}</span> : null}
+                  </span>
                   <span className="sg-chev" aria-hidden />
                 </button>
-                {moreOpen || extraFilled.length > 0 ? (
-                  <div className="sheet-more-grid">
-                    {extra.map((id) => {
-                      const on = openExtra[id] || filled(id);
+                {moreOpen ? (
+                  <div className="sheet-groups">
+                    {groups.filter((g) => g.key !== 'daily').map((g) => {
+                      const on = openGroup === g.key;
+                      const n = g.ids.filter(filled).length;
                       return (
-                        <button
-                          key={id}
-                          type="button"
-                          className={'chip' + (on ? ' on' : '')}
-                          aria-expanded={!!on}
-                          onClick={() => setOpenExtra((p) => ({ ...p, [id]: !p[id] }))}
-                        >
-                          {txd(lang, `sec.${id}`, secLabel(id))}
-                        </button>
+                        <div key={g.key} className="sheet-group">
+                          <button
+                            type="button"
+                            className="sheet-group-head"
+                            aria-expanded={on}
+                            onClick={() => setOpenGroup(on ? null : g.key)}
+                          >
+                            <span className="sg-label">{tx(lang, g.label)}</span>
+                            <span className="sg-count">{n > 0 ? n : ''}</span>
+                            <span className="sg-chev" aria-hidden />
+                          </button>
+                          {on ? g.ids.map((id) => section(id)) : null}
+                        </div>
                       );
                     })}
                   </div>
                 ) : null}
-                {extra.filter((id) => openExtra[id]).map((id) => (
-                  <div key={id} className="sheet-open-sec">{section(id)}</div>
-                ))}
               </div>
             </>
           );
@@ -814,8 +773,6 @@ function VoiceNote({ lang, onText }: { lang: string; onText: (t: string) => void
     </button>
   );
 }
-
-const secLabel = (id: string) => TRACKER_SECTIONS.find((t) => t.id === id)?.label ?? id;
 
 /** A section counts as filled when any of its own fields carry a value. */
 function isSectionEmpty(id: string, d: DayEntry): boolean {

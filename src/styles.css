@@ -2268,3 +2268,57 @@ h3 svg,
 .sheet-group-head:hover .sg-label {
   color: var(--rose-600);
 }
+
+/* Onboarding: on the info steps the primary action stays pinned to the
+   bottom, so a tall step never hides Continue below the fold. Step 1 (mode
+   picker) keeps its natural flow because its CTA belongs with the cards. */
+.onboard-step.has-cta > .btn.primary {
+  position: sticky;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 3;
+}
+
+.onboard-step.has-cta > .btn.primary::after {
+  /* let the button sit on a soft scrim so text scrolling under it stays legible */
+  content: '';
+  position: absolute;
+  inset: -14px -22px calc(-14px - env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 55%, transparent);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.onboard-step.has-cta > .btn.ghost {
+  position: sticky;
+  bottom: calc(66px + env(safe-area-inset-bottom));
+  z-index: 3;
+}
+
+/* short viewports: keep the pair together rather than overlapping */
+@media (max-height: 700px) {
+  .onboard-step.has-cta > .btn.ghost {
+    bottom: calc(62px + env(safe-area-inset-bottom));
+  }
+}
+
+/* the group list lives inside the "More sections" disclosure, so it needs a
+   little air of its own rather than reading as more top-level sections */
+.sheet-groups {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+.sheet-groups .sheet-group-head {
+  padding: 11px 0;
+}
+
+.sheet-groups .sheet-group-head .sg-label {
+  font-size: 13.5px;
+}
+
+.sheet-more-head .sg-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--rose-600);
+}

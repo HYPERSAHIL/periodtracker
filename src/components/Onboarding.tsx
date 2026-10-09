@@ -4,7 +4,7 @@ import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Lang, tx, txd } from '../lib/i18n';
 import { track } from '../lib/beacon';
-import { Logo, ModeGlyph } from './Icons';
+import { Logo } from './Icons';
 import AccountScreen from './AccountScreen';
 import PhonePreview from './PhonePreview';
 
@@ -99,7 +99,7 @@ export default function Onboarding({
                 className={`mode-card${mode === m ? ' on' : ''}`}
                 onClick={() => { setMode(m); track('onboarding_mode_selected', { mode: m }); }}
               >
-                <ModeGlyph name={MODE_INFO[m].icon} />
+                <span className="mc-emoji" aria-hidden>{MODE_INFO[m].emoji}</span>
                 <span className="mc-label">{txd(lang, `mode.${m}`, MODE_INFO[m].label)}</span>
                 <span className="mc-blurb">{txd(lang, `mode.${m}.blurb`, MODE_INFO[m].blurb)}</span>
               </button>
@@ -116,7 +116,7 @@ export default function Onboarding({
       )}
 
       {step === 1 && !isPregnant && (
-        <div className="onboard-step" key="s1">
+        <div className="onboard-step has-cta" key="s1">
           <div className="steps">{tx(lang, 'Step 2 of 3 · Your last period')}</div>
           <h2>{tx(lang, 'When did your last period start?')}</h2>
           <p className="lead">
@@ -151,7 +151,7 @@ export default function Onboarding({
       )}
 
       {step === 1 && isPregnant && (
-        <div className="onboard-step" key="s1p">
+        <div className="onboard-step has-cta" key="s1p">
           <div className="steps">{tx(lang, 'Step 2 of 2 · Your pregnancy')}</div>
           <h2>{tx(lang, 'When is the baby due?')}</h2>
           <p className="lead">
@@ -201,7 +201,7 @@ export default function Onboarding({
       )}
 
       {step === 2 && !isPregnant && (
-        <div className="onboard-step" key="s2">
+        <div className="onboard-step has-cta" key="s2">
           <div className="steps">{tx(lang, 'Step 3 of 3 · Your typical cycle')}</div>
           <h2>{tx(lang, 'How long is your cycle?')}</h2>
           <p className="lead">
