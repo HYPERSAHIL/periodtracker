@@ -362,6 +362,7 @@ export const HI: Record<string, string> = {
   'Ovulation (est.)': 'ओव्यूलेशन (अनुमान)',
   Discharge: 'डिस्चार्ज',
   'Egg-white or watery discharge often marks the most fertile days.': 'अंडे-सफ़ेद जैसा या पानी-सा डिस्चार्ज अक्सर सबसे फर्टाइल दिनों की निशानी है।',
+  'That temperature looks wrong. Enter 34 to 40 {u}.': 'ये तापमान गलत लग रहा है। 34 से 40 {u} दर्ज करें।',
   'Temperature ({u})': 'तापमान ({u})',
   'Weight ({u})': 'वज़न ({u})',
   Tests: 'टेस्ट',

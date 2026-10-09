@@ -2402,3 +2402,22 @@ h3 svg,
   width: 100%;
   margin-top: 14px;
 }
+
+/* out-of-range numeric input: say so next to the field, not only on save */
+.field-err {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--danger, #b3261e);
+}
+
+.field-err:lang(hi),
+[dir='rtl'] .field-err {
+  direction: rtl;
+}
+
+.num-in[aria-invalid='true'] {
+  border-color: var(--danger, #b3261e);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger, #b3261e) 18%, transparent);
+}

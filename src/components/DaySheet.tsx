@@ -108,6 +108,12 @@ export default function DaySheet({
   const parsedBbt = parseFloat(bbtText);
   const parsedWeight = parseFloat(weightText);
   const bbtC = Number.isFinite(parsedBbt) && parsedBbt > 0 ? (settings.tempUnit === 'F' ? fToC(parsedBbt) : parsedBbt) : null;
+  // A slip like typing 25 into a 36.5 field used to be stored silently, and the
+  // BBT ovulation logic then read a permanent post-ovulation state for good.
+  const BBT_MIN_C = 34;
+  const BBT_MAX_C = 40;
+  const bbtBad = bbtC !== null && (bbtC < BBT_MIN_C || bbtC > BBT_MAX_C);
+  const bbtStored = bbtBad ? null : bbtC;
   const weightKg =
     Number.isFinite(parsedWeight) && parsedWeight > 0
       ? settings.weightUnit === 'lb'
@@ -123,7 +129,7 @@ export default function DaySheet({
     d.moods.length === 0 &&
     !d.note.trim() &&
     !d.mucus &&
-    bbtC === null &&
+    bbtStored === null &&
     weightKg === null &&
     !d.lhTest &&
     !d.pregnancyTest &&
@@ -159,7 +165,7 @@ export default function DaySheet({
     }
     onSave({
       ...d,
-      bbt: bbtC != null ? round2(bbtC) : null,
+      bbt: bbtStored != null ? round2(bbtStored) : null,
       weight: weightKg != null ? round2(weightKg) : null,
       note: d.note.trim(),
     });
@@ -333,10 +339,21 @@ export default function DaySheet({
                 type="number"
                 inputMode="decimal"
                 step="0.01"
+                min={settings.tempUnit === 'F' ? 93.2 : BBT_MIN_C}
+                max={settings.tempUnit === 'F' ? 104 : BBT_MAX_C}
+                aria-invalid={bbtBad || undefined}
+                aria-describedby={bbtBad ? 'bbt-err' : undefined}
                 placeholder={settings.tempUnit === 'C' ? '36.5' : '97.7'}
                 value={bbtText}
                 onChange={(e) => setBbtText(e.target.value)}
               />
+              {bbtBad && (
+                <p className="field-err" id="bbt-err" role="alert">
+                  {tx(lang, 'That temperature looks wrong. Enter 34 to 40 {u}.', {
+                    u: settings.tempUnit === 'F' ? '°F (93 to 104)' : '°C',
+                  })}
+                </p>
+              )}
             </div>
             <div className="field">
               <label htmlFor="weight-in">{tx(lang, 'Weight ({u})', { u: settings.weightUnit })}</label>
