@@ -2370,3 +2370,22 @@ h3 svg,
     animation: none;
   }
 }
+
+/* ---------- touch target floor ----------
+   On small phones these compact controls land at 34-39px tall (segmented
+   Month/Year, filter chips, the +/- steppers, .btn.sm), which is under the
+   44px mobile guideline and invites mis-taps. Growth is padding-only so rows
+   never reflow; the cost is a little extra density on chips. Scoped to touch
+   and narrow windows so desktop keeps the tighter layout. */
+@media (pointer: coarse), (max-width: 480px) {
+  .seg button,
+  .chip,
+  .btn.sm {
+    min-height: 44px;
+  }
+
+  .stepper button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
