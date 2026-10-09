@@ -32,6 +32,11 @@ export let lastBeaconAt = 0;
 export function track(type: string, meta?: Record<string, unknown>): void {
   try {
     lastBeaconAt = Date.now();
+    // Device knows it has no network: skip the request rather than wake the
+    // radio for a send that cannot land. Not counted as a failure since we
+    // never tried. Limitation: navigator.onLine stays true on a flaky
+    // connection that blackholes packets, so this only helps real offline.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     void fetch(apiUrl('/api/event'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
