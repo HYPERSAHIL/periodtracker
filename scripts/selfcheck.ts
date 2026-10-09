@@ -10,7 +10,7 @@ import { createContext, runInContext } from 'node:vm';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
 import { buildFacts, computeStats, periodClusters } from '../src/lib/cycle';
-import { mergeImportedEntries, parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV } from '../src/lib/storage';
+import { loadEntries, mergeImportedEntries, parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV } from '../src/lib/storage';
 import { adherenceConfidence, detectThermalShift, perimenstrualMigraine, variabilityPhenotype } from '../src/lib/stats';
 import { guideAnswer } from '../src/lib/guide';
 import { normLang, tx } from '../src/lib/i18n';
@@ -668,4 +668,42 @@ console.log('selfcheck: all 18 groups passed');
   assert.ok(html.includes('All fields'), 'entries expose every logged field on demand');
 }
 
-console.log('selfcheck: all 23 groups passed');
+
+// 24. The entries store is the last unguarded funnel. It accepted 2026-13-45
+//     (shape-valid, calendar-invalid), which then threw "Invalid time value"
+//     inside Intl during render, and it iterated the parsed value directly, so
+//     the object shape used by cloud sync threw and returned {} — every log gone.
+{
+  const store = new Map<string, string>();
+  const g = globalThis as unknown as {
+    localStorage: { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void };
+  };
+  const prev = g.localStorage;
+  g.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => void store.set(k, v),
+  } as typeof g.localStorage;
+
+  const write = (v: unknown) => store.set('pt.entries.v1', JSON.stringify(v));
+  const good = { date: '2026-03-04', checkedIn: true, flow: 'medium', symptoms: ['Cramps'], moods: [], note: 'keep me' };
+
+  try {
+    // array shape, the normal one
+    write([good, { date: '2026-13-45', note: 'phantom' }, { date: 'nope' }, null]);
+    assert.deepEqual(Object.keys(loadEntries()), ['2026-03-04'], 'impossible dates dropped from the entries array');
+
+    // object shape, what cloud sync sends
+    write({ '2026-04-05': { ...good, date: '2026-04-05' }, '2026-02-30': { note: 'phantom' } });
+    assert.deepEqual(Object.keys(loadEntries()), ['2026-04-05'], 'object shape read and validated');
+
+    // total garbage must not wipe a good set silently
+    write('"just a string"');
+    assert.deepEqual(loadEntries(), {}, 'unusable payload yields an empty set rather than throwing');
+    write([{ date: '2024-02-29', note: 'leap ok' }, { date: '2026-02-29', note: 'not a leap year' }]);
+    assert.deepEqual(Object.keys(loadEntries()), ['2024-02-29'], 'real leap day kept, 2026-02-29 rejected');
+  } finally {
+    g.localStorage = prev;
+  }
+}
+
+console.log('selfcheck: all 24 groups passed');

@@ -135,11 +135,23 @@ export function loadEntries(): Record<string, DayEntry> {
     const raw = localStorage.getItem(ENTRIES_KEY);
     if (!raw) return {};
     verifyIntegrity('entries', raw);
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
+    // localStorage holds an array, but the cloud shape is a date-keyed object.
+    // Iterating a non-array threw and the catch returned {} — silently wiping
+    // every log. Accept both, and never lose the lot to one bad row.
+    const list: unknown[] = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === 'object'
+        ? Object.entries(parsed as Record<string, unknown>).map(([date, v]) =>
+            v && typeof v === 'object' ? { ...(v as object), date } : v
+          )
+        : [];
     const out: Record<string, DayEntry> = {};
-    for (const e of parsed) {
-      if (e && typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) {
-        out[e.date] = normalizeEntry(e);
+    for (const e of list) {
+      // isoDay, not the bare shape regex: 2026-13-45 passed the old check and
+      // then threw "Invalid time value" inside Intl during render
+      if (e && typeof (e as DayEntry).date === 'string' && isoDay((e as DayEntry).date)) {
+        out[(e as DayEntry).date] = normalizeEntry(e as DayEntry);
       }
     }
     return out;
