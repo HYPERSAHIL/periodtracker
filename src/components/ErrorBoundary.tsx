@@ -32,7 +32,7 @@ class Boundary extends Component<{ label: string; children: ReactNode; lang?: st
           <p className="hint" style={{ margin: '0 0 12px' }}>
             {tx(
               this.props.lang,
-              'Something in this view hit bad data. Your logs are safe — try another tab, or export a backup from Settings before clearing anything.'
+              'Something in this view hit bad data. Your logs are safe · try another tab, or export a backup from Settings before clearing anything.'
             )}
           </p>
           <button className="btn ghost sm" onClick={() => { track('screen_error_retry', { label: this.props.label }); this.setState({ failed: false }); }}>

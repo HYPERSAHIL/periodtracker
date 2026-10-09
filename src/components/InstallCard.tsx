@@ -68,7 +68,7 @@ export default function InstallCard({ lang }: { lang: string }) {
         </>
       ) : (
         <p className="hint" style={{ margin: 0 }}>
-          {tx(lang, 'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app — no App Store needed.')}
+          {tx(lang, 'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app · no App Store needed.')}
         </p>
       )}
     </div>

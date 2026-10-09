@@ -42,8 +42,8 @@ const INTENTS: Intent[] = [
       const base = tx(
         lang,
         s.stats.nextStart
-          ? 'Your estimate was {d}. Being a few days off is normal — stress, illness, travel, and sleep all shift cycles.'
-          : 'Log two periods and estimates appear — until then every cycle is a guess.',
+          ? 'Your estimate was {d}. Being a few days off is normal · stress, illness, travel, and sleep all shift cycles.'
+          : 'Log two periods and estimates appear · until then every cycle is a guess.',
         { d: s.stats.nextStart ? prettyDate(s.stats.nextStart, { withYear: true }) : '' }
       );
       return `${base} ${tx(lang, 'If you might be pregnant, a test now is reliable. Over a week late with negative tests? See a clinician.')}`;
@@ -56,7 +56,7 @@ const INTENTS: Intent[] = [
     reply: (lang) =>
       tx(
         lang,
-        'Rate pain 0–10 with where it spreads. NSAIDs work best started early, heat helps many, and 7+ pain, pain with sex, or bowel/bladder pain deserves a workup — that log moves things forward.'
+        'Rate pain 0 to 10 with where it spreads. NSAIDs work best started early, heat helps many, and 7+ pain, pain with sex, or bowel/bladder pain deserves a workup · that log moves things forward.'
       ),
     articles: ['cramps', 'pain-toolkit'],
   },
@@ -76,7 +76,7 @@ const INTENTS: Intent[] = [
     reply: (lang) =>
       tx(
         lang,
-        'Widening gaps and skipped cycles are the hallmark pattern. Track flashes, sleep, and mood together for a month — that combined log is what guides treatment.'
+        'Widening gaps and skipped cycles are the hallmark pattern. Track flashes, sleep, and mood together for a month · that combined log is what guides treatment.'
       ),
     articles: ['perimenopause-101', 'sleep-flash-gsm', 'menopause-hrt-basics'],
   },
@@ -86,7 +86,7 @@ const INTENTS: Intent[] = [
     reply: (lang) =>
       tx(
         lang,
-        'Early bleeding is usually lochia, not a period — and ovulation can return before the first period, even while breastfeeding. LAM needs all three: under 6 months, no periods, near-full breastfeeding.'
+        'Early bleeding is usually lochia, not a period · and ovulation can return before the first period, even while breastfeeding. LAM needs all three: under 6 months, no periods, near-full breastfeeding.'
       ),
     articles: ['postpartum-mood'],
   },
@@ -96,7 +96,7 @@ const INTENTS: Intent[] = [
     reply: (lang) =>
       tx(
         lang,
-        'Bleeding changes top the quit reasons and usually settle in 3 months. Mood dips on a new method deserve an early call, not silent stopping — and log missed pills with backup.'
+        'Bleeding changes top the quit reasons and usually settle in 3 months. Mood dips on a new method deserve an early call, not silent stopping · and log missed pills with backup.'
       ),
     articles: ['contraception-mood-bleeding'],
   },
@@ -131,7 +131,7 @@ function scoreArticle(q: string, title: string, body: string[]): number {  const
 
 /**
  * Offline guide: intent templates first, content search as fallback.
- * Deterministic, free, private — swap via registerGuideProvider when desired.
+ * Deterministic, free, private · swap via registerGuideProvider when desired.
  */
 export async function guideAnswer(
   entries: Record<string, DayEntry>,
@@ -147,7 +147,7 @@ export async function guideAnswer(
     return {
       text: tx(
         lang,
-        'I only answer questions about periods, cycles, fertility, pregnancy, and using this app — try one of those, or browse Learn.'
+        'I only answer questions about periods, cycles, fertility, pregnancy, and using this app · try one of those, or browse Learn.'
       ),
       articles: [],
       disclaimer: false,

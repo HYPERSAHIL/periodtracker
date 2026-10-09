@@ -2066,3 +2066,38 @@ label.mini {
 @media (prefers-reduced-motion: reduce) {
   .mode-grid .mode-card, .stat-row .stat { animation: none; }
 }
+
+/* ---------- settings rows: one left edge, readable measure ---------- */
+/* The label block had no flex basis and the description a 230px cap, so long
+   labels wrapped at arbitrary points and rows read as misaligned. Fixed by
+   giving the text column the space and a real character measure. */
+.set-row {
+  text-align: left;
+  align-items: center;
+}
+
+.set-row > div:nth-child(2) {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
+
+.set-row .t {
+  text-align: left;
+  overflow-wrap: break-word;
+}
+
+.set-row .d {
+  max-width: 46ch;
+  text-align: left;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.set-row .drag-handle {
+  flex: none;
+}
+
+.set-row > div:last-child {
+  flex: none;
+}

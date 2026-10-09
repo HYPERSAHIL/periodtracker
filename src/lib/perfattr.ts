@@ -1,5 +1,5 @@
 /**
- * Deep perf attribution — answers "which element made it slow?" without a
+ * Deep perf attribution · answers "which element made it slow?" without a
  * dependency. `layout-shift` entries carry their sources, `event` entries carry
  * their target, so we log a CSS-ish selector instead of just a number.
  * Chromium-only detail; other engines report the metric with `target: null`.
@@ -41,14 +41,14 @@ function observe(type: string, cb: (e: PerformanceEntry) => void): void {
   }
 }
 
-/** Feed the same aggregation as vitals.ts — imported to avoid a cycle. */
+/** Feed the same aggregation as vitals.ts · imported to avoid a cycle. */
 function flush(reason: string): void {
   if (sent) return;
   sent = true;
   clearTimeout(idleTimer);
   track('screen_perf_attr', {
     reason,
-    // biggest shift first — that IS the culprit
+    // biggest shift first · that IS the culprit
     clsTop: clsShifts
       .slice()
       .sort((a, b) => b.v - a.v)

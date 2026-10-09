@@ -41,7 +41,7 @@ export default function PartnerView({
             <span>{tx(lang, 'Fertile window')}</span>
             <strong>
               {summary.fertileStart && summary.fertileEnd
-                ? `${prettyDate(summary.fertileStart)} – ${prettyDate(summary.fertileEnd)}`
+                ? `${prettyDate(summary.fertileStart)} · ${prettyDate(summary.fertileEnd)}`
                 : '-'}
             </strong>
           </div>

@@ -493,7 +493,7 @@ export default function DaySheet({
                 aria-valuetext={d.painLevel == null ? tx(lang, 'No pain logged') : `${d.painLevel}/10`}
               />
               <strong style={{ minWidth: 44, textAlign: 'center', fontSize: 17 }}>
-                {d.painLevel == null ? '–' : `${d.painLevel}/10`}
+                {d.painLevel == null ? '·' : `${d.painLevel}/10`}
               </strong>
               {d.painLevel != null && (
                 <button type="button" className="chip" onClick={() => set({ painLevel: null })}>

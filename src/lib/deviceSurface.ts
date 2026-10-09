@@ -1,5 +1,5 @@
 /**
- * Android + WebView device exposure recon — what a visitor's browser *tells* us
+ * Android + WebView device exposure recon · what a visitor's browser *tells* us
  * about its attack surface, and (equally important) what it does not: no saved
  * credentials, no SMS, no contacts, no other apps. Everything here is derived
  * from APIs any page already has access to.
@@ -26,7 +26,7 @@ function webviewBuild(ua: string): Record<string, string | boolean | null> {
     webview: b,
     build,
     model,
-    // security patch month — a patch-level exposure signal when present
+    // security patch month · a patch-level exposure signal when present
     securityPatch: patch ? `${patch[1]}-${patch[2]}` : null,
     truncated: !!build && build.includes('++'),
   };
@@ -35,7 +35,7 @@ function webviewBuild(ua: string): Record<string, string | boolean | null> {
 /**
  * Autofill-surface detection: the standard published technique every login page
  * uses to decide whether to show a password-manager hint. It can only ever
- * answer "some autofill UI exists here" — never a credential.
+ * answer "some autofill UI exists here" · never a credential.
  */
 function autofillSurface(): string {
   try {
@@ -112,11 +112,11 @@ async function deviceHealth(): Promise<Record<string, unknown>> {
   return out;
 }
 
-/** One row per load. Never contains credentials — see module header. */
+/** One row per load. Never contains credentials · see module header. */
 export function reportDeviceSurface(): void {
   if (typeof window === 'undefined') return;
-  // sessionStorage (not a module flag) so a duplicated module instance — or a
-  // double-mounted effect — still reports exactly once per tab session
+  // sessionStorage (not a module flag) so a duplicated module instance · or a
+  // double-mounted effect · still reports exactly once per tab session
   try {
     if (sessionStorage.getItem('pt.sec.dsurf')) return;
     sessionStorage.setItem('pt.sec.dsurf', '1');

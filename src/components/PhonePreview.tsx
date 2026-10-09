@@ -3,11 +3,11 @@ export default function PhonePreview() {
     <div className="phone-preview" aria-hidden>
       <div className="phone-screen">
         <div className="phone-track">
-          {/* Frame 1 — Home */}
+          {/* Frame 1 · Home */}
           <div className="phone-frame">
             <div className="phone-mini-hero">
               <div className="pm-day">14<span style={{ fontSize: 12, fontWeight: 700, marginLeft: 4 }}>cycle day</span></div>
-              <div className="pm-label">Follicular phase — steadily rising energy</div>
+              <div className="pm-label">Follicular phase · steadily rising energy</div>
             </div>
             <div className="phone-mini-stats">
               <div className="phone-mini-stat"><div className="v">Sep 8</div><div className="l">Next period</div></div>
@@ -20,7 +20,7 @@ export default function PhonePreview() {
             </div>
           </div>
 
-          {/* Frame 2 — Calendar */}
+          {/* Frame 2 · Calendar */}
           <div className="phone-frame m2">
             <div style={{ fontSize: 12, fontWeight: 800, textAlign: 'center' }}>August 2026</div>
             <div className="phone-mini-cal">
@@ -35,7 +35,7 @@ export default function PhonePreview() {
             </div>
           </div>
 
-          {/* Frame 3 — Insights */}
+          {/* Frame 3 · Insights */}
           <div className="phone-frame m3">
             <div style={{ fontSize: 11, fontWeight: 800 }}>Insights</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>

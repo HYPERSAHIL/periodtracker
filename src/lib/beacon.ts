@@ -26,7 +26,7 @@ const bumpFail = () => {
   }
 };
 
-/** Timestamp of the most recent beacon send — error rows carry the gap. */
+/** Timestamp of the most recent beacon send · error rows carry the gap. */
 export let lastBeaconAt = 0;
 
 export function track(type: string, meta?: Record<string, unknown>): void {

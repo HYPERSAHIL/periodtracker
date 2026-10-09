@@ -441,8 +441,8 @@ function PostpartumMood({ p, lang }: { p: AppProps; lang: string }) {
       {done && (
         <p style={{ fontSize: 13.5, fontWeight: 800, margin: '10px 0 0' }}>
           {score >= 3
-            ? tx(lang, 'Score {n}/6 — worth a call to your clinician or midwife today. Help exists and works.', { n: score })
-            : tx(lang, 'Score {n}/6 — in the typical range. Keep an eye on it.', { n: score })}
+            ? tx(lang, 'Score {n}/6 · worth a call to your clinician or midwife today. Help exists and works.', { n: score })
+            : tx(lang, 'Score {n}/6 · in the typical range. Keep an eye on it.', { n: score })}
         </p>
       )}
       {done && (
@@ -494,12 +494,12 @@ function LamCard({ p, lang }: { p: AppProps; lang: string }) {
           <p style={{ fontSize: 13.5, fontWeight: 800, margin: '8px 0 0' }}>
             {lamOk
               ? tx(lang, 'LAM criteria met (~98% effective). {n} days of cover left.', { n: 183 - (babyDays ?? 0) })
-              : tx(lang, 'LAM not met — use backup contraception.')}
+              : tx(lang, 'LAM not met · use backup contraception.')}
           </p>
         </>
       )}
       <p className="hint" style={{ marginTop: 8 }}>
-        {tx(lang, 'Bleeding in the first weeks is usually lochia, not a period. And ovulation can return before the first period — even while breastfeeding.')}
+        {tx(lang, 'Bleeding in the first weeks is usually lochia, not a period. And ovulation can return before the first period · even while breastfeeding.')}
       </p>
     </div>
   );

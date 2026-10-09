@@ -151,7 +151,7 @@ export default function AccountScreen({
                       onDone();
                       return;
                     }
-                    // password account created — now prove the inbox before continuing
+                    // password account created · now prove the inbox before continuing
                     setVerifyEmail(s.user.email ?? email.trim());
                     setOtp('');
                     setOtpSent(false);

@@ -225,7 +225,7 @@ export default function Insights(p: AppProps) {
                   }}
                   style={{ cursor: 'pointer', opacity: pair.valid ? (i === lensPairs.length - 1 ? 1 : 0.85) : 0.3 }}
                 >
-                  <title>{pair.valid ? tx(lang, 'Tap to exclude from predictions') : tx(lang, 'Excluded from predictions — tap to include')}</title>
+                  <title>{pair.valid ? tx(lang, 'Tap to exclude from predictions') : tx(lang, 'Excluded from predictions · tap to include')}</title>
                   <rect x={x} y={y(pair.len)} width={bw} height={Math.max(h, 2)} rx="4" fill="var(--rose-600)" />
                   <text x={x + bw / 2} y={y(pair.len) - 4} fontSize="8.5" fill="var(--text)" textAnchor="middle" fontWeight="700">{pair.len}</text>
                   {start && (
@@ -270,7 +270,7 @@ export default function Insights(p: AppProps) {
         <div className="card">
           <h3>{tx(lang, 'Fertility clues')}</h3>          {shift && (
             <p style={{ fontSize: 13.5, margin: '0 0 8px' }}>
-              🌡️ {tx(lang, 'Sustained temperature rise on {date} (+{v}°C) — ovulation likely the day before. A clue, not proof.', { date: prettyDate(shift.date, { weekday: true }), v: shift.rise })}
+              🌡️ {tx(lang, 'Sustained temperature rise on {date} (+{v}°C) · ovulation likely the day before. A clue, not proof.', { date: prettyDate(shift.date, { weekday: true }), v: shift.rise })}
             </p>
           )}
           {fertileMucus.length > 0 && (
@@ -282,15 +282,15 @@ export default function Insights(p: AppProps) {
             lhPositives.some((e) => e.date >= stats.lastStart!) &&
             fertileMucus.some((e) => e.date >= stats.lastStart!) && (
               <p style={{ fontSize: 13.5, margin: '8px 0 0', fontWeight: 700 }}>
-                ✓ {tx(lang, 'LH surge plus peak discharge this cycle — double-confirmed fertile marker.')}
+                ✓ {tx(lang, 'LH surge plus peak discharge this cycle · double-confirmed fertile marker.')}
               </p>
             )}
           {marquetteStatus(p.entries, stats.lastStart) === 'double' && (
             <p style={{ fontSize: 13.5, margin: '8px 0 0' }}>
-              {tx(lang, 'Monitor peak plus mucus peak agree — fertile through 3 full days past the peak day (Marquette rule).')}
+              {tx(lang, 'Monitor peak plus mucus peak agree · fertile through 3 full days past the peak day (Marquette rule).')}
             </p>
           )}
-          <p className="hint">{tx(lang, 'Estimates only — not contraception.')}</p>
+          <p className="hint">{tx(lang, 'Estimates only · not contraception.')}</p>
         </div>
       )}
 
@@ -389,21 +389,21 @@ function TtcCard({ p }: { p: AppProps }) {
       <p className="hint">{tx(lang, 'Coverage counts fertile-window days with intimacy logged. Every-other-day through the window is the standard guidance.')}</p>
       {p.settings.priorMethod && p.settings.priorMethod !== 'none' && (
         <p className="hint">
-          {tx(lang, 'Coming off {m} can delay ovulation return for a few cycles — give predictions time to relearn.', {
+          {tx(lang, 'Coming off {m} can delay ovulation return for a few cycles · give predictions time to relearn.', {
             m: txd(lang, `cm.${p.settings.priorMethod}`, p.settings.priorMethod),
           })}
         </p>
       )}
       {p.settings.tryingSince && diffDays(p.settings.tryingSince, today) >= 365 && (
         <p style={{ fontSize: 13.5, fontWeight: 700, margin: '8px 0 0' }}>
-          {tx(lang, 'Trying 12+ months? Guidelines suggest a fertility checkup — bring this log.')}
+          {tx(lang, 'Trying 12+ months? Guidelines suggest a fertility checkup · bring this log.')}
         </p>
       )}
     </div>
   );
 }
 
-/** Perimenopause: variability snapshot — longest cycle, long-cycle share, current gap. */function PeriCard({ p }: { p: AppProps }) {
+/** Perimenopause: variability snapshot · longest cycle, long-cycle share, current gap. */function PeriCard({ p }: { p: AppProps }) {
   const lang = p.settings.lang;
   const lens = p.stats.cycleLengths;
   const long = lens.filter((l) => l >= 45);
@@ -436,7 +436,7 @@ function EvidenceCards({ p }: { p: AppProps }) {
       <div className="card" key="adherence">
         <h3>{tx(lang, 'Low logging confidence')}</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          {tx(lang, 'Only {n}% of days have entries, and gaps look like missing logs — not biology. Forecasts stay cautious until logging steadies.', { n: adherence.pct })}
+          {tx(lang, 'Only {n}% of days have entries, and gaps look like missing logs · not biology. Forecasts stay cautious until logging steadies.', { n: adherence.pct })}
         </p>
       </div>
     );
@@ -450,8 +450,8 @@ function EvidenceCards({ p }: { p: AppProps }) {
           <h3>{tx(lang, 'Variable pattern')}</h3>
           <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
             {pheno === 'highly-variable'
-              ? tx(lang, 'Your cycles vary a lot — predictions use extra-wide windows. Tap outlier bars above to exclude sick/stress months.')
-              : tx(lang, 'Your cycles vary somewhat — predictions already widen for that.')}
+              ? tx(lang, 'Your cycles vary a lot · predictions use extra-wide windows. Tap outlier bars above to exclude sick/stress months.')
+              : tx(lang, 'Your cycles vary somewhat · predictions already widen for that.')}
           </p>
         </div>
       );
@@ -461,10 +461,10 @@ function EvidenceCards({ p }: { p: AppProps }) {
   if (stats.ovuEvidenceCount > 0) {
     const verdict =
       stats.lutealLength <= 9
-        ? tx(lang, 'Short (≤9 days) — worth mentioning to a clinician.')
+        ? tx(lang, 'Short (≤9 days) · worth mentioning to a clinician.')
         : stats.lutealLength <= 11
-          ? tx(lang, 'Borderline (10–11 days) — keep watching across cycles.')
-          : tx(lang, 'Typical (12–17 days).');
+          ? tx(lang, 'Borderline (10 to 11 days) · keep watching across cycles.')
+          : tx(lang, 'Typical (12 to 17 days).');
     cards.push(
       <div className="card" key="luteal">
         <h3>{tx(lang, 'Luteal phase')}</h3>
@@ -484,7 +484,7 @@ function EvidenceCards({ p }: { p: AppProps }) {
       <div className="card" key="anov">
         <h3>{tx(lang, 'Ovulation unconfirmed')}</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          {tx(lang, 'Regular bleeding does not confirm ovulation — only about two-thirds of regular cycles ovulate. Log LH tests, temperature, or discharge to confirm.')}
+          {tx(lang, 'Regular bleeding does not confirm ovulation · only about two-thirds of regular cycles ovulate. Log LH tests, temperature, or discharge to confirm.')}
         </p>
       </div>
     );
@@ -495,7 +495,7 @@ function EvidenceCards({ p }: { p: AppProps }) {
       <div className="card" key="short">
         <h3>{tx(lang, 'Shorter cycles')}</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          {tx(lang, 'Your average is {n} days. Cycles around 30–31 days are the most fecund on average — one data point, not a diagnosis.', { n: stats.avgCycle })}
+          {tx(lang, 'Your average is {n} days. Cycles around 30 to 31 days are the most fecund on average · one data point, not a diagnosis.', { n: stats.avgCycle })}
         </p>
       </div>
     );
@@ -512,7 +512,7 @@ function EvidenceCards({ p }: { p: AppProps }) {
         <div className="card" key="peak">
           <h3>{tx(lang, 'Peak fertility markers')}</h3>
           <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-            {tx(lang, 'Egg-white discharge on fertile days ({dates}) — the strongest at-home fertility sign.', {
+            {tx(lang, 'Egg-white discharge on fertile days ({dates}) · the strongest at-home fertility sign.', {
               dates: peak.slice(0, 5).map((d) => prettyDate(d)).join(', '),
             })}
           </p>
@@ -527,7 +527,7 @@ function EvidenceCards({ p }: { p: AppProps }) {
       <div className="card" key="mig">
         <h3>{tx(lang, 'Headache timing')}</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          {tx(lang, '{a} of {b} headache days fall in the 2-days-before to 3-days-after window — a perimenstrual pattern worth showing a clinician.', { a: mig.inWindow, b: mig.total })}
+          {tx(lang, '{a} of {b} headache days fall in the 2-days-before to 3-days-after window · a perimenstrual pattern worth showing a clinician.', { a: mig.inWindow, b: mig.total })}
         </p>
       </div>
     );
@@ -551,7 +551,7 @@ function PmddCard({ p }: { p: AppProps }) {
       <div className="card">
         <h3>{tx(lang, 'Luteal mood check')}</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 12px' }}>
-          {tx(lang, 'Mood patterns need 2 cycles of daily tracking to confirm — a single bad month is not PMDD.')}
+          {tx(lang, 'Mood patterns need 2 cycles of daily tracking to confirm · a single bad month is not PMDD.')}
         </p>
         <button className="btn ghost sm" onClick={() => { p.updateSettings({ pmddCheckStart: todayISO() }); track('settings_pmdd_check_started'); }}>
           {tx(lang, 'Start 2-cycle check')}
@@ -566,7 +566,7 @@ function PmddCard({ p }: { p: AppProps }) {
       <h3>{tx(lang, 'Luteal mood check')} · {cyclesSince}/2</h3>
       <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '0 0 12px' }}>
         {done
-          ? tx(lang, 'Two cycles tracked. Bring this log to a clinician — dated evidence is exactly how PMS and PMDD are told apart.')
+          ? tx(lang, 'Two cycles tracked. Bring this log to a clinician · dated evidence is exactly how PMS and PMDD are told apart.')
           : tx(lang, 'Keep logging moods daily, especially the week before each period. {n} cycle(s) to go.', { n: 2 - cyclesSince })}
       </p>
       {done && (
@@ -620,7 +620,7 @@ function MoveCard({ p }: { p: AppProps }) {
       if (rExp >= 2 * rRest && rExp > 0) {
         trigger = tx(
           lang,
-          '{s} shows up on {a}% of {x} days vs {b}% otherwise — {x} may be a trigger worth testing.',
+          '{s} shows up on {a}% of {x} days vs {b}% otherwise · {x} may be a trigger worth testing.',
           {
             s: txd(lang, `symptom.${top[0]}`, top[0]),
             a: Math.round(rExp * 100),
@@ -654,7 +654,7 @@ function MoveCard({ p }: { p: AppProps }) {
         </p>
       )}
       {trigger && <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '8px 0 0' }}>{trigger}</p>}
-      <p className="hint">{tx(lang, 'Correlations, not causes — but exactly what to test next.')}</p>
+      <p className="hint">{tx(lang, 'Correlations, not causes · but exactly what to test next.')}</p>
     </div>
   );
 }

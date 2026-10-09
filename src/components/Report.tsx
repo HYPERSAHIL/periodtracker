@@ -237,7 +237,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
   );
 }
 
-/** Pain + endo summary for the clinician report (0–10 readings, areas, flares). */
+/** Pain + endo summary for the clinician report (0 to 10 readings, areas, flares). */
 function PainEndoReport({ entries, lang }: { entries: import('../types').DayEntry[]; lang: string }) {
   const pains = entries.filter((e) => e.painLevel != null);
   const flares = entries.filter((e) => e.endoFlare);

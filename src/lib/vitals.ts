@@ -1,5 +1,5 @@
 /**
- * Core Web Vitals + long-task jank — one `screen_vitals` beacon per session.
+ * Core Web Vitals + long-task jank · one `screen_vitals` beacon per session.
  * Buffered PerformanceObservers, flushed once on hide/leave. Nothing renders,
  * nothing blocks, no dependency: the web platform already ships the metrics.
  */
@@ -87,7 +87,7 @@ export function initVitals(): void {
   const onHide = () => { if (document.visibilityState === 'hidden') flush('hidden'); };
   document.addEventListener('visibilitychange', onHide);
   window.addEventListener('pagehide', () => flush('pagehide'));
-  // ponytail: a tab left open in the foreground for hours never hides — one
+  // ponytail: a tab left open in the foreground for hours never hides · one
   // 2-minute snapshot beats no row at all. Raise it if INP-at-close matters.
   idleTimer = window.setTimeout(() => flush('idle'), 120_000);
 }

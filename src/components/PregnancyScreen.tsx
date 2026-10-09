@@ -8,9 +8,9 @@ import { track } from '../lib/beacon';
 import type { ApptItem, KickSession } from '../types';
 
 const defaultAppts = (lang: string): ApptItem[] => [
-  { id: 1, text: tx(lang, 'First prenatal visit (8–10 weeks)'), done: false },
+  { id: 1, text: tx(lang, 'First prenatal visit (8 to 10 weeks)'), done: false },
   { id: 2, text: tx(lang, 'Anatomy scan (~20 weeks)'), done: false },
-  { id: 3, text: tx(lang, 'Glucose screening (~24–28 weeks)'), done: false },
+  { id: 3, text: tx(lang, 'Glucose screening (~24 to 28 weeks)'), done: false },
 ];
 
 function fmtElapsed(ms: number): string {
@@ -150,7 +150,7 @@ export default function PregnancyScreen(p: AppProps) {
                 )
               }
             >
-              👶 {tx(lang, 'Tap — kick!')}
+              👶 {tx(lang, 'Tap · kick!')}
             </button>
             <button
               className="btn ghost"
@@ -176,7 +176,7 @@ export default function PregnancyScreen(p: AppProps) {
         ) : (
           <>
             <p className="hint" style={{ margin: '0 0 12px' }}>
-              {tx(lang, 'Count kicks to 10 — most clinicians like to see 10 movements within 2 hours.')}
+              {tx(lang, 'Count kicks to 10 · most clinicians like to see 10 movements within 2 hours.')}
             </p>
             <button
               className="btn primary"

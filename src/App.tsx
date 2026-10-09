@@ -281,7 +281,7 @@ function MainApp() {
     if (showReport) track('report_opened');
   }, [showReport]);
 
-  // screen views (nav tabs) — volume metric, no content
+  // screen views (nav tabs) · volume metric, no content
   useEffect(() => {
     if (settings.onboarded) track('screen_view', { tab });
   }, [tab, settings.onboarded]);
@@ -559,7 +559,7 @@ function MainApp() {
     };
   }, [tab]);
 
-  // session context, load performance, PWA install prompts, security posture — once per load
+  // session context, load performance, PWA install prompts, security posture · once per load
   useEffect(() => {
     initFetchAudit();
     initDynamicCodeCanaries();
@@ -640,7 +640,7 @@ function MainApp() {
         });
       })
       .catch(() => {
-        /* storage API blocked (private mode) — screen_session is best-effort */
+        /* storage API blocked (private mode) · screen_session is best-effort */
       });
     if (!isNative()) {
       try {

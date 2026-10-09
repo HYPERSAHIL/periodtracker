@@ -291,7 +291,7 @@ export function variabilityPhenotype(lengths: number[]): 'stable' | 'variable' |
   return 'highly-variable';
 }
 
-/** Share of days since first log with any entry — low coverage means low-confidence forecasts. */
+/** Share of days since first log with any entry · low coverage means low-confidence forecasts. */
 export function adherenceConfidence(entries: Record<string, DayEntry>): { pct: number; low: boolean } {
   const c = trackingCompleteness(entries);
   return { pct: c.pct, low: c.total >= 30 && c.pct < 40 };

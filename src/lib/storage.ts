@@ -131,7 +131,7 @@ export function loadEntries(): Record<string, DayEntry> {
   }
 }
 
-/** Distinguish a full disk from a serialization fault — quota is unfixable by retry. */
+/** Distinguish a full disk from a serialization fault · quota is unfixable by retry. */
 function noteSaveFailure(key: string, err: unknown, bytes = 0): void {
   const quota =
     err instanceof DOMException &&
@@ -558,7 +558,7 @@ function parseCSVLine(line: string): string[] {
         bbt: a.bbt != null ? Math.round(a.bbt * 100) / 100 : null,
         steps: a.steps != null ? Math.round(a.steps) : null,
         sleepHours: a.sleep != null ? Math.round(a.sleep * 10) / 10 : null,
-        // passive metrics only — not an explicit check-in
+        // passive metrics only · not an explicit check-in
         updatedAt: Date.now(),
       });
     }
@@ -650,7 +650,7 @@ export interface WearableImport {
 /**
  * Generic wearable CSV (Oura/Withings/Fitbit exports, Health Connect dumps):
  * header synonyms auto-mapped, units inferred from magnitudes (temp > 45 →
- * °F, avg weight > 250 → lb — the ambiguous middle stays metric), unknown
+ * °F, avg weight > 250 → lb · the ambiguous middle stays metric), unknown
  * columns ignored. Set dayFirst for DD/MM/YYYY exports.
  */
 export function parseWearableCSV(text: string, opts?: { dayFirst?: boolean }): WearableImport | null {

@@ -11,7 +11,7 @@ import { track } from '../lib/beacon';
 import { Stepper } from './Onboarding';
 import InstallCard from './InstallCard';
 import { todayISO, prettyDate } from '../lib/date';
-import { APP_VERSION, ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, MOODS, SYMPTOMS, TRACKER_SECTIONS } from '../types';
+import { ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, MOODS, SYMPTOMS, TRACKER_SECTIONS } from '../types';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause', 'postpartum'];
 const METHODS: ContraceptionMethod[] = ['none', 'pill', 'patch', 'ring', 'injection', 'implant', 'iud', 'condom', 'other'];
@@ -289,7 +289,7 @@ export default function SettingsView(p: AppProps) {
             <div className="set-row" style={{ marginTop: 10 }}>
               <div>
                 <div className="t">{tx(lang, 'Fully breastfeeding')}</div>
-                <div className="d">{tx(lang, 'No formula or solids yet — LAM needs near-full breastfeeding.')}</div>
+                <div className="d">{tx(lang, 'No formula or solids yet · LAM needs near-full breastfeeding.')}</div>
               </div>
               <button
                 className={`switch${settings.postpartum?.exclusiveBF ? ' on' : ''}`}
@@ -452,7 +452,7 @@ export default function SettingsView(p: AppProps) {
             <div className="set-row">
               <div>
                 <div className="t">{tx(lang, 'Medication reminder')}</div>
-                <div className="d">{tx(lang, 'Daily nudge at your chosen time — pills, supplements, anything recurring.')}</div>
+                <div className="d">{tx(lang, 'Daily nudge at your chosen time · pills, supplements, anything recurring.')}</div>
               </div>
               <button
                 className={`switch${settings.notifyMeds ? ' on' : ''}`}
@@ -508,7 +508,7 @@ export default function SettingsView(p: AppProps) {
             <div className="set-row">
               <div>
                 <div className="t">{tx(lang, 'Discreet notifications')}</div>
-                <div className="d">{tx(lang, 'Lock-screen-safe text — never mentions periods, fertility, or meds.')}</div>
+                <div className="d">{tx(lang, 'Lock-screen-safe text · never mentions periods, fertility, or meds.')}</div>
               </div>
               <button
                 className={`switch${settings.discreetNotifs ? ' on' : ''}`}
@@ -688,7 +688,7 @@ export default function SettingsView(p: AppProps) {
       <div className="card">
         <h3>{tx(lang, 'Partner share')}</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
-          {tx(lang, 'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history — ever. Links never expire.')}
+          {tx(lang, 'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history · ever. Links never expire.')}
         </p>
         {shares === null ? (
           <p className="hint">{tx(lang, 'Loading')}</p>
@@ -754,7 +754,7 @@ export default function SettingsView(p: AppProps) {
                 nextStart: shareNext ? p.stats.nextStart : null,
                 fertileStart: shareFertile && fertileVisible ? p.stats.fertileStart : null,
                 fertileEnd: shareFertile && fertileVisible ? p.stats.fertileEnd : null,
-                // phase alone can reveal ovulation — null it with the fertile data
+                // phase alone can reveal ovulation · null it with the fertile data
                 phase: sharePhase && fertileVisible ? phaseFor(todayISO(), p.stats, p.facts) : null,
                 generatedAt: todayISO(),
               };
@@ -798,7 +798,7 @@ export default function SettingsView(p: AppProps) {
       <div className="card">
         <h3>{tx(lang, 'Email summaries')}</h3>
         <p className="hint" style={{ margin: '0 0 12px' }}>
-          {tx(lang, 'Opt-in weekly or monthly snapshot by email. Minimal level sends dates only — never symptoms or notes. One-click unsubscribe in every mail.')}
+          {tx(lang, 'Opt-in weekly or monthly snapshot by email. Minimal level sends dates only · never symptoms or notes. One-click unsubscribe in every mail.')}
         </p>
         {emailOn === null ? (
           <p className="hint">{tx(lang, 'Loading')}</p>
@@ -1049,10 +1049,10 @@ export default function SettingsView(p: AppProps) {
       <div className="card">
         <h3>{tx(lang, 'About')}</h3>
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
-          {tx(lang, 'Period Tracker v{version} - free and private. Predictions use the calendar method (ovulation ≈ 14 days before your next period); temperature and discharge signs add fertility awareness clues. All of it is estimation support, not medical advice.', { version: APP_VERSION })}
+          {tx(lang, 'Period Tracker is free and private. Predictions use the calendar method (ovulation is roughly 14 days before your next period); temperature and discharge signs add fertility awareness clues. All of it is estimation support, not medical advice.')}
         </p>
         <p className="hint" style={{ marginTop: 8 }}>
-          {tx(lang, 'Our pledge: tracking, predictions, reminders, and reports are free with no account and no ads — and they will never move behind a paywall. Fertility estimates are informational only and must never be used as contraception.')}
+          {tx(lang, 'Our pledge: tracking, predictions, reminders, and reports are free with no account and no ads · and they will never move behind a paywall. Fertility estimates are informational only and must never be used as contraception.')}
         </p>
       </div>
 

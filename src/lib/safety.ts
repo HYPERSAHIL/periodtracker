@@ -132,22 +132,22 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
     });
   }
 
-  // Cycle deviations: infrequent (90d+), frequent (<21d) — FIGO/ACOG red flags
+  // Cycle deviations: infrequent (90d+), frequent (<21d) · FIGO/ACOG red flags
   if (clusters.length >= 2) {
     const lastGap = diffDays(clusters[clusters.length - 2].start, clusters[clusters.length - 1].start);
     if (lastGap > 90) {
       add({
         id: 'gap infrequent',
         urgency: 'routine',
-        headline: tx(lang, '{n} days between periods — infrequent bleeding', { n: lastGap }),
-        detail: tx(lang, 'Gaps over 90 days fall outside the typical range. Common causes include PCOS, thyroid, stress, and perimenopause — worth a clinician visit.'),
+        headline: tx(lang, '{n} days between periods · infrequent bleeding', { n: lastGap }),
+        detail: tx(lang, 'Gaps over 90 days fall outside the typical range. Common causes include PCOS, thyroid, stress, and perimenopause · worth a clinician visit.'),
         source: 'ACOG: abnormal uterine bleeding',
       });
     } else if (lastGap < 21 && lastGap > 0) {
       add({
         id: 'gap frequent',
         urgency: 'routine',
-        headline: tx(lang, '{n} days between periods — frequent bleeding', { n: lastGap }),
+        headline: tx(lang, '{n} days between periods · frequent bleeding', { n: lastGap }),
         detail: tx(lang, 'Bleeding more often than every 21 days is worth mentioning to a clinician, especially with heavy flow or fatigue.'),
         source: 'ACOG: abnormal uterine bleeding',
       });
@@ -160,7 +160,7 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
           id: 'sudden change',
           urgency: 'routine',
           headline: tx(lang, 'Sudden cycle change ({a}d → {b}d)', { a: prevGap, b: lastGap }),
-          detail: tx(lang, 'A sharp change after steady cycles can follow stress, illness, weight shifts — or thyroid and prolactin changes. Consider a checkup with TSH.'),
+          detail: tx(lang, 'A sharp change after steady cycles can follow stress, illness, weight shifts · or thyroid and prolactin changes. Consider a checkup with TSH.'),
           source: 'ACOG: abnormal uterine bleeding',
         });
       }
@@ -210,6 +210,4 @@ function addDaysLocal(iso: string, n: number): string {
 }
 
 export const CRISIS_NOTE =
-  'If you are having thoughts of harming yourself, please reach out now: in the US call or text 988 ' +
-  '(Suicide & Crisis Lifeline); in the UK call 116 123 (Samaritans); elsewhere find your local line at ' +
-  'findahelpline.com. You deserve support.';
+  'If you are having thoughts of harming yourself, please reach out now. Tele MANAS: call 14416 or 1800-89-14416, free, 24x7, 20 languages (MoHFW). KIRAN: call 1800-599-0019, free, 24x7, 13 languages (MoSJE). Elsewhere, findahelpline.com lists local lines. You deserve support.';

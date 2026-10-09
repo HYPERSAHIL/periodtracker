@@ -51,7 +51,7 @@ export default function Learn(p: AppProps) {
   const teenSafe = (a: { category: string }) =>
     !p.settings.teen || (a.category !== 'Fertility' && a.category !== 'Pregnancy');
 
-  // debounced search telemetry — one event per settled query, with result count
+  // debounced search telemetry · one event per settled query, with result count
   useEffect(() => {
     if (!q) return;
     const t = window.setTimeout(() => {
@@ -163,7 +163,7 @@ export default function Learn(p: AppProps) {
         <div className="card">
           <h3>{tx(lang, 'School readiness checklist')}</h3>
           <p className="hint" style={{ margin: '0 0 10px' }}>
-            {tx(lang, 'For students, parents, and teachers. Half of girls learn about periods only after menarche — this list fixes that.')}
+            {tx(lang, 'For students, parents, and teachers. Half of girls learn about periods only after menarche · this list fixes that.')}
           </p>
           {SCHOOL_ITEMS.map((it) => {
             const on = schoolChecked.has(it);

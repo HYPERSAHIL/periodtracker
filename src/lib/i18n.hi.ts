@@ -37,8 +37,8 @@ export const HI: Record<string, string> = {
   'mode.postpartum.blurb': 'रिकवरी, फीडिंग, पहले पीरियड की नज़र',
   'Birth date': 'डिलीवरी की तारीख',
   'Fully breastfeeding': 'पूरी तरह स्तनपान',
-  'No formula or solids yet — LAM needs near-full breastfeeding.':
-    'अभी फॉर्मूला/ठोस नहीं — LAM के लिए लगभग पूर्ण स्तनपान चाहिए।',
+  'No formula or solids yet · LAM needs near-full breastfeeding.':
+    'अभी फॉर्मूला/ठोस नहीं · LAM के लिए लगभग पूर्ण स्तनपान चाहिए।',
   'Postpartum & feeding': 'डिलीवरी के बाद और फीडिंग',
   'Add the birth date in Settings → Mode to unlock LAM tracking.':
     'LAM ट्रैकिंग के लिए सेटिंग्स → मोड में डिलीवरी तारीख डालें।',
@@ -47,17 +47,17 @@ export const HI: Record<string, string> = {
   'No period since birth': 'डिलीवरी के बाद पीरियड नहीं',
   'LAM criteria met (~98% effective). {n} days of cover left.':
     'LAM शर्तें पूरी (~98% असरदार)। {n} दिन का कवर बाकी।',
-  'LAM not met — use backup contraception.': 'LAM पूरी नहीं — बैकअप गर्भनिरोध इस्तेमाल करें।',
-  'Bleeding in the first weeks is usually lochia, not a period. And ovulation can return before the first period — even while breastfeeding.':
-    'पहले हफ़्तों की ब्लीडिंग अक्सर लोकिया है, पीरियड नहीं। और ओव्यूलेशन पहले पीरियड से पहले वापस आ सकता है — स्तनपान के बावजूद।',
+  'LAM not met · use backup contraception.': 'LAM पूरी नहीं · बैकअप गर्भनिरोध इस्तेमाल करें।',
+  'Bleeding in the first weeks is usually lochia, not a period. And ovulation can return before the first period · even while breastfeeding.':
+    'पहले हफ़्तों की ब्लीडिंग अक्सर लोकिया है, पीरियड नहीं। और ओव्यूलेशन पहले पीरियड से पहले वापस आ सकता है · स्तनपान के बावजूद।',
   'How have the last 2 weeks felt?': 'पिछले 2 हफ़्ते कैसे लगे?',
   'Little interest or pleasure in things': 'चीज़ों में मन न लगना या मज़ा न आना',
   'Feeling down or hopeless': 'उदास या निराश महसूस करना',
   'not at all': 'बिल्कुल नहीं',
   'nearly every day': 'लगभग रोज़',
-  'Score {n}/6 — worth a call to your clinician or midwife today. Help exists and works.':
-    'स्कोर {n}/6 — आज ही डॉक्टर या मिडवाइफ़ को कॉल करें। मदद है और काम करती है।',
-  'Score {n}/6 — in the typical range. Keep an eye on it.': 'स्कोर {n}/6 — सामान्य दायरे में। नज़र रखें।',
+  'Score {n}/6 · worth a call to your clinician or midwife today. Help exists and works.':
+    'स्कोर {n}/6 · आज ही डॉक्टर या मिडवाइफ़ को कॉल करें। मदद है और काम करती है।',
+  'Score {n}/6 · in the typical range. Keep an eye on it.': 'स्कोर {n}/6 · सामान्य दायरे में। नज़र रखें।',
   'Save result': 'नतीजा सेव करें',
   'Last screen {date}: {n}/6': 'पिछली जाँच {date}: {n}/6',
   'Recovery watch': 'रिकवरी नज़र',
@@ -68,18 +68,18 @@ export const HI: Record<string, string> = {
   'Any unchecked red flag with symptoms → call your clinician or maternity line now.':
     'लक्षण के साथ कोई अनचेक लाल झंडा → अभी डॉक्टर या मैटरनिटी लाइन को कॉल करें।',
   'Trimester {n} check-ins': 'तिमाही {n} चेक-इन',
-  'Start folic acid if you have not — ideally before conception, otherwise now.':
-    'फोलिक एसिड शुरू करें — बेहतर गर्भधारण से पहले, वरना अभी।',
-  'Book the first prenatal visit around week 8–10.': 'पहली प्रिनैटल विज़िट 8–10 हफ़्ते पर बुक करें।',
-  'Nausea peaks around weeks 6–9 for many; small frequent meals help.':
-    'कई लोगों को 6–9 हफ़्ते मतली चरम पर; थोड़ा-बार-बार खाना मदद करता है।',
+  'Start folic acid if you have not · ideally before conception, otherwise now.':
+    'फोलिक एसिड शुरू करें · बेहतर गर्भधारण से पहले, वरना अभी।',
+  'Book the first prenatal visit around week 8 to 10.': 'पहली प्रिनैटल विज़िट 8 to 10 हफ़्ते पर बुक करें।',
+  'Nausea peaks around weeks 6 to 9 for many; small frequent meals help.':
+    'कई लोगों को 6 to 9 हफ़्ते मतली चरम पर; थोड़ा-बार-बार खाना मदद करता है।',
   'The anatomy scan usually happens around week 20.': 'एनाटॉमी स्कैन आमतौर पर 20वें हफ़्ते होता है।',
-  'Glucose screening typically lands at weeks 24–28.': 'ग्लूकोज़ स्क्रीनिंग आमतौर पर 24–28 हफ़्ते होती है।',
-  'Kick counting becomes meaningful from about week 28 — try the counter above.':
-    'किक गिनती 28वें हफ़्ते से मायने रखती है — ऊपर काउंटर try करें।',
+  'Glucose screening typically lands at weeks 24 to 28.': 'ग्लूकोज़ स्क्रीनिंग आमतौर पर 24 to 28 हफ़्ते होती है।',
+  'Kick counting becomes meaningful from about week 28 · try the counter above.':
+    'किक गिनती 28वें हफ़्ते से मायने रखती है · ऊपर काउंटर try करें।',
   'Pack the hospital bag by week 36; confirm the birth plan.': '36वें हफ़्ते तक अस्पताल बैग पैक करें; बर्थ प्लान पक्का करें।',
-  'Count kicks daily — 10 movements within 2 hours is the rule of thumb.':
-    'रोज़ किक गिनें — 2 घंटे में 10 हलचल नियम है।',
+  'Count kicks daily · 10 movements within 2 hours is the rule of thumb.':
+    'रोज़ किक गिनें · 2 घंटे में 10 हलचल नियम है।',
   'Watch for severe headache, vision changes, sudden swelling, or reduced movement: call promptly.':
     'तेज़ सिरदर्द, नज़र बदलाव, अचानक सूजन या कम हलचल पर तुरंत कॉल करें।',
 
@@ -154,8 +154,8 @@ export const HI: Record<string, string> = {
   'Install the app': 'ऐप इंस्टॉल करें',
   'Add Period Tracker to your home screen for fullscreen, offline use.':
     'फुलस्क्रीन, ऑफ़लाइन इस्तेमाल के लिए पीरियड ट्रैकर होम स्क्रीन पर जोड़ें।',
-  'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app — no App Store needed.':
-    'iPhone पर: Share दबाएं, फिर “Add to Home Screen”। नेटिव ऐप जैसा फुलस्क्रीन खुलेगा — App Store की ज़रूरत नहीं।',
+  'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app · no App Store needed.':
+    'iPhone पर: Share दबाएं, फिर “Add to Home Screen”। नेटिव ऐप जैसा फुलस्क्रीन खुलेगा · App Store की ज़रूरत नहीं।',
   '6-digit code': '6-अंकों का कोड',
   'Resend code': 'कोड फिर भेजें',
   Skip: 'छोड़ें',
@@ -195,8 +195,8 @@ export const HI: Record<string, string> = {
   'This screen stays until the update is installed. That is by design, so every device runs the latest version.':
     'अपडेट इंस्टॉल होने तक यह स्क्रीन रहेगी। ऐसा जानबूझकर है, ताकि हर डिवाइस पर नया वर्शन चले।',
   "couldn't load": 'लोड नहीं हो पाया',
-  'Something in this view hit bad data. Your logs are safe — try another tab, or export a backup from Settings before clearing anything.':
-    'इस हिस्से में खराब डेटा मिला। आपके लॉग सुरक्षित हैं — दूसरा टैब try करें, या कुछ साफ़ करने से पहले सेटिंग्स से बैकअप निकाल लें।',
+  'Something in this view hit bad data. Your logs are safe · try another tab, or export a backup from Settings before clearing anything.':
+    'इस हिस्से में खराब डेटा मिला। आपके लॉग सुरक्षित हैं · दूसरा टैब try करें, या कुछ साफ़ करने से पहले सेटिंग्स से बैकअप निकाल लें।',
 
   // Dashboard banners + hero
   'Your last logged period is {n} days ago. Too far back to forecast from. Predictions resume when you log your next period.':
@@ -220,12 +220,12 @@ export const HI: Record<string, string> = {
   'Contraception change due in {n} day{s}.': 'गर्भनिरोधक बदलाव {n} दिन{s} में होना है।',
   'Time for your medication / contraception.': 'आपकी दवा / गर्भनिरोधक का समय हो गया।',
   'Medication reminder': 'दवा रिमाइंडर',
-  'Daily nudge at your chosen time — pills, supplements, anything recurring.':
-    'आपके चुने समय पर रोज़ याद — गोली, सप्लीमेंट, कोई भी नियमित चीज़।',
+  'Daily nudge at your chosen time · pills, supplements, anything recurring.':
+    'आपके चुने समय पर रोज़ याद · गोली, सप्लीमेंट, कोई भी नियमित चीज़।',
   Time: 'समय',
   'Discreet notifications': 'गुप्त नोटिफिकेशन',
-  'Lock-screen-safe text — never mentions periods, fertility, or meds.':
-    'लॉक-स्क्रीन-सेफ टेक्स्ट — पीरियड, फर्टिलिटी या दवा का ज़िक्र कभी नहीं।',
+  'Lock-screen-safe text · never mentions periods, fertility, or meds.':
+    'लॉक-स्क्रीन-सेफ टेक्स्ट · पीरियड, फर्टिलिटी या दवा का ज़िक्र कभी नहीं।',
   'You have a reminder from Period Tracker.': 'पीरियड ट्रैकर से आपके लिए रिमाइंडर है।',
   'Your period is expected tomorrow.': 'आपका पीरियड कल आ सकता है।',
   'Your period is expected in {n} days.': 'आपका पीरियड {n} दिन में आ सकता है।',
@@ -251,19 +251,19 @@ export const HI: Record<string, string> = {
   'Fertile window and ovulation estimates are hidden because a hormonal contraception method is active.':
     'हार्मोनल गर्भनिरोधक चालू होने से फर्टाइल विंडो और ओव्यूलेशन के अनुमान छिपे हैं।',
   'Ovulation is placed {l} days before the next period, learned from your own {n} positive LH test(s), not a fixed average.':
-    'ओव्यूलेशन अगले पीरियड से {l} दिन पहले रखा गया है — आपके अपने {n} पॉज़िटिव LH टेस्ट से सीखा, किसी तय औसत से नहीं।',
+    'ओव्यूलेशन अगले पीरियड से {l} दिन पहले रखा गया है · आपके अपने {n} पॉज़िटिव LH टेस्ट से सीखा, किसी तय औसत से नहीं।',
   'Ovulation is assumed ~14 days before the next period (calendar method). Log LH tests to personalize this.':
     'ओव्यूलेशन अगले पीरियड से ~14 दिन पहले माना गया है (कैलेंडर तरीका)। निजी बनाने के लिए LH टेस्ट लॉग करें।',
   'How this estimate was made': 'यह अनुमान कैसे बना',
   'Forecast from your last {k} cycle length(s) ({lens} → {avg} days), weighting recent cycles more and easing toward the population average while your history is short.':
-    'आपके पिछले {k} साइकिल ({lens} → {avg} दिन) से अनुमान — हाल के साइकिल को ज़्यादा अहमियत, और हिस्ट्री छोटी हो तो जनसंख्या औसत की ओर झुकाव।',
+    'आपके पिछले {k} साइकिल ({lens} → {avg} दिन) से अनुमान · हाल के साइकिल को ज़्यादा अहमियत, और हिस्ट्री छोटी हो तो जनसंख्या औसत की ओर झुकाव।',
   ' Intervals outside 15-90 days were excluded as logging gaps.': ' 15-90 दिन के बाहर के अंतराल लॉगिंग गैप मानकर हटाए गए।',
   'Uncertainty window: ±{u} days, derived from your own cycle variation, so the period is expected between {a} and {b}.':
     'अनिश्चितता: ±{u} दिन, आपके अपने साइकिल बदलाव से, यानी पीरियड {a} से {b} के बीच आएगा।',
   'phase.menstrual': 'मासिक धर्म फेज़',
   'phase.menstrual.blurb': 'ब्लीडिंग के दिन। आराम करें, पानी पिएं, खुद से नरमी बरतें।',
   'phase.follicular': 'फॉलिक्युलर फेज़',
-  'phase.follicular.blurb': 'एस्ट्रोजन बढ़ रहा है — कई लोग अभी सबसे ऊर्जावान महसूस करते हैं।',
+  'phase.follicular.blurb': 'एस्ट्रोजन बढ़ रहा है · कई लोग अभी सबसे ऊर्जावान महसूस करते हैं।',
   'phase.ovulation': 'ओव्यूलेशन फेज़',
   'phase.ovulation.blurb': 'ओव्यूलेशन के आसपास, साइकिल के सबसे फर्टाइल दिन।',
   'phase.luteal': 'ल्यूटियल फेज़',
@@ -405,7 +405,7 @@ export const HI: Record<string, string> = {
   'Bowel / GI issues': 'पेट / आंत की दिक्कत',
   'Bladder pain': 'मसाने में दर्द',
   'Flares outside bleeding days are the pattern clinicians look for.':
-    'ब्लीडिंग के बाहर फ्लेयर — डॉक्टर इसी पैटर्न को देखते हैं।',
+    'ब्लीडिंग के बाहर फ्लेयर · डॉक्टर इसी पैटर्न को देखते हैं।',
   'sec.endo': 'एंडो और पेल्विक',
   'sec.endo.d': 'फ्लेयर, पेट, मसाना',
   'pain.head': 'सिर',
@@ -513,7 +513,7 @@ export const HI: Record<string, string> = {
   'of days': 'दिनों का',
   'Explicit daily check ins improve phase analysis.': 'रोज़ स्पष्ट चेक इन से फेज़ विश्लेषण बेहतर होता है।',
   Patterns: 'पैटर्न',
-  'Deterministic observations from your logs - patterns, not diagnoses.': 'आपके लॉग से तय अवलोकन — पैटर्न हैं, निदान नहीं।',
+  'Deterministic observations from your logs - patterns, not diagnoses.': 'आपके लॉग से तय अवलोकन · पैटर्न हैं, निदान नहीं।',
   Regularity: 'नियमितता',
   'Not enough data': 'डेटा कम है',
   'Log at least two more periods to see patterns.': 'पैटर्न देखने के लिए कम से कम दो पीरियड और लॉग करें।',
@@ -529,23 +529,23 @@ export const HI: Record<string, string> = {
     'आपके साइकिल की लंबाई काफ़ी बदलती है। ऐसा बना रहे तो डॉक्टर को बताना अच्छा रहेगा।',
   'Cycle to cycle variation: ±{v} days (last {n} cycles)': 'साइकिल बदलाव: ±{v} दिन (पिछले {n} साइकिल)',
   'Cycle lengths': 'साइकिल की लंबाई',
-  'Days between period starts - your last {n} cycle{s}': 'पीरियड शुरू होने के बीच के दिन — आपके पिछले {n} साइकिल{s}',
+  'Days between period starts - your last {n} cycle{s}': 'पीरियड शुरू होने के बीच के दिन · आपके पिछले {n} साइकिल{s}',
   'Tap a bar to exclude an outlier cycle.': 'आउटलायर साइकिल हटाने के लिए बार पर टैप करें।',
   'Tap to exclude from predictions': 'अनुमानों से हटाने के लिए टैप करें',
-  'Excluded from predictions — tap to include': 'अनुमानों से हटा — जोड़ने के लिए टैप करें',
+  'Excluded from predictions · tap to include': 'अनुमानों से हटा · जोड़ने के लिए टैप करें',
   'Basal body temperature (°{u})': 'बेसल बॉडी तापमान (°{u})',
   'A sustained rise of ~0.2-0.5°C after ovulation is the classic post ovulatory shift.':
     'ओव्यूलेशन के बाद ~0.2-0.5°C की टिकाऊ बढ़त क्लासिक पोस्ट-ओव्यूलेटरी शिफ्ट है।',
   'Positive LH tests': 'पॉज़िटिव LH टेस्ट',
   'Fertility clues': 'फर्टिलिटी संकेत',
-  'Sustained temperature rise on {date} (+{v}°C) — ovulation likely the day before. A clue, not proof.':
-    '{date} को टिकाऊ तापमान बढ़त (+{v}°C) — ओव्यूलेशन शायद एक दिन पहले। संकेत है, सबूत नहीं।',
+  'Sustained temperature rise on {date} (+{v}°C) · ovulation likely the day before. A clue, not proof.':
+    '{date} को टिकाऊ तापमान बढ़त (+{v}°C) · ओव्यूलेशन शायद एक दिन पहले। संकेत है, सबूत नहीं।',
   'Fertile-type discharge on {dates}.': 'फर्टाइल तरह का डिस्चार्ज: {dates}।',
-  'Estimates only — not contraception.': 'सिर्फ़ अनुमान — गर्भनिरोध नहीं।',
-  'LH surge plus peak discharge this cycle — double-confirmed fertile marker.':
-    'इस साइकिल में LH उछाल + पीक डिस्चार्ज — दोहरी-पुष्ट फर्टाइल निशान।',
-  'Monitor peak plus mucus peak agree — fertile through 3 full days past the peak day (Marquette rule).':
-    'मॉनिटर पीक + म्यूकस पीक सहमत — पीक दिन के बाद 3 पूरे दिन तक फर्टाइल (Marquette नियम)।',
+  'Estimates only · not contraception.': 'सिर्फ़ अनुमान · गर्भनिरोध नहीं।',
+  'LH surge plus peak discharge this cycle · double-confirmed fertile marker.':
+    'इस साइकिल में LH उछाल + पीक डिस्चार्ज · दोहरी-पुष्ट फर्टाइल निशान।',
+  'Monitor peak plus mucus peak agree · fertile through 3 full days past the peak day (Marquette rule).':
+    'मॉनिटर पीक + म्यूकस पीक सहमत · पीक दिन के बाद 3 पूरे दिन तक फर्टाइल (Marquette नियम)।',
   'In sync with your cycle': 'अपने साइकिल के साथ ताल में',
   'Shared cycle snapshot': 'शेयर किया साइकिल स्नैपशॉट',
   'Shared read-only snapshot. Symptoms, notes and history are never shared. Link expires {date}.':
@@ -553,16 +553,16 @@ export const HI: Record<string, string> = {
   'Shared read-only snapshot. Symptoms, notes and history are never shared. Link never expires.':
     'सिर्फ़ देखने वाला स्नैपशॉट। लक्षण, नोट्स और हिस्ट्री कभी शेयर नहीं होती। लिंक कभी खत्म नहीं होता।',
   'Partner share': 'पार्टनर शेयर',
-  'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history — ever. Links never expire.':
-    'सिर्फ़ देखने वाला स्नैपशॉट शेयर करें (साइकिल दिन, अगला पीरियड, फर्टाइल विंडो)। लक्षण, नोट्स, हिस्ट्री कभी नहीं — कभी भी नहीं। लिंक कभी खत्म नहीं होते।',
+  'Share a read-only snapshot (cycle day, next period, fertile window). No symptoms, notes or history · ever. Links never expire.':
+    'सिर्फ़ देखने वाला स्नैपशॉट शेयर करें (साइकिल दिन, अगला पीरियड, फर्टाइल विंडो)। लक्षण, नोट्स, हिस्ट्री कभी नहीं · कभी भी नहीं। लिंक कभी खत्म नहीं होते।',
   'Create link': 'लिंक बनाएं',
   'Include fertile window': 'फर्टाइल विंडो शामिल करें',
   'Include phase + cycle day': 'फेज़ + साइकिल दिन शामिल करें',
   'Include next period': 'अगला पीरियड शामिल करें',
   'Copy link': 'लिंक कॉपी करें',
   'Email summaries': 'ईमेल सारांश',
-  'Opt-in weekly or monthly snapshot by email. Minimal level sends dates only — never symptoms or notes. One-click unsubscribe in every mail.':
-    'ईमेल से हफ़्ते/महीने का स्नैपशॉट — आपकी मर्ज़ी से। मिनिमल में सिर्फ़ तारीखें — लक्षण/नोट्स कभी नहीं। हर मेल में एक-क्लिक अनसब्सक्राइब।',
+  'Opt-in weekly or monthly snapshot by email. Minimal level sends dates only · never symptoms or notes. One-click unsubscribe in every mail.':
+    'ईमेल से हफ़्ते/महीने का स्नैपशॉट · आपकी मर्ज़ी से। मिनिमल में सिर्फ़ तारीखें · लक्षण/नोट्स कभी नहीं। हर मेल में एक-क्लिक अनसब्सक्राइब।',
   'How often': 'कितनी बार',
   Weekly: 'हफ़्ते में',
   Monthly: 'महीने में',
@@ -585,19 +585,19 @@ export const HI: Record<string, string> = {
   Loading: 'लोड हो रहा है',
   'Gentle movement over intensity: walks, stretching, yoga.': 'तेज़ी से ज़्यादा नरम हलचल: सैर, स्ट्रेचिंग, योग।',
   'Iron-rich meals + vitamin C help replenish what bleeding takes.': 'आयरन वाला खाना + विटामिन C ब्लीडिंग की भरपाई में मदद करते हैं।',
-  'Protect sleep — fatigue peaks here for most people.': 'नींद बचाएं — ज़्यादातर लोगों की थकान यहीं चरम पर होती है।',
+  'Protect sleep · fatigue peaks here for most people.': 'नींद बचाएं · ज़्यादातर लोगों की थकान यहीं चरम पर होती है।',
   'Energy climbs: good window for harder workouts and new habits.': 'ऊर्जा बढ़ रही है: कठिन वर्कआउट और नई आदतों का अच्छा समय।',
   'Protein + complex carbs support the estrogen rise.': 'प्रोटीन + कॉम्प्लेक्स कार्ब्स एस्ट्रोजन बढ़ने में साथ देते हैं।',
   'Social and creative tasks tend to feel easier now.': 'सामाजिक और रचनात्मक काम अभी आसान लगते हैं।',
-  'Peak energy days — schedule demanding work or workouts.': 'सबसे ज़्यादा ऊर्जा के दिन — भारी काम या वर्कआउट रखें।',
+  'Peak energy days · schedule demanding work or workouts.': 'सबसे ज़्यादा ऊर्जा के दिन · भारी काम या वर्कआउट रखें।',
   'Stay hydrated; body temperature runs slightly higher.': 'पानी पिएं; शरीर का तापमान थोड़ा ज़्यादा रहता है।',
   'Trying to conceive? These are the key days.': 'गर्भधारण की कोशिश है? यही अहम दिन हैं।',
   'Wind down intensity; prioritize sleep as progesterone rises.': 'तीव्रता घटाएं; प्रोजेस्टेरोन बढ़ने पर नींद को तरजीह दें।',
-  'Cravings are normal — magnesium-rich foods help some people.': 'तलब सामान्य है — मैग्नीशियम वाला खाना कुछ लोगों को मदद करता है।',
+  'Cravings are normal · magnesium-rich foods help some people.': 'तलब सामान्य है · मैग्नीशियम वाला खाना कुछ लोगों को मदद करता है।',
   'Keep a light schedule buffer before your expected period.': 'अनुमानित पीरियड से पहले हल्का शेड्यूल रखें।',
   'Log a period to unlock phase-based tips tuned to your cycle.': 'अपने साइकिल के हिसाब से टिप्स के लिए पीरियड लॉग करें।',
-  'Our pledge: tracking, predictions, reminders, and reports are free with no account and no ads — and they will never move behind a paywall. Fertility estimates are informational only and must never be used as contraception.':
-    'हमारा वादा: ट्रैकिंग, अनुमान, रिमाइंडर और रिपोर्ट बिना खाते और बिना विज्ञापन मुफ़्त हैं — और कभी पेवॉल के पीछे नहीं जाएंगे। फर्टिलिटी अनुमान सिर्फ़ जानकारी हैं, गर्भनिरोध के लिए कभी इस्तेमाल न करें।',
+  'Our pledge: tracking, predictions, reminders, and reports are free with no account and no ads · and they will never move behind a paywall. Fertility estimates are informational only and must never be used as contraception.':
+    'हमारा वादा: ट्रैकिंग, अनुमान, रिमाइंडर और रिपोर्ट बिना खाते और बिना विज्ञापन मुफ़्त हैं · और कभी पेवॉल के पीछे नहीं जाएंगे। फर्टिलिटी अनुमान सिर्फ़ जानकारी हैं, गर्भनिरोध के लिए कभी इस्तेमाल न करें।',
   'Symptoms by phase': 'फेज़ के हिसाब से लक्षण',
   'no symptoms logged': 'कोई लक्षण लॉग नहीं',
   'no check ins': 'कोई चेक इन नहीं',
@@ -620,80 +620,80 @@ export const HI: Record<string, string> = {
   'LH+ this cycle': 'इस साइकिल में LH+',
   'Coverage counts fertile-window days with intimacy logged. Every-other-day through the window is the standard guidance.':
     'कवरेज = वे फर्टाइल दिन जिनमें संबंध लॉग है। विंडो में एक दिन छोड़कर मानक सलाह है।',
-  'Coming off {m} can delay ovulation return for a few cycles — give predictions time to relearn.':
-    '{m} छोड़ने पर कुछ साइकिल ओव्यूलेशन लौटने में देर हो सकती है — अनुमानों को सीखने का समय दें।',
-  'Trying 12+ months? Guidelines suggest a fertility checkup — bring this log.':
-    '12+ महीने से कोशिश? गाइडलाइन फर्टिलिटी जाँच कहती है — यह लॉग ले जाएं।',
+  'Coming off {m} can delay ovulation return for a few cycles · give predictions time to relearn.':
+    '{m} छोड़ने पर कुछ साइकिल ओव्यूलेशन लौटने में देर हो सकती है · अनुमानों को सीखने का समय दें।',
+  'Trying 12+ months? Guidelines suggest a fertility checkup · bring this log.':
+    '12+ महीने से कोशिश? गाइडलाइन फर्टिलिटी जाँच कहती है · यह लॉग ले जाएं।',
   'Perimenopause · variability': 'पेरीमेनोपॉज़ · उतार-चढ़ाव',
   'Luteal phase': 'ल्यूटियल फेज़',
   '{n} days': '{n} दिन',
-  'Short (≤9 days) — worth mentioning to a clinician.': 'छोटा (≤9 दिन) — डॉक्टर को बताने लायक।',
-  'Borderline (10–11 days) — keep watching across cycles.': 'सीमा पर (10–11 दिन) — साइकिलों में नज़र रखें।',
-  'Typical (12–17 days).': 'सामान्य (12–17 दिन)।',
+  'Short (≤9 days) · worth mentioning to a clinician.': 'छोटा (≤9 दिन) · डॉक्टर को बताने लायक।',
+  'Borderline (10 to 11 days) · keep watching across cycles.': 'सीमा पर (10 to 11 दिन) · साइकिलों में नज़र रखें।',
+  'Typical (12 to 17 days).': 'सामान्य (12 to 17 दिन)।',
   'Learned from {n} positive LH test(s). {v}': '{n} पॉज़िटिव LH टेस्ट से सीखा। {v}',
   'Ovulation unconfirmed': 'ओव्यूलेशन अपुष्ट',
-  'Regular bleeding does not confirm ovulation — only about two-thirds of regular cycles ovulate. Log LH tests, temperature, or discharge to confirm.':
-    'नियमित ब्लीडिंग ओव्यूलेशन की पुष्टि नहीं करती — नियमित साइकिलों में भी सिर्फ़ दो-तिहाई ओव्यूलेट करती हैं। पुष्टि के लिए LH टेस्ट, तापमान या डिस्चार्ज लॉग करें।',
+  'Regular bleeding does not confirm ovulation · only about two-thirds of regular cycles ovulate. Log LH tests, temperature, or discharge to confirm.':
+    'नियमित ब्लीडिंग ओव्यूलेशन की पुष्टि नहीं करती · नियमित साइकिलों में भी सिर्फ़ दो-तिहाई ओव्यूलेट करती हैं। पुष्टि के लिए LH टेस्ट, तापमान या डिस्चार्ज लॉग करें।',
   'Shorter cycles': 'छोटे साइकिल',
-  'Your average is {n} days. Cycles around 30–31 days are the most fecund on average — one data point, not a diagnosis.':
-    'आपका औसत {n} दिन है। औसतन 30–31 दिन के साइकिल सबसे ज़्यादा फर्टाइल होते हैं — एक डेटा पॉइंट है, निदान नहीं।',
+  'Your average is {n} days. Cycles around 30 to 31 days are the most fecund on average · one data point, not a diagnosis.':
+    'आपका औसत {n} दिन है। औसतन 30 to 31 दिन के साइकिल सबसे ज़्यादा फर्टाइल होते हैं · एक डेटा पॉइंट है, निदान नहीं।',
   'Peak fertility markers': 'पीक फर्टिलिटी संकेत',
-  'Egg-white discharge on fertile days ({dates}) — the strongest at-home fertility sign.':
-    'फर्टाइल दिनों में अंडे-सफ़ेद डिस्चार्ज ({dates}) — घर पर सबसे मज़बूत फर्टिलिटी संकेत।',
+  'Egg-white discharge on fertile days ({dates}) · the strongest at-home fertility sign.':
+    'फर्टाइल दिनों में अंडे-सफ़ेद डिस्चार्ज ({dates}) · घर पर सबसे मज़बूत फर्टिलिटी संकेत।',
   'Headache timing': 'सिरदर्द का समय',
   'Low logging confidence': 'कम लॉगिंग भरोसा',
-  'Only {n}% of days have entries, and gaps look like missing logs — not biology. Forecasts stay cautious until logging steadies.':
-    'सिर्फ़ {n}% दिनों में एंट्री है, और गैप छूटे लॉग लगते हैं — बायोलॉजी नहीं। लॉगिंग स्थिर होने तक अनुमान सतर्क रहेंगे।',
+  'Only {n}% of days have entries, and gaps look like missing logs · not biology. Forecasts stay cautious until logging steadies.':
+    'सिर्फ़ {n}% दिनों में एंट्री है, और गैप छूटे लॉग लगते हैं · बायोलॉजी नहीं। लॉगिंग स्थिर होने तक अनुमान सतर्क रहेंगे।',
   'Variable pattern': 'बदलता पैटर्न',
-  'Your cycles vary a lot — predictions use extra-wide windows. Tap outlier bars above to exclude sick/stress months.':
-    'आपके साइकिल काफ़ी बदलते हैं — अनुमान extra-चौड़ी विंडो में। बीमारी/तनाव के महीने हटाने के लिए ऊपर बार टैप करें।',
-  'Your cycles vary somewhat — predictions already widen for that.':
-    'आपके साइकिल कुछ बदलते हैं — अनुमान इसके हिसाब से चौड़े हैं।',
-  '{a} of {b} headache days fall in the 2-days-before to 3-days-after window — a perimenstrual pattern worth showing a clinician.':
-    '{b} में {a} सिरदर्द दिन 2-दिन-पहले से 3-दिन-बाद वाली विंडो में हैं — डॉक्टर को दिखाने लायक माहवारी पैटर्न।',
+  'Your cycles vary a lot · predictions use extra-wide windows. Tap outlier bars above to exclude sick/stress months.':
+    'आपके साइकिल काफ़ी बदलते हैं · अनुमान extra-चौड़ी विंडो में। बीमारी/तनाव के महीने हटाने के लिए ऊपर बार टैप करें।',
+  'Your cycles vary somewhat · predictions already widen for that.':
+    'आपके साइकिल कुछ बदलते हैं · अनुमान इसके हिसाब से चौड़े हैं।',
+  '{a} of {b} headache days fall in the 2-days-before to 3-days-after window · a perimenstrual pattern worth showing a clinician.':
+    '{b} में {a} सिरदर्द दिन 2-दिन-पहले से 3-दिन-बाद वाली विंडो में हैं · डॉक्टर को दिखाने लायक माहवारी पैटर्न।',
   'Luteal mood check': 'ल्यूटियल मूड जाँच',
-  'Mood patterns need 2 cycles of daily tracking to confirm — a single bad month is not PMDD.':
-    'मूड पैटर्न की पुष्टि को 2 साइकिल रोज़ ट्रैकिंग चाहिए — एक खराब महीना PMDD नहीं है।',
+  'Mood patterns need 2 cycles of daily tracking to confirm · a single bad month is not PMDD.':
+    'मूड पैटर्न की पुष्टि को 2 साइकिल रोज़ ट्रैकिंग चाहिए · एक खराब महीना PMDD नहीं है।',
   'Start 2-cycle check': '2-साइकिल जाँच शुरू करें',
-  'Two cycles tracked. Bring this log to a clinician — dated evidence is exactly how PMS and PMDD are told apart.':
-    'दो साइकिल ट्रैक हो गए। यह लॉग डॉक्टर के पास ले जाएं — तारीख़ वाला सबूत ही PMS और PMDD में फ़र्क करता है।',
+  'Two cycles tracked. Bring this log to a clinician · dated evidence is exactly how PMS and PMDD are told apart.':
+    'दो साइकिल ट्रैक हो गए। यह लॉग डॉक्टर के पास ले जाएं · तारीख़ वाला सबूत ही PMS और PMDD में फ़र्क करता है।',
   'Keep logging moods daily, especially the week before each period. {n} cycle(s) to go.':
     'रोज़ मूड लॉग करते रहें, खासकर हर पीरियड से पहले हफ़्ते। {n} साइकिल बाकी।',
   Dismiss: 'हटाएं',
-  'Your estimate was {d}. Being a few days off is normal — stress, illness, travel, and sleep all shift cycles.':
-    'आपका अनुमान {d} था। कुछ दिन आगे-पीछे सामान्य है — तनाव, बीमारी, यात्रा, नींद सब साइकिल बदलते हैं।',
-  'Log two periods and estimates appear — until then every cycle is a guess.':
-    'दो पीरियड लॉग करें, अनुमान दिखेंगे — तब तक हर साइकिल अंदाज़ा है।',
+  'Your estimate was {d}. Being a few days off is normal · stress, illness, travel, and sleep all shift cycles.':
+    'आपका अनुमान {d} था। कुछ दिन आगे-पीछे सामान्य है · तनाव, बीमारी, यात्रा, नींद सब साइकिल बदलते हैं।',
+  'Log two periods and estimates appear · until then every cycle is a guess.':
+    'दो पीरियड लॉग करें, अनुमान दिखेंगे · तब तक हर साइकिल अंदाज़ा है।',
   'If you might be pregnant, a test now is reliable. Over a week late with negative tests? See a clinician.':
     'गर्भवती हो सकती हैं तो अभी टेस्ट सही बताएगा। नेगेटिव टेस्ट के साथ एक हफ़्ते से ज़्यादा लेट? डॉक्टर को दिखाएं।',
-  'Rate pain 0–10 with where it spreads. NSAIDs work best started early, heat helps many, and 7+ pain, pain with sex, or bowel/bladder pain deserves a workup — that log moves things forward.':
-    'दर्द 0–10 में कहाँ फैलता है, सहित रेट करें। NSAIDs शुरुआत में सबसे असरदार, सेंक कईयों को मदद करता है, और 7+ दर्द, संबंध में दर्द, या पेट/मसाने का दर्द जाँच माँगता है — वही लॉग काम आगे बढ़ाता है।',
+  'Rate pain 0 to 10 with where it spreads. NSAIDs work best started early, heat helps many, and 7+ pain, pain with sex, or bowel/bladder pain deserves a workup · that log moves things forward.':
+    'दर्द 0 to 10 में कहाँ फैलता है, सहित रेट करें। NSAIDs शुरुआत में सबसे असरदार, सेंक कईयों को मदद करता है, और 7+ दर्द, संबंध में दर्द, या पेट/मसाने का दर्द जाँच माँगता है · वही लॉग काम आगे बढ़ाता है।',
   'The fertile window is the 5 days before ovulation plus ovulation day. LH tests plus egg-white discharge together beat any calendar estimate.':
     'फर्टाइल विंडो ओव्यूलेशन से 5 दिन पहले + ओव्यूलेशन दिन है। LH टेस्ट + अंडे-सफ़ेद डिस्चार्ज मिलकर किसी कैलेंडर अनुमान से बेहतर हैं।',
-  'Widening gaps and skipped cycles are the hallmark pattern. Track flashes, sleep, and mood together for a month — that combined log is what guides treatment.':
-    'बढ़ते गैप और छूटे साइकिल पहचान हैं। फ्लैश, नींद, मूड एक महीने साथ ट्रैक करें — वही मिला-जुला लॉग इलाज तय करता है।',
-  'Early bleeding is usually lochia, not a period — and ovulation can return before the first period, even while breastfeeding. LAM needs all three: under 6 months, no periods, near-full breastfeeding.':
-    'शुरुआती ब्लीडिंग अक्सर लोकिया है, पीरियड नहीं — और ओव्यूलेशन पहले पीरियड से पहले लौट सकता है, स्तनपान में भी। LAM को तीनों चाहिए: 6 महीने से कम, पीरियड नहीं, लगभग पूर्ण स्तनपान।',
-  'Bleeding changes top the quit reasons and usually settle in 3 months. Mood dips on a new method deserve an early call, not silent stopping — and log missed pills with backup.':
-    'ब्लीडिंग बदलाव छोड़ने की टॉप वजह है, अक्सर 3 महीने में ठीक होती है। नए तरीके पर मूड गिरे तो जल्दी कॉल करें, चुपचाप बंद न करें — और छूटी गोली बैकअप सहित लॉग करें।',
+  'Widening gaps and skipped cycles are the hallmark pattern. Track flashes, sleep, and mood together for a month · that combined log is what guides treatment.':
+    'बढ़ते गैप और छूटे साइकिल पहचान हैं। फ्लैश, नींद, मूड एक महीने साथ ट्रैक करें · वही मिला-जुला लॉग इलाज तय करता है।',
+  'Early bleeding is usually lochia, not a period · and ovulation can return before the first period, even while breastfeeding. LAM needs all three: under 6 months, no periods, near-full breastfeeding.':
+    'शुरुआती ब्लीडिंग अक्सर लोकिया है, पीरियड नहीं · और ओव्यूलेशन पहले पीरियड से पहले लौट सकता है, स्तनपान में भी। LAM को तीनों चाहिए: 6 महीने से कम, पीरियड नहीं, लगभग पूर्ण स्तनपान।',
+  'Bleeding changes top the quit reasons and usually settle in 3 months. Mood dips on a new method deserve an early call, not silent stopping · and log missed pills with backup.':
+    'ब्लीडिंग बदलाव छोड़ने की टॉप वजह है, अक्सर 3 महीने में ठीक होती है। नए तरीके पर मूड गिरे तो जल्दी कॉल करें, चुपचाप बंद न करें · और छूटी गोली बैकअप सहित लॉग करें।',
   'Luteal mood shifts are common; a PMDD call needs 2 full cycles of daily tracking. The Insights luteal-mood check walks you through it.':
     'ल्यूटियल मूड बदलाव आम हैं; PMDD के लिए 2 पूरे साइकिल रोज़ ट्रैकिंग चाहिए। Insights की ल्यूटियल-मूड जाँच साथ चलती है।',
   'Your logs live on your device with automatic private backup. Export JSON/CSV anytime from Settings → Your data, share read-only partner links, revoke anytime.':
     'आपके लॉग डिवाइस पर हैं, अपने आप निजी बैकअप सहित। सेटिंग्स → आपका डेटा से कभी भी JSON/CSV निकालें, सिर्फ़-देखने वाले पार्टनर लिंक शेयर करें, कभी भी रद्द करें।',
   'Closest matches from the library:': 'लाइब्रेरी से नज़दीकी मैच:',
   'Try asking about periods, pain, fertility, mood, or privacy.': 'पीरियड, दर्द, फर्टिलिटी, मूड या निजता के बारे में पूछकर देखें।',
-  'I only answer questions about periods, cycles, fertility, pregnancy, and using this app — try one of those, or browse Learn.':
-    'मैं सिर्फ़ पीरियड, साइकिल, फर्टिलिटी, प्रेग्नेंसी और इस ऐप के सवालों के जवाब देता हूँ — इन्हीं में पूछें, या Learn देखें।',
+  'I only answer questions about periods, cycles, fertility, pregnancy, and using this app · try one of those, or browse Learn.':
+    'मैं सिर्फ़ पीरियड, साइकिल, फर्टिलिटी, प्रेग्नेंसी और इस ऐप के सवालों के जवाब देता हूँ · इन्हीं में पूछें, या Learn देखें।',
   'Movement & what helps': 'हलचल और क्या मदद करता है',
   'Migraine med helped {a} of {b} times logged.': 'माइग्रेन दवा {b} में {a} बार मददगार रही।',
-  '{s} shows up on {a}% of short-sleep days vs {b}% rested — sleep may be a trigger worth testing.':
-    'कम नींद वाले दिनों में {s} {a}% बार बनाम आराम वाले दिनों में {b}% — नींद ट्रिगर हो सकती है, आज़माकर देखें।',
-  '{s} shows up on {a}% of {x} days vs {b}% otherwise — {x} may be a trigger worth testing.':
-    '{x} वाले दिनों में {s} {a}% बनाम वरना {b}% — {x} ट्रिगर हो सकता है, आज़माकर देखें।',
+  '{s} shows up on {a}% of short-sleep days vs {b}% rested · sleep may be a trigger worth testing.':
+    'कम नींद वाले दिनों में {s} {a}% बार बनाम आराम वाले दिनों में {b}% · नींद ट्रिगर हो सकती है, आज़माकर देखें।',
+  '{s} shows up on {a}% of {x} days vs {b}% otherwise · {x} may be a trigger worth testing.':
+    '{x} वाले दिनों में {s} {a}% बनाम वरना {b}% · {x} ट्रिगर हो सकता है, आज़माकर देखें।',
   'short-sleep': 'कम-नींद',
   'high-caffeine': 'ज़्यादा-कैफ़ीन',
   alcohol: 'शराब',
-  'Correlations, not causes — but exactly what to test next.': 'सहसंबंध है, कारण नहीं — पर आगे क्या आज़माना है, यही है।',  'Longest cycle': 'सबसे लंबा साइकिल',
+  'Correlations, not causes · but exactly what to test next.': 'सहसंबंध है, कारण नहीं · पर आगे क्या आज़माना है, यही है।',  'Longest cycle': 'सबसे लंबा साइकिल',
   'Cycles ≥ 45 days': '45+ दिन के साइकिल',
   'Widening gaps and skipped cycles are the hallmark pattern. This snapshot travels well to appointments.':
     'बढ़ते गैप और छूटे साइकिल इसकी पहचान हैं। यह झलक डॉक्टर के पास ले जाने लायक है।',
@@ -707,13 +707,13 @@ export const HI: Record<string, string> = {
     'पिछले {n} साइकिल में रुझान ~{v} दिन/साइकिल लंबा है। उम्र के साथ धीमा बदलाव आम है; 6+ महीने का स्थायी बदलाव डॉक्टर को बताने लायक है।',
   '{s} clusters before your period': 'पीरियड से पहले {s} जमा होता है',
   '{s} appeared in the luteal phase in {c} of your last {n} tracked cycles. Recognizable PMS style patterns like this are often manageable - and easier to discuss with a clinician when you can show the data.':
-    'पिछले {n} ट्रैक साइकिल में {c} में ल्यूटियल फेज़ में {s} दिखा। ऐसे पहचाने PMS पैटर्न अक्सर संभल जाते हैं — और डेटा दिखाकर डॉक्टर से बात आसान होती है।',
+    'पिछले {n} ट्रैक साइकिल में {c} में ल्यूटियल फेज़ में {s} दिखा। ऐसे पहचाने PMS पैटर्न अक्सर संभल जाते हैं · और डेटा दिखाकर डॉक्टर से बात आसान होती है।',
   '{m} often appears before your period': '{m} अक्सर पीरियड से पहले दिखता है',
   '{m} was logged in the luteal phase in {c} of your last {n} tracked cycles. If luteal mood changes affect work or relationships, this dated log is exactly what clinicians use to tell PMS from PMDD - bring it to an appointment.':
-    'पिछले {n} ट्रैक साइकिल में {c} में ल्यूटियल फेज़ में {m} लॉग हुआ। अगर ल्यूटियल मूड काम या रिश्तों पर असर डाले, तो यही तारीख़-वाला लॉग PMS और PMDD में फ़र्क करता है — अपॉइंटमेंट में ले जाएं।',
+    'पिछले {n} ट्रैक साइकिल में {c} में ल्यूटियल फेज़ में {m} लॉग हुआ। अगर ल्यूटियल मूड काम या रिश्तों पर असर डाले, तो यही तारीख़-वाला लॉग PMS और PMDD में फ़र्क करता है · अपॉइंटमेंट में ले जाएं।',
   'High symptom burden this month': 'इस महीने लक्षणों का बोझ ज़्यादा',
   '{b} of the last {n} logged days included perimenopause typical symptoms. This is a burden snapshot, not a stage or diagnosis - but it is exactly the kind of summary worth bringing to an appointment.':
-    'पिछले {n} लॉग दिनों में {b} में पेरीमेनोपॉज़ वाले लक्षण थे। यह बोझ की झलक है, कोई stage या निदान नहीं — पर अपॉइंटमेंट में ले जाने लायक सारांश है।',
+    'पिछले {n} लॉग दिनों में {b} में पेरीमेनोपॉज़ वाले लक्षण थे। यह बोझ की झलक है, कोई stage या निदान नहीं · पर अपॉइंटमेंट में ले जाने लायक सारांश है।',
 
   // Report
   'Clinician summary': 'डॉक्टर सारांश',  'A printable snapshot of your tracking. Sensitive sections are opt-in and excluded unless you enable them.':
@@ -774,8 +774,8 @@ export const HI: Record<string, string> = {
     'सिर्फ़ शिक्षा के लिए, चिकित्सा सलाह, निदान या गर्भनिरोधक मार्गदर्शन नहीं।',
   'Find help': 'मदद पाएं',
   'School readiness checklist': 'स्कूल तैयारी चेकलिस्ट',
-  'For students, parents, and teachers. Half of girls learn about periods only after menarche — this list fixes that.':
-    'छात्रों, माता-पिता और शिक्षकों के लिए। आधी लड़कियाँ पहली बार के बाद ही जानती हैं — यह सूची वही ठीक करती है।',
+  'For students, parents, and teachers. Half of girls learn about periods only after menarche · this list fixes that.':
+    'छात्रों, माता-पिता और शिक्षकों के लिए। आधी लड़कियाँ पहली बार के बाद ही जानती हैं · यह सूची वही ठीक करती है।',
   'Emergency kit packed (pads, spare underwear, wipe, small bag)':
     'इमरजेंसी किट तैयार (पैड, अतिरिक्त अंडरवियर, वाइप, छोटा बैग)',
   'Know where school toilets with disposal bins are': 'पता हो स्कूल में डिस्पोज़ल वाले टॉयलेट कहाँ हैं',
@@ -824,7 +824,7 @@ export const HI: Record<string, string> = {
   'Quiet hours': 'शांत घंटे',
   'No notifications between these times': 'इन घंटों में कोई नोटिफिकेशन नहीं',
   'Leave quiet hours empty for no restriction. Example: 22:00 - 08:00 keeps nights silent. On the web, notifications appear only while the app is open; with the installed app they can appear in the background.':
-    'कोई पाबंदी न हो तो खाली छोड़ें। जैसे: 22:00–08:00 से रातें शांत। वेब पर ऐप खुला हो तभी नोटिफिकेशन; इंस्टॉल ऐप में बैकग्राउंड में भी।',
+    'कोई पाबंदी न हो तो खाली छोड़ें। जैसे: 22:00 to 08:00 से रातें शांत। वेब पर ऐप खुला हो तभी नोटिफिकेशन; इंस्टॉल ऐप में बैकग्राउंड में भी।',
   Display: 'डिस्प्ले',
   'Show fertile window': 'फर्टाइल विंडो दिखाएं',
   'Hide it if you prefer to see only period predictions (stored locally, never shared)':
@@ -840,13 +840,13 @@ export const HI: Record<string, string> = {
     'चौड़ी अनुमान विंडो, लेट-पीरियड की टोकाटाकी नहीं। अनिश्चित साइकिल के लिए ईमानदार मोड।',
   'Are your cycles irregular?': 'क्या आपका साइकिल अनियमित है?',
   'What were you using before? (optional)': 'इससे पहले क्या इस्तेमाल कर रही थीं? (वैकल्पिक)',
-  'Coming off hormonal methods can delay ovulation return — forecasts stay cautious.':
-    'हार्मोनल तरीका छोड़ने पर ओव्यूलेशन लौटने में देर हो सकती है — अनुमान सतर्क रहेंगे।',
+  'Coming off hormonal methods can delay ovulation return · forecasts stay cautious.':
+    'हार्मोनल तरीका छोड़ने पर ओव्यूलेशन लौटने में देर हो सकती है · अनुमान सतर्क रहेंगे।',
   'Trying since (optional)': 'कब से कोशिश (वैकल्पिक)',
   'Trying 12+ months (6+ over 35)? Guidelines suggest a fertility checkup.':
     '12+ महीने से कोशिश (35+ पर 6+)? गाइडलाइन फर्टिलिटी जाँच कहती है।',
-  'PCOS, postpartum, coming off the pill — predictions use wider windows and never nag about lateness.':
-    'PCOS, डिलीवरी के बाद, गोली बंद करने पर — अनुमान चौड़ी विंडो में, लेट होने की टोकाटाकी कभी नहीं।',
+  'PCOS, postpartum, coming off the pill · predictions use wider windows and never nag about lateness.':
+    'PCOS, डिलीवरी के बाद, गोली बंद करने पर · अनुमान चौड़ी विंडो में, लेट होने की टोकाटाकी कभी नहीं।',
   'Teen mode: simpler, fertility content hidden': 'टीन मोड: सरल, फर्टिलिटी कंटेंट छिपा',
   'First column of the calendar': 'कैलेंडर का पहला कॉलम',
   Monday: 'सोमवार',
@@ -895,8 +895,8 @@ export const HI: Record<string, string> = {
   'Save PIN': 'PIN सेव करें',
   'Need support now?': 'अभी मदद चाहिए?',
   About: 'बारे में',
-  'Period Tracker v{version} - free and private. Predictions use the calendar method (ovulation ≈ 14 days before your next period); temperature and discharge signs add fertility awareness clues. All of it is estimation support, not medical advice.':
-    'पीरियड ट्रैकर v{version} — मुफ़्त और निजी। अनुमान कैलेंडर तरीके से (ओव्यूलेशन ≈ अगले पीरियड से 14 दिन पहले); तापमान और डिस्चार्ज फर्टिलिटी के संकेत देते हैं। यह सब अनुमान की मदद है, चिकित्सा सलाह नहीं।',
+  'Period Tracker is free and private. Predictions use the calendar method (ovulation is roughly 14 days before your next period); temperature and discharge signs add fertility awareness clues. All of it is estimation support, not medical advice.':
+    'पीरियड ट्रैकर मुफ़्त और निजी है। अनुमान कैलेंडर तरीके से (ओव्यूलेशन अगले पीरियड से लगभग 14 दिन पहले); तापमान और डिस्चार्ज फर्टिलिटी के संकेत देते हैं। यह सब अनुमान की मदद है, चिकित्सा सलाह नहीं।',
   '{n} symptoms with severity': '{n} लक्षण, गंभीरता सहित',
   '{n} moods': '{n} मूड',
   'cm.none': 'कुछ नहीं',
@@ -925,7 +925,7 @@ export const HI: Record<string, string> = {
   "Evening reminder to log today, only if you haven't checked in": 'शाम को आज का लॉग याद दिलाएं, सिर्फ़ अगर चेक इन न किया हो',
   'When the fertile window starts (separate from period)': 'फर्टाइल विंडो शुरू होने पर (पीरियड से अलग)',
   'Everything lives in this browser only. Export a backup before switching phones or clearing browser data - there is no copy anywhere else.':
-    'सब कुछ सिर्फ़ इसी ब्राउज़र में है। फ़ोन बदलने या ब्राउज़र डेटा साफ़ करने से पहले बैकअप निकाल लें — और कहीं कोई कॉपी नहीं है।',
+    'सब कुछ सिर्फ़ इसी ब्राउज़र में है। फ़ोन बदलने या ब्राउज़र डेटा साफ़ करने से पहले बैकअप निकाल लें · और कहीं कोई कॉपी नहीं है।',
 
   // Pregnancy screen
   'Pregnancy mode is on': 'प्रेग्नेंसी मोड चालू है',
@@ -934,26 +934,26 @@ export const HI: Record<string, string> = {
   'weeks + {n} day{s}': 'हफ़्ते + {n} दिन{s}',
   'due time': 'तारीख का समय',
   'Baby was due {date} - congratulations! Switch back to cycle tracking in Settings whenever you are ready.':
-    'बच्चे की तारीख {date} थी — बधाई! तैयार हों तो सेटिंग्स में साइकिल ट्रैकिंग पर वापस जाएं।',
+    'बच्चे की तारीख {date} थी · बधाई! तैयार हों तो सेटिंग्स में साइकिल ट्रैकिंग पर वापस जाएं।',
   Until: 'तक',
   'Until due date': 'तारीख तक',
   Trimester: 'तिमाही',
   Week: 'हफ़्ता',
   'About the size of {size}': 'लगभग {size} के बराबर',
   'Kick counter': 'किक काउंटर',
-  'Count kicks to 10 — most clinicians like to see 10 movements within 2 hours.':
-    '10 तक किक गिनें — ज़्यादातर डॉक्टर 2 घंटे में 10 हलचल देखना चाहते हैं।',
+  'Count kicks to 10 · most clinicians like to see 10 movements within 2 hours.':
+    '10 तक किक गिनें · ज़्यादातर डॉक्टर 2 घंटे में 10 हलचल देखना चाहते हैं।',
   'Start counting': 'गिनना शुरू करें',
-  'Tap — kick!': 'टैप — किक!',
+  'Tap · kick!': 'टैप · किक!',
   'End & save session': 'खत्म करें और सेव करें',
   kicks: 'किक',
   Appointments: 'अपॉइंटमेंट',
   '{pct}% · due {date} (in {n} days)': '{pct}% · तारीख {date} ({n} दिन में)',
   '{elapsed} elapsed · tap for every kick': '{elapsed} हुआ · हर किक पर टैप करें',
   ' in {dur}': ' में {dur}',
-  'First prenatal visit (8–10 weeks)': 'पहली प्रिनैटल विज़िट (8–10 हफ़्ते)',
+  'First prenatal visit (8 to 10 weeks)': 'पहली प्रिनैटल विज़िट (8 to 10 हफ़्ते)',
   'Anatomy scan (~20 weeks)': 'एनाटॉमी स्कैन (~20 हफ़्ते)',
-  'Glucose screening (~24–28 weeks)': 'ग्लूकोज़ स्क्रीनिंग (~24–28 हफ़्ते)',
+  'Glucose screening (~24 to 28 weeks)': 'ग्लूकोज़ स्क्रीनिंग (~24 to 28 हफ़्ते)',
   'Add appointment…': 'अपॉइंटमेंट जोड़ें…',
   'New appointment': 'नया अपॉइंटमेंट',
 
@@ -980,22 +980,22 @@ export const HI: Record<string, string> = {
   'Contact your maternity team today. Many causes are benign, but this pattern should always be checked the same day.':
     'आज ही अपनी मैटरनिटी टीम से संपर्क करें। कई वजहें हानिरहित होती हैं, पर यह पैटर्न उसी दिन दिखाना चाहिए।',
   'Unusual discharge logged': 'अजीब डिस्चार्ज लॉग हुआ',
-  '{n} days between periods — infrequent bleeding': '{n} दिन का गैप — कम ब्लीडिंग',
-  'Gaps over 90 days fall outside the typical range. Common causes include PCOS, thyroid, stress, and perimenopause — worth a clinician visit.':
-    '90+ दिन का गैप सामान्य से बाहर है। PCOS, थायरॉइड, तनाव, पेरीमेनोपॉज़ आम वजहें हैं — डॉक्टर को दिखाएं।',
-  '{n} days between periods — frequent bleeding': '{n} दिन में ब्लीडिंग — बार-बार',
+  '{n} days between periods · infrequent bleeding': '{n} दिन का गैप · कम ब्लीडिंग',
+  'Gaps over 90 days fall outside the typical range. Common causes include PCOS, thyroid, stress, and perimenopause · worth a clinician visit.':
+    '90+ दिन का गैप सामान्य से बाहर है। PCOS, थायरॉइड, तनाव, पेरीमेनोपॉज़ आम वजहें हैं · डॉक्टर को दिखाएं।',
+  '{n} days between periods · frequent bleeding': '{n} दिन में ब्लीडिंग · बार-बार',
   'Bleeding more often than every 21 days is worth mentioning to a clinician, especially with heavy flow or fatigue.':
     '21 दिन से पहले ब्लीडिंग डॉक्टर को बताएं, खासकर भारी फ्लो या थकान के साथ।',
   'Sudden cycle change ({a}d → {b}d)': 'अचानक साइकिल बदलाव ({a} → {b} दिन)',
-  'A sharp change after steady cycles can follow stress, illness, weight shifts — or thyroid and prolactin changes. Consider a checkup with TSH.':
-    'स्थिर साइकिल के बाद तेज़ बदलाव तनाव, बीमारी, वज़न — या थायरॉइड/प्रोलैक्टिन से हो सकता है। TSH सहित जाँच कराएं।',
+  'A sharp change after steady cycles can follow stress, illness, weight shifts · or thyroid and prolactin changes. Consider a checkup with TSH.':
+    'स्थिर साइकिल के बाद तेज़ बदलाव तनाव, बीमारी, वज़न · या थायरॉइड/प्रोलैक्टिन से हो सकता है। TSH सहित जाँच कराएं।',
   'Bleeding after a year without periods': 'एक साल बाद ब्लीडिंग',
   'Any bleeding after 12 months without a period needs prompt clinician assessment to rule out serious causes.':
     '12 महीने बिना पीरियड के बाद कोई भी ब्लीडिंग तुरंत डॉक्टर को दिखाएं।',
   'Missed period with heavy training': 'भारी ट्रेनिंग के साथ छूटा पीरियड',
   'Losing periods while training hard can mean low energy availability (RED-S), which harms bone and performance. Fueling up + a clinician visit help.':
-    'कड़ी ट्रेनिंग में पीरियड रुकना कम ऊर्जा (RED-S) का संकेत हो सकता है — हड्डी और प्रदर्शन को नुकसान। भरपूर खाना + डॉक्टर से मिलें।',  'Discharge with an unusual color or smell often means an easily treated infection. A quick clinician visit can sort it out.':
+    'कड़ी ट्रेनिंग में पीरियड रुकना कम ऊर्जा (RED-S) का संकेत हो सकता है · हड्डी और प्रदर्शन को नुकसान। भरपूर खाना + डॉक्टर से मिलें।',  'Discharge with an unusual color or smell often means an easily treated infection. A quick clinician visit can sort it out.':
     'अजीब रंग/गंध वाला डिस्चार्ज अक्सर आसानी से ठीक होने वाले इंफ़ेक्शन का मतलब है। डॉक्टर की एक विज़िट में सुलझ जाएगा।',
-  'If you are having thoughts of harming yourself, please reach out now: in the US call or text 988 (Suicide & Crisis Lifeline); in the UK call 116 123 (Samaritans); elsewhere find your local line at findahelpline.com. You deserve support.':
+  'If you are having thoughts of harming yourself, please reach out now. Tele MANAS: call 14416 or 1800-89-14416, free, 24x7, 20 languages (MoHFW). KIRAN: call 1800-599-0019, free, 24x7, 13 languages (MoSJE). Elsewhere, findahelpline.com lists local lines. You deserve support.':
     'अगर खुद को नुकसान पहुँचाने के खयाल आ रहे हैं, तो अभी मदद लें: अमेरिका में 988 पर कॉल/टेक्स्ट करें; ब्रिटेन में 116 123 (Samaritans); कहीं और findahelpline.com पर अपनी लोकल हेल्पलाइन देखें। आप मदद के हक़दार हैं।',
 };

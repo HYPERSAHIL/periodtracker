@@ -1,5 +1,5 @@
 /**
- * Security / abuse telemetry — sec_* events into the same Activity feed.
+ * Security / abuse telemetry · sec_* events into the same Activity feed.
  * Detection and forensics only: nothing here blocks, sanitizes, or alters
  * behaviour; we log what we see and keep rendering exactly as before.
  */
@@ -122,10 +122,10 @@ export function reportBrowserVersion(): void {
     : m[1] === 'CriOS' || m[1] === 'EdgiOS' ? 'webkit' : 'chromium';
   const major = m ? Number(m[2]) : null;
   // Android WebView escape matrix: id present = version still below the fix.
-  // e102327 (154.0.8037.92, Sep 29 — newest, catches 154.x pre-.92 users the
+  // e102327 (154.0.8037.92, Sep 29 · newest, catches 154.x pre-.92 users the
   // floor can't), e87481 (153.0.8010.36), e79256 (152.0.7977.65),
   // e17722/17736 (151.0.7922.72), e12448 (149.0.7827.155), e11167 (149.0.7827.53).
-  // Android Chromium only — the Chrome/ token is shared by Chrome, Android
+  // Android Chromium only · the Chrome/ token is shared by Chrome, Android
   // WebView and Chromium forks.
   let esc: string | null = null;
   const vm = ua.match(/Chrome\/(\d+)\.(\d+)\.(\d+)\.(\d+)/);
@@ -141,7 +141,7 @@ export function reportBrowserVersion(): void {
     if (hits.length) esc = hits.map((b) => b[4]).join('|');
   }
   sec('browser_ver', { engine, major, webview, platform, esc });
-  // iOS Chrome/Edge are WebKit under the hood — the Chromium floor doesn't apply
+  // iOS Chrome/Edge are WebKit under the hood · the Chromium floor doesn't apply
   const webkitChrome = !!m && (m[1] === 'CriOS' || m[1] === 'EdgiOS');
   if (major != null && !webkitChrome && major < BROWSER_FLOOR) {
     sec('browser_outdated', { engine, major, floor: BROWSER_FLOOR, webview, platform });
@@ -150,7 +150,7 @@ export function reportBrowserVersion(): void {
 
 // --- injected-code canaries (GRIMWEDGE-class eval C2) -------------------
 // Our bundle never evals, builds Functions, or passes strings to timers
-// (verified against dist/) — any hit is foreign code. Canary, not a wall:
+// (verified against dist/) · any hit is foreign code. Canary, not a wall:
 // a determined attacker unhooks, but the first call is already logged.
 let dynHits = 0;
 let canariesInited = false;
@@ -204,7 +204,7 @@ export function initResourceAudit(): void {
           const u = new URL(e.name, location.href);
           if (u.protocol === 'data:' || u.origin === location.origin || u.origin === allowed) continue;
           const now = Date.now();
-          if (now - last < 1000) continue; // 1/sec — CDN bursts don't flood the feed
+          if (now - last < 1000) continue; // 1/sec · CDN bursts don't flood the feed
           last = now;
           sec('resource_origin', { origin: u.origin.slice(0, 120), kind: e.initiatorType, path: u.pathname.slice(0, 120) });
         } catch { /* unparsable URL */ }
@@ -256,7 +256,7 @@ export function runBootSecurityChecks(): void {
   } catch {
     /* some browsers omit outer* */
   }
-  // security headers on our own document (web only — native has no server doc)
+  // security headers on our own document (web only · native has no server doc)
   if (!isNative()) {
     fetch(location.href, { method: 'HEAD', cache: 'no-store' })
       .then((res) => {
@@ -297,7 +297,7 @@ export function writeIntegrity(part: 'entries' | 'settings', data: string): void
     rec[part] = fnv1a(data);
     localStorage.setItem(INTEGRITY_KEY, JSON.stringify(rec));
   } catch {
-    // a failed baseline would false-positive next boot — drop it instead
+    // a failed baseline would false-positive next boot · drop it instead
     try {
       localStorage.removeItem(INTEGRITY_KEY);
     } catch {

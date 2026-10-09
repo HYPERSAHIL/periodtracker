@@ -1,5 +1,5 @@
 /**
- * Client error fingerprinting — one row per distinct bug instead of one per
+ * Client error fingerprinting · one row per distinct bug instead of one per
  * throw. Fingerprint = message + top stack frame + origin file, so a null-deref
  * inside a render loop collapses into a single row with a `repeats` counter that
  * increments every time it fires again. Recovers on the next clean load.
@@ -47,7 +47,7 @@ export function fingerprint(message: string, stack: string, src: string): string
 }
 
 /**
- * Record an error — the ONLY place screen_error is written. First sighting logs
+ * Record an error · the ONLY place screen_error is written. First sighting logs
  * the full payload; repeats increment a counter and only re-log when the count
  * crosses REPORT_AFTER (then every 5th), so a render-loop bug costs 2-3 rows
  * per session instead of one per throw.

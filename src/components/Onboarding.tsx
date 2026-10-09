@@ -230,7 +230,7 @@ export default function Onboarding({
             </button>
             {irregular && (
               <p className="hint" style={{ textAlign: 'center' }}>
-                {tx(lang, 'PCOS, postpartum, coming off the pill — predictions use wider windows and never nag about lateness.')}
+                {tx(lang, 'PCOS, postpartum, coming off the pill · predictions use wider windows and never nag about lateness.')}
               </p>
             )}
           </div>
@@ -249,7 +249,7 @@ export default function Onboarding({
               ))}
             </div>
             <p className="hint" style={{ textAlign: 'center' }}>
-              {tx(lang, 'Coming off hormonal methods can delay ovulation return — forecasts stay cautious.')}
+              {tx(lang, 'Coming off hormonal methods can delay ovulation return · forecasts stay cautious.')}
             </p>
           </div>
           {mode === 'ttc' && (
