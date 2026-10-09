@@ -67,11 +67,11 @@ export default function Dashboard(p: AppProps) {
             <div className="l">{tx(lang, 'Days since last period')}</div>
           </div>
           <div className="stat">
-            <div className="v">{stats.avgPeriod}d</div>
+            <div className="v">{tx(lang, '{n}d', { n: stats.avgPeriod })}</div>
             <div className="l">{tx(lang, 'Avg period')}</div>
           </div>
           <div className="stat">
-            <div className="v">{stats.avgCycle}d</div>
+            <div className="v">{tx(lang, '{n}d', { n: stats.avgCycle })}</div>
             <div className="l">{tx(lang, 'Median cycle')}</div>
           </div>
         </>
@@ -88,11 +88,11 @@ export default function Dashboard(p: AppProps) {
             </div>
           </div>
           <div className="stat">
-            <div className="v">{stats.avgCycle}d</div>
+            <div className="v">{tx(lang, '{n}d', { n: stats.avgCycle })}</div>
             <div className="l">{stats.usingDefaults ? tx(lang, 'Your baseline') : tx(lang, 'Median cycle')}</div>
           </div>
           <div className="stat">
-            <div className="v">{stats.avgPeriod}d</div>
+            <div className="v">{tx(lang, '{n}d', { n: stats.avgPeriod })}</div>
             <div className="l">{tx(lang, 'Avg period')}</div>
           </div>
         </>
@@ -126,7 +126,7 @@ export default function Dashboard(p: AppProps) {
           </div>
         </div>
         <div className="stat">
-          <div className="v">{stats.avgCycle}d</div>
+          <div className="v">{tx(lang, '{n}d', { n: stats.avgCycle })}</div>
           <div className="l">{stats.usingDefaults ? tx(lang, 'Your baseline') : tx(lang, 'Median cycle')}</div>
         </div>
       </>

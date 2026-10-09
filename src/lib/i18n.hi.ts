@@ -287,6 +287,7 @@ export const HI: Record<string, string> = {
   'Next period': 'अगला पीरियड',
   ' (est.)': ' (अनुमान)',
   'Late by {n}d': '{n} दिन लेट',
+  '{n}d': '{n} दिन',
   'Your baseline': 'आपका बेसलाइन',
   'Suppressed (hormonal)': 'दबा हुआ (हार्मोनल)',
   'Hidden in teen mode': 'टीन मोड में छिपा',
@@ -311,7 +312,8 @@ export const HI: Record<string, string> = {
   'Nothing logged yet. Tap Log today to start your history.': 'अभी कुछ लॉग नहीं। हिस्ट्री शुरू करने के लिए आज का लॉग टैप करें।',
 
   // DaySheet sections
-  'sec.flow': 'फ्लो',  'sec.flow.d': 'ब्लीडिंग की मात्रा और थक्के',
+  'sec.flow': 'फ्लो',
+  'sec.flow.d': 'ब्लीडिंग की मात्रा और थक्के',
   'sec.checkin': 'चेक-इन',
   'sec.checkin.d': 'आज को देखा हुआ मानें',
   'sec.symptoms': 'लक्षण',
@@ -703,7 +705,7 @@ export const HI: Record<string, string> = {
   'short-sleep': 'कम-नींद',
   'high-caffeine': 'ज़्यादा-कैफ़ीन',
   alcohol: 'शराब',
-  'Correlations, not causes · but exactly what to test next.': 'सहसंबंध है, कारण नहीं · पर आगे क्या आज़माना है, यही है।',  'Longest cycle': 'सबसे लंबा साइकिल',
+  'Correlations, not causes · but exactly what to test next.': 'सहसंबंध है, कारण नहीं · पर आगे क्या आज़माना है, यही है।',
   'Cycles ≥ 45 days': '45+ दिन के साइकिल',
   'Widening gaps and skipped cycles are the hallmark pattern. This snapshot travels well to appointments.':
     'बढ़ते गैप और छूटे साइकिल इसकी पहचान हैं। यह झलक डॉक्टर के पास ले जाने लायक है।',
@@ -726,7 +728,8 @@ export const HI: Record<string, string> = {
     'पिछले {n} लॉग दिनों में {b} में पेरीमेनोपॉज़ वाले लक्षण थे। यह बोझ की झलक है, कोई stage या निदान नहीं · पर अपॉइंटमेंट में ले जाने लायक सारांश है।',
 
   // Report
-  'Clinician summary': 'डॉक्टर सारांश',  'A printable snapshot of your tracking. Sensitive sections are opt-in and excluded unless you enable them.':
+  'Clinician summary': 'डॉक्टर सारांश',
+  'A printable snapshot of your tracking. Sensitive sections are opt-in and excluded unless you enable them.':
     'आपकी ट्रैकिंग का प्रिंट लायक सारांश। संवेदनशील हिस्से आपकी मर्ज़ी से ही जुड़ेंगे।',
   'Period covered': 'कवर की अवधि',
   'Last 6 months': 'पिछले 6 महीने',
@@ -1004,8 +1007,11 @@ export const HI: Record<string, string> = {
     '12 महीने बिना पीरियड के बाद कोई भी ब्लीडिंग तुरंत डॉक्टर को दिखाएं।',
   'Missed period with heavy training': 'भारी ट्रेनिंग के साथ छूटा पीरियड',
   'Losing periods while training hard can mean low energy availability (RED-S), which harms bone and performance. Fueling up + a clinician visit help.':
-    'कड़ी ट्रेनिंग में पीरियड रुकना कम ऊर्जा (RED-S) का संकेत हो सकता है · हड्डी और प्रदर्शन को नुकसान। भरपूर खाना + डॉक्टर से मिलें।',  'Discharge with an unusual color or smell often means an easily treated infection. A quick clinician visit can sort it out.':
+    'कड़ी ट्रेनिंग में पीरियड रुकना कम ऊर्जा (RED-S) का संकेत हो सकता है · हड्डी और प्रदर्शन को नुकसान। भरपूर खाना + डॉक्टर से मिलें।',
+  'Discharge with an unusual color or smell often means an easily treated infection. A quick clinician visit can sort it out.':
     'अजीब रंग/गंध वाला डिस्चार्ज अक्सर आसानी से ठीक होने वाले इंफ़ेक्शन का मतलब है। डॉक्टर की एक विज़िट में सुलझ जाएगा।',
   'If you are having thoughts of harming yourself, please reach out now. Tele MANAS: call 14416 or 1800-89-14416, free, 24x7, 20 languages (MoHFW). KIRAN: call 1800-599-0019, free, 24x7, 13 languages (MoSJE). Elsewhere, findahelpline.com lists local lines. You deserve support.':
-    'अगर खुद को नुकसान पहुँचाने के खयाल आ रहे हैं, तो अभी मदद लें: अमेरिका में 988 पर कॉल/टेक्स्ट करें; ब्रिटेन में 116 123 (Samaritans); कहीं और findahelpline.com पर अपनी लोकल हेल्पलाइन देखें। आप मदद के हक़दार हैं।',
+    'अगर खुद को नुकसान पहुँचाने के खयाल आ रहे हैं, तो कृपया अभी मदद लें। टेली मानस: 14416 या 1800-89-14416 पर कॉल करें, मुफ़्त, 24x7, 20 भाषाएँ (MoHFW)। किरण: 1800-599-0019 पर कॉल करें, मुफ़्त, 24x7, 13 भाषाएँ (MoSJE)। अन्यत्र, findahelpline.com पर लोकल नंबर मिलेंगे। आप सहायता के हक़दार हैं।',
+  'Scroll down to pick a mode and continue': 'नीचे स्क्रॉल करके मोड चुनें और आगे बढ़ें',
+  'Longest cycle': 'सबसे लंबा साइकिल',
 };

@@ -105,7 +105,7 @@ export default function PregnancyScreen(p: AppProps) {
           <div className="l">{tx(lang, 'Trimester')}</div>
         </div>
         <div className="stat">
-          <div className="v">{past ? '-' : `${info.daysToDue}d`}</div>
+          <div className="v">{past ? '-' : tx(lang, '{n}d', { n: info.daysToDue })}</div>
           <div className="l">{tx(lang, 'Until due date')}</div>
         </div>
       </div>

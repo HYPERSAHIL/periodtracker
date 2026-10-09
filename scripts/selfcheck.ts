@@ -516,4 +516,45 @@ console.log('selfcheck: all 18 groups passed');
   );
 }
 
-console.log('selfcheck: all 20 groups passed');
+
+// 21. The Hindi crisis copy must carry the SAME helpline numbers as the English.
+//     It once still said "call 988 in America / 116 123 in Britain" while the
+//     English had moved to Tele-MANAS 14416 and KIRAN 1800-599-0019, so a
+//     Hindi-reading user in crisis was given US/UK lines. Numbers are the one
+//     thing a translation must never silently drop or keep stale.
+{
+  const safety = readFileSync(new URL('../src/lib/safety.ts', import.meta.url), 'utf8');
+  const hi = readFileSync(new URL('../src/lib/i18n.hi.ts', import.meta.url), 'utf8');
+
+  const crisisEn = safety.match(/export const CRISIS_NOTE =\s*\n?\s*'([^']+)'/)?.[1];
+  assert.ok(crisisEn && crisisEn.length > 40, 'CRISIS_NOTE is a readable literal');
+
+  // pull the Hindi value that sits under that exact English key
+  const esc = crisisEn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const hiValue = hi.match(new RegExp(`'${esc}':\\s*\n?\\s*'([^']+)'`))?.[1];
+  assert.ok(hiValue && hiValue.length > 40, 'Hindi file has a translation for CRISIS_NOTE');
+
+  // every phone-ish token in the English must survive into the Hindi
+  const numbers = crisisEn.match(/\b\d[\d-]{4,}\b/g) ?? [];
+  assert.ok(numbers.length >= 3, `crisis copy lists helplines (found ${numbers.length})`);
+  for (const n of numbers)
+    assert.ok(hiValue.includes(n), `Hindi crisis copy is missing helpline ${n}`);
+
+  // and it must not be advertising a different country's lines
+  for (const foreign of ['988', '116 123', 'Samaritans', 'crisis text line'])
+    assert.ok(!hiValue.includes(foreign), `Hindi crisis copy still references ${foreign}`);
+
+  // no duplicate keys in the Hindi table (TS catches this, but assert the shape)
+  const keyRe = /(?:^|[\n{,])\s*(?:'((?:[^'\\]|\\.)*)'|"([^"]*)"|([A-Za-z_$][\w$]*))\s*:/g;
+  const seen = new Set<string>();
+  let dup = '';
+  for (const m of hi.slice(hi.indexOf('export const HI')).matchAll(keyRe)) {
+    const k = m[1] ?? m[2] ?? m[3];
+    if (seen.has(k)) dup = k;
+    seen.add(k);
+  }
+  assert.ok(!dup, `Hindi table has a duplicate key: ${dup.slice(0, 50)}`);
+  assert.ok(seen.size > 550, `Hindi table is populated (${seen.size} keys)`);
+}
+
+console.log('selfcheck: all 21 groups passed');
