@@ -80,8 +80,7 @@ export default function PregnancyScreen(p: AppProps) {
         <div className="ring" />
         <div className="ring r2" />
         <div aria-label="Current pregnancy week" className="cycle-day">
-          {past ? <IconSparkle size={22} /> : info.weeks}
-          <span>{past ? tx(lang, 'due time') : tx(lang, 'weeks + {n} day{s}', { n: info.days, s: info.days === 1 ? '' : 's' })}</span>
+          {past ? <IconSparkle size={22} /> : info.weeks} <span>{past ? tx(lang, 'due time') : tx(lang, 'weeks + {n} day{s}', { n: info.days, s: info.days === 1 ? '' : 's' })}</span>
         </div>
         <div className="phase">{tx(lang, 'Trimester')} {info.trimester}</div>
         <div className="since">{TRIMESTER_INFO[info.trimester]}</div>

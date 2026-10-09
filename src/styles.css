@@ -2384,6 +2384,13 @@ h3 svg,
     min-height: 44px;
   }
 
+  /* single-character chips (kick counter, 0 to 3 scales) hit the height floor
+     but were only ~40px wide, so they still missed on the width axis */
+  .chip {
+    min-width: 44px;
+    justify-content: center;
+  }
+
   .stepper button {
     min-height: 44px;
     min-width: 44px;
