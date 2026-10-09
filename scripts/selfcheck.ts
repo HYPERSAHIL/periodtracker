@@ -461,4 +461,59 @@ console.log('selfcheck: all 18 groups passed');
     );
 }
 
-console.log('selfcheck: all 19 groups passed');
+
+// 20. Text contrast of the shared colour tokens, measured against the real
+//     surface ramp. --rose-300 is a border/fill grade: pointing TEXT at it read
+//     2.2:1 on dark surfaces and failed on the Clinician report button, the
+//     selected segment and the selected mode label.
+{
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const token = (name: string, block: 'light' | 'dark'): string => {
+    const scope =
+      block === 'dark'
+        ? css.slice(css.indexOf("[data-theme='dark']"))
+        : css.slice(0, css.indexOf("[data-theme='dark']"));
+    const m = scope.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
+    return m ? m[1] : '';
+  };
+  const lum = (hex: string): number => {
+    const n = parseInt(hex.slice(1), 16);
+    const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  };
+  const ratio = (a: string, b: string): number => {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  const ramp = (names: string[], theme: 'light' | 'dark'): string[] =>
+    names.map((n) => token(n, theme)).filter(Boolean);
+
+  const lightSurfaces = ramp(['--bg', '--surface', '--surface-2', '--surface-3'], 'light');
+  const darkSurfaces = ramp(['--surface', '--surface-2', '--surface-3', '--surface-4'], 'dark');
+  assert.equal(lightSurfaces.length, 4, 'light surface ramp resolved');
+  assert.equal(darkSurfaces.length, 4, 'dark surface ramp resolved');
+
+  for (const [name, fg, surfaces] of [
+    ['--muted', token('--muted', 'light'), lightSurfaces],
+    ['--rose-text', token('--rose-text', 'light'), lightSurfaces],
+    ['--muted', token('--muted', 'dark'), darkSurfaces],
+    ['--rose-text', token('--rose-text', 'dark'), darkSurfaces],
+  ] as [string, string, string[]][]) {
+    assert.ok(fg, `${name} resolves in both themes`);
+    for (const bg of surfaces)
+      assert.ok(
+        ratio(fg, bg) >= 4.5,
+        `${name} ${fg} on ${bg} is ${ratio(fg, bg).toFixed(2)}:1, needs 4.5:1 (WCAG AA)`
+      );
+  }
+  // the bug that motivated the token split: border grade must not be used as text
+  assert.ok(
+    !/[^-\w]color:\s*var\(--rose-300\)/.test(css),
+    'no rule paints text with the border-grade --rose-300'
+  );
+}
+
+console.log('selfcheck: all 20 groups passed');

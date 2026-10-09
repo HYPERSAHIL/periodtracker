@@ -22,13 +22,16 @@
   --rose-500: #f43f5e;
   --rose-600: #e11d63;
   --rose-700: #b9004d;
+  /* accent used as TEXT (buttons, selected labels). distinct from --rose-300,
+     which is a border/fill grade and fails AA as text on dark surfaces. */
+  --rose-text: #b9004d;
   --rose-800: #90003a;
   --rose-900: #3f0015;
 
   /* text (warm neutrals) */
   --text: #221919;
   --text-2: #5b4449;
-  --muted: #8f6f74;
+  --muted: #806064;
 
   --border: #eddfe2;
   --border-soft: #f0dfde;
@@ -74,7 +77,8 @@
 
   --text: #f6ecee;
   --text-2: #c9adb6;
-  --muted: #94797f;
+  --muted: #b19a9f;
+  --rose-text: #f4739a;
 
   --border: #3a2c32;
   --border-soft: #33262b;
@@ -92,29 +96,30 @@
   color-scheme: dark;
 }
 
-/* dark-mode accent corrections: deep-rose text vanishes on plum surfaces */
+/* dark-mode accent corrections: deep-rose text vanishes on plum surfaces.
+   --rose-text, not --rose-300: the latter reads 2.2:1 as text on --surface. */
 [data-theme='dark'] .btn.ghost {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .cal-nav {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .seg button.on {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .stat .v {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .tag.rose {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .flow-pill.light {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .flow-pill.spotting {
@@ -122,11 +127,11 @@
 }
 
 [data-theme='dark'] .mode-card.on .mc-label {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .stepper button {
-  color: var(--rose-300);
+  color: var(--rose-text);
 }
 
 [data-theme='dark'] .topic-row .tr-title {
