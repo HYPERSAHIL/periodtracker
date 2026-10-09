@@ -1026,8 +1026,11 @@ async function route(request, env, url, rid = null) {
     const now = new Date();
     await env.DB.prepare('INSERT INTO shares (token, user_id, summary, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
       .bind(token, u.id, JSON.stringify(clean), NEVER, now.toISOString()).run();
-    await logEvent(env, request, u.id, 'share_create', { rid, days, summary: clean });
-    return json({ token, expiresInDays: days });
+    // Link lifetime is deliberately open-ended (the panel says "Never expires"
+    // and the owner can revoke). Echoing the requested `days` back as if it were
+    // the real expiry would be a false promise about when the data goes away.
+    await logEvent(env, request, u.id, 'share_create', { rid, days, expiresInDays: null, summary: clean });
+    return json({ token, expiresInDays: null });
   }
 
   if (method === 'GET' && path === '/api/share') {

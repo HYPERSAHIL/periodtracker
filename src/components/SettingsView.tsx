@@ -774,7 +774,8 @@ export default function SettingsView(p: AppProps) {
                 generatedAt: todayISO(),
               };
               await p.shareApi.create(summary, 30);
-              track('share_link_created', { days: 30 });
+              // the link is open-ended until revoked, so do not log a lifetime
+              track('share_link_created', { expiresInDays: null });
               setShareMsg(null);
               loadShares();
             } catch {

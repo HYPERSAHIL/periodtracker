@@ -76,7 +76,7 @@ export interface AppProps {
   openAccount: () => void;
   signOutCloud: () => void;
   shareApi: {
-    create: (s: SharedSummary, days?: number) => Promise<{ token: string; expiresInDays: number }>;
+    create: (s: SharedSummary, days?: number) => Promise<{ token: string; expiresInDays: number | null }>;
     list: () => Promise<ShareRow[]>;
     revoke: (t: string) => Promise<void>;
   };

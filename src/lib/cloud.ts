@@ -190,10 +190,10 @@ export interface ShareRow {
   created_at: string;
 }
 
-export async function shareCreate(token: string, summary: SharedSummary, days = 30): Promise<{ token: string; expiresInDays: number }> {
+export async function shareCreate(token: string, summary: SharedSummary, days = 30): Promise<{ token: string; expiresInDays: number | null }> {
   const r = await api('share', { summary, days }, token);
   if (!r.ok) throw new Error('share_failed');
-  return r.data as { token: string; expiresInDays: number };
+  return r.data as { token: string; expiresInDays: number | null };
 }
 
 export async function shareList(token: string): Promise<ShareRow[]> {
