@@ -1588,7 +1588,7 @@ function adminPage() {
    --acc-os carries the OS accent (Chrome Android/Windows/ChromeOS) — the web's
    answer to Material You dynamic color; wired to nothing by default, swap
    --acc:var(--acc-os) to follow the user's system accent. */
-:root{--canvas:light-dark(#faf8f6,#141110);--surface:light-dark(#ffffff,#1d1a18);--surface2:light-dark(#f4f0ed,#262220);--surface3:light-dark(#eae5e0,#332e2b);--ink:light-dark(#1a1512,#e8e2dc);--ink2:light-dark(#57504a,#a89f97);--ink3:light-dark(#8c837b,#7d746c);--line:light-dark(#e3dcd5,#302b28);--line2:light-dark(#cfc7bf,#453e39);--acc:light-dark(#d61f52,#ff5c7a);--acc-ink:light-dark(#ffffff,#141110);--acc-tint:light-dark(rgba(214,31,82,.09),rgba(255,92,122,.14));--sig:light-dark(#c2410c,#fb923c);--sig-tint:light-dark(rgba(194,65,12,.10),rgba(251,146,60,.14));--ok:light-dark(#047857,#34d399);--ok-tint:light-dark(rgba(4,120,87,.10),rgba(52,211,153,.12));--warn:light-dark(#a16207,#fbbf24);--warn-tint:light-dark(rgba(161,98,7,.12),rgba(251,191,36,.12));--acc-os:AccentColor;--serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;color-scheme:light dark}
+:root{--canvas:light-dark(#faf8f6,#141110);--surface:light-dark(#ffffff,#1d1a18);--surface2:light-dark(#f4f0ed,#262220);--surface3:light-dark(#eae5e0,#332e2b);--ink:light-dark(#1a1512,#e8e2dc);--ink2:light-dark(#57504a,#a89f97);--ink3:light-dark(#6e645d,#a29890);--line:light-dark(#e3dcd5,#302b28);--line2:light-dark(#cfc7bf,#453e39);--acc:light-dark(#d61f52,#ff5c7a);--acc-ink:light-dark(#ffffff,#141110);--acc-tint:light-dark(rgba(214,31,82,.09),rgba(255,92,122,.14));--sig:light-dark(#c2410c,#fb923c);--sig-tint:light-dark(rgba(194,65,12,.10),rgba(251,146,60,.14));--ok:light-dark(#047857,#34d399);--ok-tint:light-dark(rgba(4,120,87,.10),rgba(52,211,153,.12));--warn:light-dark(#a16207,#fbbf24);--warn-tint:light-dark(rgba(161,98,7,.12),rgba(251,191,36,.12));--acc-os:AccentColor;--serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;color-scheme:light dark}
 :root[data-pt-admin=light]{color-scheme:light}
 :root[data-pt-admin=dark]{color-scheme:dark}
 /* accessibility prefs the UA already tracks */
@@ -1619,7 +1619,7 @@ h2{font:700 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:
 .card{padding:13px 20px;border-right:1px solid var(--line)}
 .card:last-child{border-right:none}
 .card .v{font:600 25px/1.15 var(--serif);color:var(--ink);font-variant-numeric:tabular-nums}
-.card .l{font:700 10px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);margin-top:3px}
+.card .l{font:700 11.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);margin-top:3px}
 /* tabs: underline, not pills */
 nav.tabs{display:flex;gap:2px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:16px}
 nav.tabs [role=tab]{appearance:none;background:none;border:none;border-bottom:2px solid transparent;color:var(--ink3);padding:9px 13px;font:600 13px var(--sans);cursor:pointer;margin-bottom:-1px}
@@ -1640,7 +1640,7 @@ button.sm{padding:7px 13px;font-size:12.5px}
 .back{border:none;background:none;color:var(--acc);font-weight:600;font-size:13px;padding:0;cursor:pointer}
 .err{color:var(--sig);font-size:13px;font-weight:600}
 /* tags (was pills) */
-.pill{font:700 10.5px var(--mono);letter-spacing:.04em;border-radius:2px;padding:3px 7px;white-space:nowrap}
+.pill{font:700 11.5px var(--mono);letter-spacing:.04em;border-radius:2px;padding:3px 7px;white-space:nowrap}
 .pill.a{background:var(--ok-tint);color:var(--ok)}
 .pill.n{background:var(--surface3);color:var(--ink2)}
 .pill.warn{background:var(--warn-tint);color:var(--warn)}
@@ -1669,7 +1669,7 @@ label.fld-inline{font:600 11px var(--mono);letter-spacing:.05em;text-transform:u
 .tblwrap{background:var(--surface);border:1px solid var(--line);border-radius:3px;overflow:hidden}
 .tblscroll{overflow-x:auto}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-thead th{position:sticky;top:0;background:var(--surface2);color:var(--ink3);font:700 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
+thead th{position:sticky;top:0;background:var(--surface2);color:var(--ink3);font:700 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);z-index:2;white-space:nowrap}
 tbody td{padding:10px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);color:var(--ink2)}
 tbody tr:last-child td{border-bottom:none}
 tbody tr[data-uid]{cursor:pointer}
@@ -1745,11 +1745,11 @@ table.entries tbody td{vertical-align:top}
 /* panes (asymmetric grid) */
 .sect{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:12px}
 .sect .pane{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px 18px}
-.sect .pane h3{margin:0 0 10px;font:700 10.5px var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--ink3)}
+.sect .pane h3{margin:0 0 10px;font:700 11.5px var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--ink3)}
 @media(max-width:900px){.sect{grid-template-columns:1fr}}
 .detail{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:20px}
 .kv{font-size:13.5px;line-height:2;color:var(--ink2)}
-.kv b{display:inline-block;min-width:132px;color:var(--ink3);font:700 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.kv b{display:inline-block;min-width:132px;color:var(--ink3);font:700 11.5px var(--mono);letter-spacing:.06em;text-transform:uppercase}
 pre{background:var(--surface2);border:1px solid var(--line);color:var(--ink);padding:14px;border-radius:3px;font-size:12px;overflow:auto;font-family:var(--mono)}
 .freq-row{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:13px;color:var(--ink2)}
 .freq-row .name{width:170px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
@@ -1769,7 +1769,7 @@ main.login .detail{padding:24px}
   tr{border-bottom:1px solid var(--line);padding:6px 0}
   tr:last-child{border-bottom:none}
   tbody td{border:none;padding:5px 12px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;font-size:13px}
-  tbody td::before{content:attr(data-l);font:700 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-top:3px}
+  tbody td::before{content:attr(data-l);font:700 11.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);padding-top:3px}
   td .cell-main,td .cell-sub{grid-column:2}
   tbody td .pill,tbody td .otp,tbody td button{justify-self:start;max-width:100%}
   label.fld-inline{display:none}
