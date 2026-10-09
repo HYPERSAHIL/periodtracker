@@ -66,7 +66,11 @@ export default defineConfig({
               request.mode === 'navigate' && !/^\/(admin|api)\//.test(url.pathname),
             handler: 'NetworkFirst',
             options: {
-              networkTimeoutSeconds: 3,
+              // No networkTimeoutSeconds on purpose. A timeout makes workbox
+              // fall back to the CACHED html when the network is slow, and that
+              // cached shell references assets the last deploy already purged,
+              // so the app renders blank. Without it: online = fresh html
+              // always, offline = fetch fails fast and the cache is used.
               cacheName: 'html-nav',
               expiration: { maxEntries: 4 },
             },
