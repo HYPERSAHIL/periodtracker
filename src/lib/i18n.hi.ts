@@ -24,6 +24,8 @@ export const HI: Record<string, string> = {
   synced: 'सिंक हो गया',
   offline: 'ऑफ़लाइन',
   error: 'त्रुटि',
+  'sync failed · saved here': 'सिंक नहीं हुआ · यहाँ सेव है',
+  'offline · saved here': 'ऑफ़लाइन · यहाँ सेव है',
   'unsynced changes': 'बिना सिंक बदलाव',
   Back: 'पीछे',
   Continue: 'जारी रखें',

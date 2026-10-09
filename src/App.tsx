@@ -107,7 +107,15 @@ function MainApp() {
   const [accountSheet, setAccountSheet] = useState(false);
   const sync = useCloudSync({ entries, settings, setEntries, setSettings });
   const lang = settings.lang;
-  const statusText = sync.pending ? tx(lang, 'unsynced changes') : tx(lang, sync.syncStatus);
+  // "error" on its own tells a user nothing. This app keeps every log on the
+  // device first, so say that plainly instead of surfacing a bare state word.
+  const statusText = sync.pending
+    ? tx(lang, 'unsynced changes')
+    : sync.syncStatus === 'error'
+      ? tx(lang, 'sync failed · saved here')
+      : sync.syncStatus === 'offline'
+        ? tx(lang, 'offline · saved here')
+        : tx(lang, sync.syncStatus);
 
   useEffect(() => saveEntries(entries), [entries]);
   useEffect(() => saveSettings(settings), [settings]);
