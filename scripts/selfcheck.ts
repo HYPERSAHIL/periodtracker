@@ -347,6 +347,24 @@ console.log('selfcheck: all 14 groups passed');
   assert.ok(worker.includes('/api/csp-report'), 'worker accepts CSP reports');
   assert.ok(worker.includes("frame-ancestors 'none'"), 'CSP header on app HTML');
   assert.ok(worker.includes('cloudflareinsights.com'), 'CF RUM beacon allowlisted in CSP');
+
+  // The CSP is script-src 'self' (+ the beacon origin), so an INLINE script is
+  // blocked outright. The chunk-load recovery once lived inline and silently
+  // never ran in production; it now ships as public/chunk-reload.js.
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].filter((m) => m[1].trim());
+  assert.equal(inline.length, 0, `index.html has ${inline.length} inline script(s); the CSP blocks them`);
+  assert.ok(html.includes('/chunk-reload.js'), 'recovery script is referenced');
+  assert.ok(
+    readFileSync(new URL('../public/chunk-reload.js', import.meta.url), 'utf8').includes('location.reload'),
+    'recovery script performs the reload'
+  );
+  const scriptSrc = worker.match(/"script-src[^"]*"/)?.[0] ?? '';
+  assert.ok(scriptSrc, 'worker declares a script-src directive');
+  assert.ok(
+    !scriptSrc.includes('unsafe-inline'),
+    'script-src does not loosen to unsafe-inline to accommodate a script'
+  );
   assert.ok(worker.includes('reporting-endpoints'), 'reporting endpoint exposed');
   assert.ok(
     app.includes('initDynamicCodeCanaries()') && app.includes('reportBrowserVersion()'),
