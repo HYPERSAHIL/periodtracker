@@ -67,11 +67,16 @@ export function safetyTriage(entries: Record<string, DayEntry>, settings: Settin
     });
   }
 
-  // Bleeding between periods (logged spotting outside a period cluster, this week)
+  // Bleeding between periods. periodClusters groups *every* flow day into a run,
+  // so "flow outside any cluster" is impossible and this rule could never fire.
+  // Intermenstrual bleeding is an isolated light day sitting in the gap well away
+  // from a real period, so classify it that way instead.
+  const periodRuns = clusters.filter((c) => c.length >= 2);
   const spottingBetween = recent.filter((e) => {
-    if (!e.flow) return false;
-    const inCluster = clusters.some((c) => e.date >= c.start && e.date <= c.end);
-    return !inCluster;
+    if (e.flow !== 'spotting' && e.flow !== 'light') return false;
+    const own = clusters.find((c) => e.date >= c.start && e.date <= c.end);
+    if (!own || own.length >= 2) return false; // part of a period-length run
+    return periodRuns.some((p) => diffDays(p.end, e.date) >= 3 || diffDays(e.date, p.start) >= 3);
   }).length;
   if (spottingBetween >= 2) {
     add({

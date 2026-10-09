@@ -128,6 +128,27 @@ const settings: Settings = { ...DEFAULT_SETTINGS, onboarded: true };
   for (const e of flowDays(0, 8)) entries2[e.date] = e;
   const notices2 = safetyTriage(entries2, settings, periodClusters(entries2));
   assert.ok(notices2.some((n) => n.id === 'bleeding long'), 'current long bleed must fire');
+
+  // Intermenstrual bleeding: the rule counted flow days "outside any cluster",
+  // but periodClusters puts every flow day in one, so it could never fire.
+  const spot = (o: number) => entry(ago(o), { flow: 'spotting' });
+  const between = (extra: DayEntry[]) => {
+    const e: Record<string, DayEntry> = {};
+    for (const x of [...flowDays(20, 5), ...extra]) e[x.date] = x;
+    return safetyTriage(e, settings, periodClusters(e)).some((n) => n.id === 'bleeding between');
+  };
+  assert.equal(between([spot(5), spot(3)]), true, 'repeated isolated spotting fires the ACOG flag');
+  assert.equal(between([spot(4)]), false, 'a single spotting day does not alarm');
+  assert.equal(between(flowDays(4, 5)), false, 'an ordinary period is not intermenstrual bleeding');
+  assert.equal(
+    safetyTriage(
+      (() => { const e: Record<string, DayEntry> = {}; e[spot(3).date] = spot(3); return e; })(),
+      settings,
+      periodClusters((() => { const e: Record<string, DayEntry> = {}; e[spot(3).date] = spot(3); return e; })())
+    ).some((n) => n.id === 'bleeding between'),
+    false,
+    'a lone 1-day bleed with no period to compare against is not flagged'
+  );
 }
 
 // 7. week-start grids: Monday-first default, Sunday-first optional, 42 cells each
