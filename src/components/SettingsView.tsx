@@ -1067,7 +1067,7 @@ export default function SettingsView(p: AppProps) {
           {tx(lang, 'Period Tracker is free and private. Predictions use the calendar method (ovulation is roughly 14 days before your next period); temperature and discharge signs add fertility awareness clues. All of it is estimation support, not medical advice.')}
         </p>
         <p className="hint" style={{ marginTop: 8 }}>
-          {tx(lang, 'Our pledge: tracking, predictions, reminders, and reports are free with no account and no ads · and they will never move behind a paywall. Fertility estimates are informational only and must never be used as contraception.')}
+          {tx(lang, 'Fertility estimates are informational only and must never be used as contraception.')}
         </p>
       </div>
 

@@ -609,8 +609,8 @@ export const HI: Record<string, string> = {
   'Cravings are normal · magnesium-rich foods help some people.': 'तलब सामान्य है · मैग्नीशियम वाला खाना कुछ लोगों को मदद करता है।',
   'Keep a light schedule buffer before your expected period.': 'अनुमानित पीरियड से पहले हल्का शेड्यूल रखें।',
   'Log a period to unlock phase-based tips tuned to your cycle.': 'अपने साइकिल के हिसाब से टिप्स के लिए पीरियड लॉग करें।',
-  'Our pledge: tracking, predictions, reminders, and reports are free with no account and no ads · and they will never move behind a paywall. Fertility estimates are informational only and must never be used as contraception.':
-    'हमारा वादा: ट्रैकिंग, अनुमान, रिमाइंडर और रिपोर्ट बिना खाते और बिना विज्ञापन मुफ़्त हैं · और कभी पेवॉल के पीछे नहीं जाएंगे। फर्टिलिटी अनुमान सिर्फ़ जानकारी हैं, गर्भनिरोध के लिए कभी इस्तेमाल न करें।',
+  'Fertility estimates are informational only and must never be used as contraception.':
+    'फर्टिलिटी अनुमान सिर्फ़ जानकारी के लिए हैं और गर्भनिरोध के लिए कभी इस्तेमाल न करें।',
   'Symptoms by phase': 'फेज़ के हिसाब से लक्षण',
   'no symptoms logged': 'कोई लक्षण लॉग नहीं',
   'no check ins': 'कोई चेक इन नहीं',
