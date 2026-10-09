@@ -82,11 +82,15 @@ export default function DaySheet({
   );
   const lang = settings.lang;
 
+  // every way out of the sheet commits what is on screen. Only "Clear this
+  // day" and "Delete this log" discard, and those are explicit buttons.
+  const saveRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       track('day_sheet_closed', { via: 'escape' });
-      onClose();
+      saveRef.current();
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
@@ -158,6 +162,7 @@ export default function DaySheet({
       note: d.note.trim(),
     });
   };
+  saveRef.current = save;
 
   // Which sections the daily 30-second set covers; everything else is
   // one tap away in either layout. Order and hidden always win.
@@ -582,7 +587,7 @@ export default function DaySheet({
       onClick={(e) => {
         if (e.target !== e.currentTarget) return;
         track('day_sheet_closed', { via: 'backdrop', empty: isEmpty, hadEntry: !!entry });
-        onClose();
+        save();
       }}
     >
       <div className="sheet" role="dialog" aria-modal="true" aria-label={`Log for ${date}`}>
@@ -658,7 +663,7 @@ export default function DaySheet({
           style={{ marginTop: 10 }}
           onClick={() => {
             track('day_sheet_closed', { via: 'close_btn', empty: isEmpty, hadEntry: !!entry });
-            onClose();
+            save();
           }}
         >
           {tx(lang, 'Close')}
