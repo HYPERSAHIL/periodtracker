@@ -96,6 +96,11 @@ CREATE TABLE IF NOT EXISTS events (
   meta TEXT,
   created_at TEXT NOT NULL
 );
+-- events is the highest-volume table (tens of thousands of rows, growing every
+-- day). created_at and user_id are indexed by the runtime bootstrap; `type` was
+-- not, so every tier cut, type filter and the activity feed's GROUP BY
+-- type,user_id full-scanned the table and spent the D1 daily row-read budget.
+CREATE INDEX IF NOT EXISTS idx_events_type_user ON events(type, user_id);
 
 -- Hourly fleet rollup (written by workers/email-cron on the */15 * * * * trigger).
 -- One row per hour so trend questions are a single SELECT, not a raw scan.

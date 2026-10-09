@@ -800,6 +800,14 @@ async function route(request, env, url, rid = null) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, type TEXT NOT NULL,
       endpoint TEXT, ip TEXT, country TEXT, user_agent TEXT, meta TEXT, created_at TEXT NOT NULL
     )`).run();
+    // events is the highest-volume table here. created_at and user_id were
+    // already indexed; `type` was not, so every tier cut, type filter and the
+    // GROUP BY type,user_id in the activity feed full-scanned the table.
+    try {
+      await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_events_type_user ON events(type, user_id)').run();
+    } catch {
+      /* already exists */
+    }
   }
   if (method === 'POST' && path === '/api/signout') {
     const auth = request.headers.get('authorization') || '';
