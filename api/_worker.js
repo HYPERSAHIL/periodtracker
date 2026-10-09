@@ -1721,6 +1721,16 @@ table.entries tbody td{vertical-align:top}
 #dq{min-width:220px}
 @media(max-width:640px){td.note{width:auto}table.entries{table-layout:fixed}}
 
+/* at-a-glance strip above a feed */
+.glance{display:flex;flex-wrap:wrap;gap:0;background:var(--surface);
+  border:1px solid var(--line);border-radius:4px;margin-bottom:14px;overflow:hidden}
+.glance>div{padding:11px 18px;border-right:1px solid var(--line);min-width:110px}
+.glance>div:last-child{border-right:none}
+.glance b{display:block;font:600 20px/1.2 var(--serif);color:var(--ink);font-variant-numeric:tabular-nums}
+.glance span{display:block;font-size:11.5px;color:var(--ink3);margin-top:2px}
+.glance .flag b{color:var(--sig)}
+@media(max-width:700px){.glance>div{min-width:50%;border-bottom:1px solid var(--line)}}
+
 /* tier dots + activity feed */
 .tdot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;align-self:center}
 .tdot.signal{background:var(--sig)}
@@ -1786,6 +1796,27 @@ function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(1
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
 const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
+// A flat 130-item type list cannot be scanned. Same prefix grouping as the
+// chips above it, using native optgroup so no extra JS is needed.
+const TYPE_GROUPS=[['sec_','Security'],['data_','Data'],['screen_','Screen'],['onboarding_','Onboarding'],
+                   ['day_','Logging'],['update_','Updates'],['admin','Admin'],['email_','Email'],
+                   ['share_','Shares'],['req','Requests'],['otp','OTP'],['import_','Import'],['export_','Export']];
+function typeOptions(types,sel){
+  const done=new Set();
+  let h='';
+  for(const [pfx,label]of TYPE_GROUPS){
+    const inGroup=types.filter(t=>t.startsWith(pfx));
+    if(!inGroup.length)continue;
+    h+='<optgroup label="'+esc(label)+'">'+inGroup.map(t=>{
+      done.add(t);
+      return '<option value="'+esc(t)+'"'+(sel===t?' selected':'')+'>'+esc(t)+'</option>';
+    }).join('')+'</optgroup>';
+  }
+  const rest=types.filter(t=>!done.has(t));
+  if(rest.length)h+='<optgroup label="Other">'+rest.map(t=>
+    '<option value="'+esc(t)+'"'+(sel===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</optgroup>';
+  return h;
+}
 async function api(p,opt={}){
   let r;
   try{r=await fetch('/api/admin'+p,{...opt,headers:{'Content-Type':'application/json','x-admin-key':S.key}})}
@@ -2110,7 +2141,7 @@ function render0(){
       '</div>'+
       '<input id="evq" type="text" placeholder="Search type, meta, user, IP" value="'+esc(S.evQ)+'" onfocus="S.evQF=1" onblur="S.evQF=0" oninput="evSearch(this.value)" aria-label="Search events">'+
       '<label class="fld-inline" for="etype">Type</label><select id="etype" onchange="setEType(this.value)"><option value="all">All types</option>'+
-        S.types.map(t=>'<option value="'+esc(t)+'"'+(S.eType===t?' selected':'')+'>'+esc(t)+'</option>').join('')+'</select>'+
+        typeOptions(S.types,S.eType)+'</select>'+
       '<label class="fld-inline" for="etier">Tier</label><select id="etier" onchange="setEvTier(this.value)">'+
         TIER_OPTS.map(o=>'<option value="'+o[0]+'"'+(S.evTier===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'+
       '<button class="ghost sm" onclick="setEvOrder()">'+(S.evOrder==='desc'?'Newest first':'Oldest first')+'</button>'+
@@ -2121,6 +2152,16 @@ function render0(){
       '</span>'+
       (S.evUser?'<span class="pg" title="Filtered to one user"><button class="ghost sm" onclick="clearEvUser()" aria-label="Clear user filter">'+esc(S.evUserLabel)+' ×</button></span>':'')+
     '</div>';
+    // a short read-at-a-glance strip: counts and the active filter, so you can
+    // orient before scrolling a feed of thousands
+    const secCount=S.events.filter(e=>/^sec_/.test(e.type||'')).reduce((a,e)=>a+(e.n||1),0);
+    const glance='<div class="glance">'+
+      '<div><b>'+(S.evTotal||0)+'</b><span>rows match</span></div>'+
+      '<div><b>'+S.events.length+'</b><span>'+(S.evView==='feed'?'groups shown':'rows shown')+'</span></div>'+
+      (S.ePrefix?'<div><b>'+esc(S.ePrefix)+'</b><span>prefix filter</span></div>':'')+
+      '<div class="'+(secCount?'flag':'')+'"><b>'+secCount+'</b><span>security events in view</span></div>'+
+      '<div><b>'+(S.users||[]).length+'</b><span>users known</span></div>'+
+      '</div>';
     let body;
     if(S.evView==='feed'){
       body=S.events.length
@@ -2131,7 +2172,7 @@ function render0(){
         (S.events.length?S.events.map(rawRow).join(''):'<tr><td colspan="8" class="empty-cell">No events match this filter.</td></tr>')+'</tbody></table></div></div>';
     }
     const sub=(S.evTotal||0)+' rows match'+(S.evTier==='default'?' · noise tiers hidden (tier: Everything to reveal)':'')+' · feed groups by action+user';
-    app.innerHTML=shell('Activity',sub,tabbar(),ctl+body);
+    app.innerHTML=shell('Activity',sub,tabbar(),glance+ctl+body);
     return;
   }
 }
