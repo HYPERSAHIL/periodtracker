@@ -1284,6 +1284,63 @@ async function route(request, env, url, rid = null) {
   // --- partner share (read-only summary links) ----------------------------------------------------
     }
 
+    // Cross-user note search. Reading a specific note otherwise means opening
+    // each user in turn. This walks every stored entry, so it is an explicit
+    // owner action only: no query means no scan at all, and the result is
+    // capped so one search cannot pull the whole dataset into the panel.
+    if (method === 'GET' && path === '/api/admin/notes') {
+      const q = String(url.searchParams.get('q') || '').trim();
+      if (q.length < 2) return json({ error: 'query_too_short', minChars: 2 });
+      const cap = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 50));
+      const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+      const rows = await env.DB.prepare(
+        `SELECT d.user_id AS user_id, je.key AS day,
+                json_extract(je.value, '$.note') AS note,
+                json_extract(je.value, '$.flow') AS flow,
+                json_extract(je.value, '$.symptoms') AS symptoms
+         FROM data d, json_each(d.entries) AS je
+         WHERE d.entries IS NOT NULL
+           AND je.key <> '__deleted'
+           AND json_extract(je.value, '$.note') IS NOT NULL
+           AND json_extract(je.value, '$.note') LIKE ? ESCAPE '\\'
+         ORDER BY je.key DESC
+         LIMIT ?`
+      )
+        .bind(like, cap)
+        .all();
+      const ids = [...new Set((rows.results || []).map((r) => r.user_id))];
+      const who = new Map();
+      if (ids.length) {
+        const urows = await env.DB.prepare(
+          `SELECT id, name, email, age FROM users WHERE id IN (${ids.map(() => '?').join(',')})`
+        )
+          .bind(...ids)
+          .all();
+        for (const u of urows.results || []) who.set(u.id, u);
+      }
+      const notes = (rows.results || []).map((r) => {
+        const u = who.get(r.user_id);
+        let symptoms;
+        try {
+          symptoms = JSON.parse(r.symptoms || '[]');
+        } catch {
+          symptoms = [];
+        }
+        return {
+          userId: r.user_id,
+          name: u?.name ?? null,
+          email: u?.email ?? null,
+          age: u?.age ?? null,
+          date: r.day,
+          note: r.note,
+          flow: r.flow ?? null,
+          symptoms: Array.isArray(symptoms) ? symptoms : [],
+        };
+      });
+      await logEvent(env, request, null, 'admin_notes_search', { rid, chars: q.length, hits: notes.length });
+      return json({ notes, truncated: (rows.results || []).length >= cap });
+    }
+
     if (method === 'GET' && path === '/api/admin/release') {
     const rel = await latestGhRelease(true);
       await logEvent(env, request, null, 'admin_release_read', { version: rel ? rel.version : null });
@@ -1830,8 +1887,8 @@ const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
-const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,noteQ:'',notes:null,noteBusy:false,noteTrunc:false,loading:false,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
+const TABS=[['overview','Overview'],['users','Users'],['notes','Notes'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 // A flat 130-item type list cannot be scanned. Same prefix grouping as the
 // chips above it, using native optgroup so no extra JS is needed.
 const TYPE_GROUPS=[['sec_','Security'],['data_','Data'],['screen_','Screen'],['onboarding_','Onboarding'],
@@ -1860,7 +1917,16 @@ async function api(p,opt={}){
   if(r.status===401){S.key='';sessionStorage.removeItem('ptAdminKey');S.view='login';render();throw new Error('unauthorized')}
   // A blip or a 5xx used to surface as "Wrong key", which sends the owner
   // hunting a credential problem they do not have.
-  if(!r.ok)throw new Error('server returned '+r.status+' for '+p);
+  // The body carries the real cause (a D1 quota message, a validation error).
+  // "server returned 500" alone sent the owner hunting the wrong problem.
+  if(!r.ok){
+    let detail='';
+    try{
+      const b=await r.json();
+      detail=String((b&&(b.detail||b.error))||'').slice(0,160);
+    }catch(e){/* non-JSON error page */}
+    throw new Error('server returned '+r.status+' for '+p+(detail?' — '+detail:''));
+  }
   return r.json();
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -1907,7 +1973,8 @@ function otpCopy(code,btn){
   catch(x){prompt('Copy the code:',code)}
 }
 function statCards(extra){
-  const st=S.overview.stats||{};
+  // overview can be missing when that one endpoint failed; the panel must still render
+  const st=(S.overview&&S.overview.stats)||{};
   const items=[['Users',st.users],['Accounts',st.accounts],['Anonymous',st.anonymous],['Sign-ups 7d',st.signups7d],
     ['Events 24h',st.eventsToday],['Logged days',st.entryDays],['Notes written',st.noteCount],
     ['Active loggers',st.activeLoggers],['OTP 7d',(st.otpSent7d||0)+'→'+(st.otpVerified7d||0)],
@@ -1973,13 +2040,16 @@ function render0(){
     return;
   }
   if(S.view==='detail'){renderDetail(app);return}
-  if(!S.overview){
+  // Only while the very first load is genuinely in flight. Gating on S.overview
+  // meant one failed endpoint locked out every tab - including Notes and OTP,
+  // which need nothing from it - behind an endless "Loading...".
+  if(!S.overview&&S.loading){
     app.innerHTML=shell('Loading','fetching the dashboard',tabbar(),
       '<div class="detail"><p class="sub" style="margin:0">'+(S.err?'Failed to load: '+esc(S.err):'Loading…')+'</p>'+
       (S.err?'<button class="primary sm" style="margin-top:8px" onclick="refresh()">Retry</button>':'')+'</div>');
     return;
   }
-  const st=S.overview.stats||{};
+  const st=(S.overview&&S.overview.stats)||{};
   const sub=st.users+' users · '+st.accounts+' accounts · '+st.anonymous+' anonymous · '+st.entryDays+' logged days';
   // ---- overview ----
   if(S.tab==='overview'){
@@ -1997,7 +2067,7 @@ function render0(){
       '<div class="pane"><h3>Deliverability</h3><div class="kv"><div><b>Latest probe</b> '+(last?esc(last.score||last.status)+' · '+new Date(last.created_at).toLocaleString():'no probes yet')+'</div></div>'+
       '<p class="sub2" style="margin:8px 0 0">Full history under the Delivery tab.</p></div></div>'+
       '<h2>Latest sign-ups</h2><div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Type</th><th>When</th></tr></thead><tbody>'+
-      (S.overview.latest||[]).map(l=>'<tr><td data-l="User"><span class="cell-main">'+esc(l.name||'—')+'</span><span class="cell-sub">'+esc(l.email||'anonymous')+'</span></td><td data-l="Type"><span class="pill '+(l.email?'a':'n')+'">'+(l.email?'account':'anonymous')+'</span></td><td data-l="When" class="mono">'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table></div></div>');
+      ((S.overview&&S.overview.latest)||[]).map(l=>'<tr><td data-l="User"><span class="cell-main">'+esc(l.name||'—')+'</span><span class="cell-sub">'+esc(l.email||'anonymous')+'</span></td><td data-l="Type"><span class="pill '+(l.email?'a':'n')+'">'+(l.email?'account':'anonymous')+'</span></td><td data-l="When" class="mono">'+new Date(l.created_at).toLocaleString()+'</td></tr>').join('')+'</tbody></table></div></div>');
     return;
   }
   // Empty/missing values sink to the bottom whatever the direction: the rows
@@ -2046,6 +2116,31 @@ function render0(){
       '<label class="fld-inline" for="usort">Sort</label><select id="usort" onchange="S.uSort=this.value;render()">'+SORTS.map(([v,l])=>'<option value="'+v+'"'+(S.uSort===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
       '<button class="ghost sm" onclick="S.uDir*=-1;render()" title="Flip order">'+(S.uDir===-1?'Newest first':'Oldest first')+'</button></div>'+
       '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Contact</th><th>Type</th><th>Network</th><th>Device</th><th>Password / OTP</th><th>Locale</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7" class="empty-cell">No users yet</td></tr>')+'</tbody></table></div></div>');
+    return;
+  }
+  // ---- notes: search what people actually wrote, across every user ----
+  if(S.tab==='notes'){
+    const rows=(S.notes||[]).map(n=>{
+      const who=n.email||n.name||n.userId;
+      return '<tr><td data-l="User">'+esc(who)+'</td>'+
+        '<td data-l="Date" class="mono">'+esc(n.date)+'</td>'+
+        '<td data-l="Note">'+esc(n.note)+'</td>'+
+        '<td data-l="Flow">'+(n.flow?'<span class="pill">'+esc(n.flow)+'</span>':'-')+'</td>'+
+        '<td data-l="Also logged">'+esc((n.symptoms||[]).join(', ')||'-')+'</td></tr>';
+    }).join('');
+    app.innerHTML=shell('Notes','search every note anyone wrote, across all users',
+      tabbar(),
+      '<div class="toolbar"><input id="nq" type="search" placeholder="Search notes for a word or phrase" value="'+esc(S.noteQ)+'" '+
+      'onkeydown="if(event.key===&apos;Enter&apos;){searchNotes();return false}" aria-label="Search notes">'+
+      '<button class="primary sm" onclick="searchNotes()">Search</button></div>'+
+      (S.noteBusy?'<p class="sub2" style="margin:10px 0 0">Searching…</p>':'')+
+      (S.errs&&S.errs.notes?'<div class="errbar" role="status">Search failed: '+esc(S.errs.notes)+'</div>':'')+
+      (S.noteQ.length>=2&&!S.noteBusy&&S.notes&&S.notes.length
+        ? '<p class="sub2" style="margin:10px 0 0">'+(S.noteTrunc?'Showing the first ':'')+S.notes.length+' matching note(s)'+(S.noteTrunc?' — narrow the search to see more':'')+'</p>'+
+          '<div class="tblwrap"><div class="tblscroll"><table><thead><tr><th>User</th><th>Date</th><th>Note</th><th>Flow</th><th>Also logged</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+        : S.noteQ.length>=2&&!S.noteBusy&&S.notes&&!S.notes.length
+          ? '<p class="sub2" style="margin:10px 0 0">No note contains &ldquo;'+esc(S.noteQ)+'&rdquo;.</p>'
+          : '<p class="sub2" style="margin:10px 0 0">Type at least two characters, then press Enter. Nothing is scanned until you do.</p>'));
     return;
   }
   // ---- release ----
@@ -2227,7 +2322,11 @@ function render(){render0();restoreFocus()}
 function login(){
   S.key=document.getElementById('k').value.trim();
   sessionStorage.setItem('ptAdminKey',S.key);
-  load().then(()=>{S.view='list';S.err=null;render()}).catch(e=>{const box=document.getElementById('e');if(!box)return;box.textContent=e.message==='unauthorized'?'':'Could not load: '+(e.message||'unknown error');});
+  // Paint the shell before loading. load() waited on every endpoint, so one
+  // dead backend (or a slow D1) left the owner staring at "Loading..." with no
+  // way into any tab - including ones that need none of that data.
+  S.view='list';S.err=null;render();
+  load().then(()=>{render()}).catch(e=>{const box=document.getElementById('e');if(!box)return;box.textContent=e.message==='unauthorized'?'':'Could not load: '+(e.message||'unknown error');});
 }
 function refresh(){load().then(()=>{S.err=null;render();if(S.tab==='activity')loadEvents()}).catch(e=>{S.err=(e&&e.message)||'load failed';render()})}
 function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEvents();if(id==='health')loadHealth()}
@@ -2235,11 +2334,12 @@ function tabClick(id){S.tab=id;S.evPage=1;swap(render);if(id==='activity')loadEv
 // independently, remember what failed and why, and render everything that did
 // come back. (A D1 daily read-limit blowout used to take out all seven tabs.)
 function soft(key,url,assign,fallback){
-  return api(url).then(r=>{S.errs[key]=null;assign(r)})
-    .catch(e=>{S.errs[key]=String((e&&e.message)||e);assign(fallback)});
+  return api(url).then(r=>{S.errs[key]=null;assign(r);if(S.view==='list')render()})
+    .catch(e=>{S.errs[key]=String((e&&e.message)||e);assign(fallback);if(S.view==='list')render()});
 }
 async function load(){
   S.errs=S.errs||{};
+  S.loading=true;
   await Promise.all([
     soft('overview','/overview',r=>{S.overview=r||null},null),
     soft('users','/users',r=>{S.users=(r&&r.users)||[]},{users:[]}),
@@ -2252,6 +2352,7 @@ async function load(){
   soft('otp','/otp',r=>{S.otp=(r&&r.otp)||[]},{otp:[]});
   soft('deliverability','/events?view=raw&q=deliverability_&limit=20&tier=all&order=desc',
     r=>{S.deliv=(r&&r.events)||[]},{events:[]});
+  S.loading=false;
   loadHealth();
 }
 // a banner naming exactly which reads failed, so a partial outage is legible
@@ -2260,6 +2361,19 @@ function errBanner(){
   if(!keys.length)return '';
   return '<div class="errbar" role="status"><b>Partial data</b> could not load: '+
     esc(keys.join(', '))+'.</div>';
+}
+// ---- notes search ----
+// Reads every stored entry, so it is never part of load(); only the owner's
+// explicit search triggers the scan.
+function searchNotes(){
+  const el=document.getElementById('nq');
+  S.noteQ=(el&&el.value||'').trim();
+  if(S.noteQ.length<2){S.notes=null;S.errs.notes=null;render();return}
+  S.noteBusy=true;render();
+  api('/notes?q='+encodeURIComponent(S.noteQ))
+    .then(r=>{S.notes=(r&&r.notes)||[];S.noteTrunc=!!(r&&r.truncated);S.errs.notes=null})
+    .catch(e=>{S.notes=null;S.errs.notes=String((e&&e.message)||e)})
+    .then(()=>{S.noteBusy=false;render()});
 }
 // ---- health tab loader ----
 function loadHealth(){
