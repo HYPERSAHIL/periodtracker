@@ -19,6 +19,24 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
+/** Shape AND calendar-valid: /\d{4}-\d{2}-\d{2}/ alone lets 2026-13-45 through,
+    which becomes a phantom day in the calendar and the stats. */
+const isoDay = (v: unknown): v is string => {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split('-').map(Number);
+  if (m < 1 || m > 12 || d < 1) return false;
+  return d <= new Date(Date.UTC(y, m, 0)).getUTCDate();
+};
+
+/** Numbers arriving from a backup are untrusted. A string avgCycleLength used to
+    reach the dashboard and trip the error boundary, blanking the whole screen. */
+const numOr = (v: unknown, min: number, max: number, fallback: number): number => {
+  const n = typeof v === 'string' ? Number(v) : v;
+  return typeof n === 'number' && Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
+};
+
+const bool = (v: unknown, fallback: boolean): boolean => (typeof v === 'boolean' ? v : fallback);
+
 function normalizeEntry(e: Partial<DayEntry> & { date: string }): DayEntry {
   const test = (v: unknown): DayEntry['lhTest'] =>
     ['negative', 'positive', 'faint', 'unclear'].includes(v as string) ? (v as DayEntry['lhTest']) : null;
@@ -180,6 +198,11 @@ export function loadSettings(): Settings {
     s.contraception.method = normMethod(s.contraception.method) ?? 'none';
     if (s.weekStart !== 0 && s.weekStart !== 1) s.weekStart = 1;
     s.lang = normLang(s.lang);
+    // a non-numeric cycle length propagates NaN into the predictions and trips
+    // the error boundary, which blanks the screen with no way back
+    s.avgCycleLength = numOr(s.avgCycleLength, 15, 90, DEFAULT_SETTINGS.avgCycleLength);
+    s.avgPeriodLength = numOr(s.avgPeriodLength, 1, 14, DEFAULT_SETTINGS.avgPeriodLength);
+    s.showFertileWindow = typeof s.showFertileWindow === 'boolean' ? s.showFertileWindow : DEFAULT_SETTINGS.showFertileWindow;
     s.customSymptoms = strList(s.customSymptoms);
     s.customMoods = strList(s.customMoods);
     s.medTime = validTime(s.medTime) ? (s.medTime as string) : null;
@@ -189,11 +212,10 @@ export function loadSettings(): Settings {
     s.notifyPeriod = s.notifyPeriod !== false;
     s.discreetNotifs = s.discreetNotifs === true;
     s.priorMethod = normMethod(s.priorMethod);
-    s.excludedStarts = Array.isArray(s.excludedStarts)
-      ? s.excludedStarts.filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-      : [];
-    s.tryingSince =
-      typeof s.tryingSince === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.tryingSince) ? s.tryingSince : null;
+    s.lastPeriodStart = isoDay(s.lastPeriodStart) ? s.lastPeriodStart : null;
+    s.dueDate = isoDay(s.dueDate) ? s.dueDate : null;
+    s.excludedStarts = Array.isArray(s.excludedStarts) ? s.excludedStarts.filter(isoDay) : [];
+    s.tryingSince = isoDay(s.tryingSince) ? s.tryingSince : null;
     const ppMood = s.ppMood;
     if (ppMood == null || typeof ppMood.score !== 'number' || typeof ppMood.date !== 'string') {
       s.ppMood = null;
@@ -299,7 +321,7 @@ export function parseBackup(text: string): { settings: Settings; entries: Record
     if (!data || data.app !== 'period-tracker' || !Array.isArray(data.entries)) return null;
     const entries: Record<string, DayEntry> = {};
     for (const e of data.entries) {
-      if (e && typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) {
+      if (e && isoDay(e.date)) {
         entries[e.date] = normalizeEntry(e as DayEntry);
       }
     }
@@ -308,28 +330,34 @@ export function parseBackup(text: string): { settings: Settings; entries: Record
     merged.contraception.method = normMethod(merged.contraception.method) ?? 'none';
     if (merged.weekStart !== 0 && merged.weekStart !== 1) merged.weekStart = 1;
     merged.lang = normLang(merged.lang);
+    // ranges match what the rest of the app already treats as plausible
+    merged.avgCycleLength = numOr(merged.avgCycleLength, 15, 90, DEFAULT_SETTINGS.avgCycleLength);
+    merged.avgPeriodLength = numOr(merged.avgPeriodLength, 1, 14, DEFAULT_SETTINGS.avgPeriodLength);
+    merged.showFertileWindow = bool(merged.showFertileWindow, DEFAULT_SETTINGS.showFertileWindow);
+    merged.predictionsPaused = bool(merged.predictionsPaused, DEFAULT_SETTINGS.predictionsPaused);
+    merged.reminders = bool(merged.reminders, DEFAULT_SETTINGS.reminders);
+    merged.notifyPeriod = bool(merged.notifyPeriod, DEFAULT_SETTINGS.notifyPeriod);
+    merged.notifyDailyCheckin = bool(merged.notifyDailyCheckin, DEFAULT_SETTINGS.notifyDailyCheckin);
+    merged.notifyOvulation = bool(merged.notifyOvulation, DEFAULT_SETTINGS.notifyOvulation);
+    merged.notifyMeds = bool(merged.notifyMeds, false) && merged.medTime !== null;
+    merged.onboarded = true;
+    merged.lastPeriodStart = isoDay(merged.lastPeriodStart) ? merged.lastPeriodStart : null;
+    merged.dueDate = isoDay(merged.dueDate) ? merged.dueDate : null;
     merged.customSymptoms = strList(merged.customSymptoms);
     merged.customMoods = strList(merged.customMoods);
     merged.medTime = validTime(merged.medTime) ? (merged.medTime as string) : null;
-    merged.notifyMeds = merged.notifyMeds === true && merged.medTime !== null;
     merged.irregular = merged.irregular === true;
     merged.teen = merged.teen === true;
     merged.discreetNotifs = merged.discreetNotifs === true;
     merged.priorMethod = normMethod(merged.priorMethod);
-    merged.excludedStarts = Array.isArray(merged.excludedStarts)
-      ? merged.excludedStarts.filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-      : [];
-    merged.tryingSince =
-      typeof merged.tryingSince === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(merged.tryingSince) ? merged.tryingSince : null;
-    merged.pmddCheckStart =      typeof merged.pmddCheckStart === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(merged.pmddCheckStart)
-        ? merged.pmddCheckStart
-        : null;
+    merged.excludedStarts = Array.isArray(merged.excludedStarts) ? merged.excludedStarts.filter(isoDay) : [];
+    merged.tryingSince = isoDay(merged.tryingSince) ? merged.tryingSince : null;
+    merged.pmddCheckStart = isoDay(merged.pmddCheckStart) ? merged.pmddCheckStart : null;
     if (merged.postpartum != null) {
       const pp = merged.postpartum as { birthDate?: unknown; exclusiveBF?: unknown };
-      merged.postpartum =
-        typeof pp.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pp.birthDate)
-          ? { birthDate: pp.birthDate, exclusiveBF: pp.exclusiveBF === true }
-          : null;
+      merged.postpartum = isoDay(pp.birthDate)
+        ? { birthDate: pp.birthDate, exclusiveBF: pp.exclusiveBF === true }
+        : null;
     }
     const t = normalizeTrackerOrder(merged.trackerOrder ?? [], merged.trackerHidden ?? []);
     merged.trackerOrder = t.order;

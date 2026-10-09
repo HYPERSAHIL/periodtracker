@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
 import { buildFacts, computeStats, periodClusters } from '../src/lib/cycle';
-import { mergeImportedEntries, parseCSVEntries, parseHealthXML, parseWearableCSV } from '../src/lib/storage';
+import { mergeImportedEntries, parseBackup, parseCSVEntries, parseHealthXML, parseWearableCSV } from '../src/lib/storage';
 import { adherenceConfidence, detectThermalShift, perimenstrualMigraine, variabilityPhenotype } from '../src/lib/stats';
 import { guideAnswer } from '../src/lib/guide';
 import { normLang, tx } from '../src/lib/i18n';
@@ -575,4 +575,49 @@ console.log('selfcheck: all 18 groups passed');
   assert.ok(seen.size > 550, `Hindi table is populated (${seen.size} keys)`);
 }
 
-console.log('selfcheck: all 21 groups passed');
+
+// 22. Backup import is a trust boundary. A backup is a user-supplied file, so
+//     every field is coerced. A string avgCycleLength used to survive into
+//     settings and blank the dashboard via the error boundary.
+{
+  const mk = (entries: unknown[], settings: Record<string, unknown> = {}) =>
+    JSON.stringify({ app: 'period-tracker', version: 3, exportedAt: '2026-01-01T00:00:00Z', settings, entries });
+  const d = (n: number) => `2026-01-${String(n).padStart(2, '0')}`;
+
+  // numbers
+  const bad = parseBackup(mk([{ date: d(5), checkedIn: true }], { avgCycleLength: 'banana', avgPeriodLength: 'cheese' }));
+  assert.ok(bad, 'backup with string cycle lengths still parses');
+  assert.equal(typeof bad!.settings.avgCycleLength, 'number', 'avgCycleLength coerced to a number');
+  assert.ok(
+    bad!.settings.avgCycleLength >= 15 && bad!.settings.avgCycleLength <= 90,
+    `avgCycleLength clamped into range (got ${bad!.settings.avgCycleLength})`
+  );
+  assert.ok(bad!.settings.avgPeriodLength >= 1 && bad!.settings.avgPeriodLength <= 14, 'avgPeriodLength clamped');
+
+  // out-of-range numbers clamp rather than pass through
+  const wild = parseBackup(mk([], { avgCycleLength: 99999, avgPeriodLength: -4 }));
+  assert.equal(wild!.settings.avgCycleLength, 90, 'absurd cycle length clamps to the max');
+  assert.equal(wild!.settings.avgPeriodLength, 1, 'negative period length clamps to the min');
+
+  // booleans
+  const strBools = parseBackup(mk([], { showFertileWindow: 'yes', reminders: 'no', teen: 1 }));
+  for (const k of ['showFertileWindow', 'reminders', 'teen'] as const)
+    assert.equal(typeof strBools!.settings[k], 'boolean', `${k} coerced to a boolean`);
+
+  // calendar-valid dates only: a well-shaped but impossible day is a phantom
+  const impossible = parseBackup(
+    mk([{ date: d(5), note: 'real' }, { date: '2026-13-45', note: 'phantom' }, { date: 'not-a-date' }, null])
+  );
+  assert.ok(impossible, 'backup with junk rows still parses');
+  assert.deepEqual(Object.keys(impossible!.entries), [d(5)], 'impossible and non-date rows dropped');
+
+  // the 29th really is rejected on a non-leap year and kept on a leap year
+  assert.equal(parseBackup(mk([{ date: '2026-02-29' }]))!.entries['2026-02-29'], undefined, '2026-02-29 rejected');
+  assert.ok(parseBackup(mk([{ date: '2024-02-29' }]))!.entries['2024-02-29'], '2024-02-29 accepted');
+
+  // brand marker still required, so a random JSON file is not treated as a backup
+  assert.equal(parseBackup(JSON.stringify({ entries: [] })), null, 'unmarked JSON rejected');
+  assert.equal(parseBackup('not json'), null, 'garbage rejected');
+}
+
+console.log('selfcheck: all 22 groups passed');
