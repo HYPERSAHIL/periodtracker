@@ -11,6 +11,7 @@ import { normLang } from './i18n';
 import { sec } from './audit';
 import { APP_VERSION } from '../types';
 import { track } from './beacon';
+import { DELETED_WIRE_KEY } from './storage';
 
 const CLOUD_KEY = 'pt.cloud.v1';
 let clockSkewLogged = false;
@@ -255,14 +256,53 @@ export async function emailUnsubscribe(token: string): Promise<void> {
 
 export function mergeEntries(
   local: Record<string, DayEntry>,
-  remote: Record<string, DayEntry> | null
+  remote: Record<string, DayEntry> | null,
+  deleted: Record<string, number> = {}
 ): Record<string, DayEntry> {
   const out: Record<string, DayEntry> = { ...(remote ?? {}) };
   for (const [date, e] of Object.entries(local)) {
     const r = out[date];
     if (!r || (e.updatedAt ?? 0) >= (r.updatedAt ?? 0)) out[date] = e;
   }
+  // A tombstone outranks any copy saved before the delete. An entry written
+  // after it is a deliberate re-add, so it survives.
+  for (const [date, at] of Object.entries(deleted)) {
+    const e = out[date];
+    if (e && (e.updatedAt ?? 0) <= at) delete out[date];
+  }
   return out;
+}
+
+/** Union of deletion tombstones, newest timestamp wins. */
+export function mergeDeleted(
+  local: Record<string, number>,
+  remote: Record<string, unknown> | null | undefined
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [date, at] of Object.entries(remote ?? {})) {
+    if (typeof at === 'number' && Number.isFinite(at)) out[date] = at;
+  }
+  for (const [date, at] of Object.entries(local)) {
+    if ((out[date] ?? 0) < at) out[date] = at;
+  }
+  return out;
+}
+
+/** Split the wire blob into real entries and the tombstone map it carries. */
+function unwire(blob: unknown): { entries: Record<string, DayEntry> | null; deleted: Record<string, unknown> | null } {
+  if (!blob || typeof blob !== 'object' || Array.isArray(blob)) return { entries: null, deleted: null };
+  const rec = blob as Record<string, unknown>;
+  const deleted = rec[DELETED_WIRE_KEY];
+  const rest = Object.fromEntries(Object.entries(rec).filter(([k]) => k !== DELETED_WIRE_KEY));
+  return {
+    entries: Object.keys(rest).length ? (rest as Record<string, DayEntry>) : null,
+    deleted: deleted && typeof deleted === 'object' ? (deleted as Record<string, unknown>) : null,
+  };
+}
+
+/** Attach tombstones to the entries blob for transport. */
+function wire(entries: Record<string, DayEntry>, deleted: Record<string, number>): Record<string, unknown> {
+  return Object.keys(deleted).length ? { ...entries, [DELETED_WIRE_KEY]: deleted } : entries;
 }
 
 export function mergeSettings(local: Settings, remote: Settings | null): Settings {
@@ -277,6 +317,7 @@ export function mergeSettings(local: Settings, remote: Settings | null): Setting
 export interface SyncResult {
   entries?: Record<string, DayEntry>;
   settings?: Settings;
+  deleted?: Record<string, number>;
   changed: boolean;
 }
 
@@ -293,31 +334,45 @@ export async function syncCycle(
   token: string,
   entries: Record<string, DayEntry>,
   settings: Settings,
-  applyMerged: (m: SyncResult) => void
+  applyMerged: (m: SyncResult) => void,
+  deleted: Record<string, number> = {}
 ): Promise<void> {
   const pulled = await api('data', undefined, token);
   if (pulled.status === 401) throw new Error('session_expired');
   if (!pulled.ok) throw new Error('pull_failed');
 
-  const remoteEntries = pulled.data.entries;
+  const remoteBlob = unwire(pulled.data.entries);
+  const remoteEntries = remoteBlob.entries;
   const remoteSettings = pulled.data.settings;
-  const mergedEntries = mergeEntries(entries, remoteEntries);
+  const mergedDeleted = mergeDeleted(deleted, remoteBlob.deleted);
+  const mergedEntries = mergeEntries(entries, remoteEntries, mergedDeleted);
   const mergedSettings = mergeSettings(settings, remoteSettings);
   const localChanged =
     stable(mergedEntries) !== stable(remoteEntries ?? {}) ||
+    stable(mergedDeleted) !== stable(remoteBlob.deleted ?? {}) ||
     stable({ ...mergedSettings }) !== stable(remoteSettings ?? null);
   if (localChanged) {
-    applyMerged({ entries: mergedEntries, settings: mergedSettings, changed: true });
+    applyMerged({ entries: mergedEntries, settings: mergedSettings, deleted: mergedDeleted, changed: true });
   }
 
-  const push = await api('data', { baseRev: pulled.data.rev, settings: mergedSettings, entries: mergedEntries }, token);
+  const push = await api(
+    'data',
+    { baseRev: pulled.data.rev, settings: mergedSettings, entries: wire(mergedEntries, mergedDeleted) },
+    token
+  );
   if (push.status === 409 && !push.ok) {
     const retry = await api('data', undefined, token);
     if (!retry.ok) throw new Error('conflict_retry_failed');
-    const m2e = mergeEntries(mergedEntries, retry.data.entries);
+    const r2 = unwire(retry.data.entries);
+    const m2d = mergeDeleted(mergedDeleted, r2.deleted);
+    const m2e = mergeEntries(mergedEntries, r2.entries, m2d);
     const m2s = mergeSettings(mergedSettings, retry.data.settings);
-    applyMerged({ entries: m2e, settings: m2s, changed: true });
-    const push2 = await api('data', { baseRev: retry.data.rev, settings: m2s, entries: m2e }, token);
+    applyMerged({ entries: m2e, settings: m2s, deleted: m2d, changed: true });
+    const push2 = await api(
+      'data',
+      { baseRev: retry.data.rev, settings: m2s, entries: wire(m2e, m2d) },
+      token
+    );
     if (!push2.ok) throw new Error('push_conflict');
   } else if (!push.ok) {
     throw new Error('push_failed');

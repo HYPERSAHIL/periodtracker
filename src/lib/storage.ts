@@ -5,6 +5,15 @@ import { verifyIntegrity, writeIntegrity } from './audit';
 
 const ENTRIES_KEY = 'pt.entries.v1';
 const SETTINGS_KEY = 'pt.settings.v1';
+const DELETED_KEY = 'pt.deleted.v1';
+
+/**
+ * Reserved key inside the synced entries blob. Deleting a log is an absence, and
+ * a merge cannot tell "deleted here" from "never logged on this device", so the
+ * absence has to travel as data. Only ever present on the wire - stripped
+ * before the payload reaches app state.
+ */
+export const DELETED_WIRE_KEY = '__deleted';
 const NOTIFY_KEY = 'pt.notified.v1';
 
 export interface BackupFile {
@@ -176,6 +185,35 @@ export function saveEntries(entries: Record<string, DayEntry>): void {
     writeIntegrity('entries', json);
   } catch (err) {
     noteSaveFailure('entries', err, json.length);
+  }
+}
+
+/**
+ * Deletion tombstones: date -> when it was deleted. Without these, "Delete this
+ * log" is undone by the very next sync, which pulls the row back from the server
+ * and pushes it up again. A tombstone wins over an entry saved before it, and
+ * loses to one saved after, so editing a deleted day brings it back.
+ */
+export function loadDeleted(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(DELETED_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const out: Record<string, number> = {};
+    for (const [date, at] of Object.entries(parsed as Record<string, unknown>)) {
+      if (isoDay(date) && typeof at === 'number' && Number.isFinite(at)) out[date] = at;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function saveDeleted(deleted: Record<string, number>): void {
+  try {
+    localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+  } catch {
+    /* best effort: a missing tombstone only means a deleted day can come back */
   }
 }
 

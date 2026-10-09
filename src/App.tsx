@@ -20,6 +20,8 @@ import {
   inQuietHours,
   saveEntries,
   saveSettings,
+  saveDeleted,
+  loadDeleted,
 } from './lib/storage';
 import { todayISO, setDateLocale } from './lib/date';
 import { Logo, IconHome, IconCalendar, IconChart, IconGear } from './components/Icons';
@@ -714,6 +716,9 @@ function MainApp() {
   }, []);
 
   const remove = useCallback((date: string) => {
+    // Tombstone it: without this the next sync pulls the row back off the server
+    // and "Delete this log" silently does nothing.
+    saveDeleted({ ...loadDeleted(), [date]: Date.now() });
     setEntries((prev) => {
       const next = { ...prev };
       delete next[date];

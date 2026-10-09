@@ -22,6 +22,7 @@ import {
 } from '../lib/cloud';
 import { deviceInfo } from '../lib/device';
 import { track } from '../lib/beacon';
+import { loadDeleted, saveDeleted } from '../lib/storage';
 
 /** Cloud backup state machine: session bootstrap, debounced push/pull, pending flag. */
 export function useCloudSync({
@@ -47,6 +48,8 @@ export function useCloudSync({
   const cloudRef = useRef<{ token: string | null }>({ token: loadSession()?.token ?? null });
   const syncTimer = useRef<number | null>(null);
   const firstPaint = useRef(true);
+  // Deletion tombstones are never rendered, only merged against, so they live in
+  // localStorage and are read at the moment they are needed instead of in state.
 
   const markPending = (yes: boolean) => {
     setPending(yes);
@@ -76,10 +79,11 @@ export function useCloudSync({
           if (m.changed) {
             if (m.entries) setEntries(m.entries);
             if (m.settings) setSettings(m.settings);
+            if (m.deleted) saveDeleted(m.deleted);
             track('data_sync_merged', { entries: m.entries ? Object.keys(m.entries).length : 0, settings: !!m.settings });
           }
           mergeRounds++;
-        });
+        }, loadDeleted());
         setSyncStatus('synced');
         markPending(false);
         // size/latency is how you spot a sync that quietly got slow on big data

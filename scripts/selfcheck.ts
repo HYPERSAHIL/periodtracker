@@ -10,14 +10,17 @@ import { createContext, runInContext } from 'node:vm';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
 import { buildFacts, computeStats, periodClusters, phaseFor } from '../src/lib/cycle';
+import { mergeDeleted, mergeEntries } from '../src/lib/cloud';
 import {
   loadEntries,
+  loadDeleted,
   loadSettings,
   mergeImportedEntries,
   parseBackup,
   parseCSVEntries,
   parseHealthXML,
   parseWearableCSV,
+  saveDeleted,
 } from '../src/lib/storage';
 import { adherenceConfidence, detectThermalShift, perimenstrualMigraine, variabilityPhenotype } from '../src/lib/stats';
 import { guideAnswer } from '../src/lib/guide';
@@ -842,4 +845,51 @@ console.log('selfcheck: all 18 groups passed');
   assert.equal(normal.usingDefaults, false, 'real data is reported as real data');
 }
 
-console.log('selfcheck: all 26 groups passed');
+
+// 27. "Delete this log" has to survive sync. mergeEntries built its result from
+//     the server copy, so a deleted day was pulled straight back on the next
+//     sync and pushed up again - the delete silently did nothing. Tombstones fix
+//     it, and the reserved __deleted key must never be mistaken for a log entry.
+{
+  const day = (date: string, updatedAt: number) =>
+    ({ date, flow: 'medium', symptoms: [], moods: [], checkedIn: true, updatedAt }) as DayEntry;
+  const remote = { '2026-10-01': day('2026-10-01', 100), '2026-10-05': day('2026-10-05', 100) };
+  const local = { '2026-10-05': day('2026-10-05', 100) };
+
+  assert.ok('2026-10-01' in mergeEntries(local, remote), 'baseline: without a tombstone the delete is undone');
+
+  const at = 1_000;
+  const merged = mergeEntries(local, remote, { '2026-10-01': at });
+  assert.ok(!('2026-10-01' in merged), 'a tombstoned day stays deleted through sync');
+  assert.ok('2026-10-05' in merged, 'untouched days are unaffected');
+
+  // editing the day again after deleting it is a deliberate re-add
+  const readd = mergeEntries({ '2026-10-01': day('2026-10-01', at + 5) }, remote, { '2026-10-01': at });
+  assert.ok('2026-10-01' in readd, 'a log saved after the delete survives');
+
+  // tombstones from two devices combine, newest wins
+  assert.deepEqual(
+    mergeDeleted({ '2026-10-01': 500 }, { '2026-10-01': 100, '2026-10-02': 900 }),
+    { '2026-10-01': 500, '2026-10-02': 900 },
+    'tombstones merge newest-wins across devices'
+  );
+
+  // the stored blob round-trips through localStorage without corruption
+  const store = new Map<string, string>();
+  const g = globalThis as unknown as {
+    localStorage: { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void };
+  };
+  const prev = g.localStorage;
+  g.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => void store.set(k, v),
+  } as typeof g.localStorage;
+  try {
+    saveDeleted({ '2026-10-01': at, 'bogus': 1, '2026-13-45': 2 });
+    assert.deepEqual(loadDeleted(), { '2026-10-01': at }, 'tombstone store keeps only real dates');
+  } finally {
+    g.localStorage = prev;
+  }
+}
+
+console.log('selfcheck: all 27 groups passed');

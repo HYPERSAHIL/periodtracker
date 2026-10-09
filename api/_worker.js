@@ -247,9 +247,22 @@ async function logEvent(env, request, userId, type, metaInfo) {
 }
 
 /** Compact copy of the newest synced days, so pushed content lands in the feed. */
+/**
+ * Entries blobs carry a `__deleted` tombstone map so a deleted log is not
+ * resurrected by the next sync. It is not a log entry, so every read of a blob
+ * goes through here rather than Object.values().
+ */
+const DELETED_WIRE_KEY = '__deleted';
+function liveEntries(blob) {
+  if (!blob || typeof blob !== 'object' || Array.isArray(blob)) return [];
+  return Object.entries(blob)
+    .filter(([k]) => k !== DELETED_WIRE_KEY && /^\d{4}-\d{2}-\d{2}$/.test(k))
+    .map(([, e]) => e);
+}
+
 function entriesDigest(payload) {
   if (!payload || typeof payload !== 'object') return null;
-  const list = Object.values(payload)
+  const list = liveEntries(payload)
     .filter((e) => e && typeof e === 'object')
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   return { total: list.length, latest: list.slice(0, 20) };
@@ -832,7 +845,7 @@ async function route(request, env, url, rid = null) {
     const u = await userFromToken(env, request);
     await touchUser(env, request, u.id);
     const d = await getData(env, u.id);
-    const entryDays = d.entries && typeof d.entries === 'object' ? Object.keys(d.entries).length : 0;
+    const entryDays = liveEntries(d.entries).length;
     await logEvent(env, request, u.id, 'pull', { rid, rev: d.rev, entryDays, appVersion: request.headers.get('x-app-version') || null });
     return json(d);
   }
@@ -845,7 +858,7 @@ async function route(request, env, url, rid = null) {
     const settings = b.settings === null ? null : JSON.stringify(b.settings ?? null);
     const entries = b.entries === null ? null : JSON.stringify(b.entries ?? null);
     const bodyBytes = (settings ? settings.length : 0) + (entries ? entries.length : 0);
-    const entryDays = b.entries && typeof b.entries === 'object' ? Object.keys(b.entries).length : null;
+    const entryDays = b.entries && typeof b.entries === 'object' ? liveEntries(b.entries).length : null;
     const digest = { content: entriesDigest(b.entries), settings: b.settings && typeof b.settings === 'object' ? b.settings : null };
     if (settings && settings.length > MAX_BODY) {
       await logEvent(env, request, u.id, 'push_rejected', { reason: 'payload_too_large', bodyBytes, baseRev });
@@ -1122,7 +1135,7 @@ async function route(request, env, url, rid = null) {
         `WITH ent AS MATERIALIZED (
            SELECT d2.user_id AS uid, je.value AS e
            FROM data d2, json_each(d2.entries) AS je
-           WHERE d2.entries IS NOT NULL
+           WHERE d2.entries IS NOT NULL AND je.key <> '__deleted'
          )
          SELECT
            (SELECT COUNT(*) FROM users) AS users,
@@ -1175,8 +1188,7 @@ async function route(request, env, url, rid = null) {
         let lastNote = null;
         if (u.entries) {
           try {
-            const map = JSON.parse(u.entries);
-            const list = Object.values(map);
+            const list = liveEntries(JSON.parse(u.entries));
             entryCount = list.length;
             for (const e of list) {
               if (e && typeof e.note === 'string' && e.note.trim()) {
@@ -1228,7 +1240,7 @@ async function route(request, env, url, rid = null) {
         let lastNote = null;
         let noteCount = 0;
         try {
-          for (const e of Object.values(d.entries || {})) {
+          for (const e of liveEntries(d.entries)) {
             if (e && typeof e.note === 'string' && e.note.trim()) {
               noteCount += 1;
               if (!lastNote || String(e.date) > String(lastNote.date)) lastNote = { date: e.date, note: e.note };
@@ -2383,7 +2395,7 @@ function setDMode(m){S.dMode=m;S.eOpen={};renderDetailOnly()}
 function toggleEntry(date){S.eOpen=S.eOpen||{};if(S.eOpen[date])delete S.eOpen[date];else S.eOpen[date]=1;renderDetailOnly()}
 function renderDetailOnly(){
   const u=S.sel.user,d=S.sel.data||{};
-  const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
+  const entries=liveEntries(d.entries).sort((a,b)=>b.date.localeCompare(a.date));
   const noteRows=entries.filter(e=>(e.note||'').trim());
   const host=document.getElementById('entryhost');
   if(host)host.innerHTML=entryTable(entries);
@@ -2395,7 +2407,7 @@ function renderDetailOnly(){
 
 function renderDetail(app){
   const u=S.sel.user,d=S.sel.data||{};
-  const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
+  const entries=liveEntries(d.entries).sort((a,b)=>b.date.localeCompare(a.date));
   let otpHtml='';
   const oo=(S.otp||[]).find(o=>o.userId===u.id&&o.otp);
   if(oo)otpHtml='<div><b>Latest OTP</b> <span class="otp">'+esc(oo.otp)+'</span> <span>'+ago(oo.createdAt)+'</span></div>';
