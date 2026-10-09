@@ -7,7 +7,7 @@ import { diffDays, prettyDate, todayISO } from '../lib/date';
 import { FLOWS, MUCUS_OPTIONS, METHOD_INFO } from '../types';
 import { safetyTriage } from '../lib/safety';
 import { track } from '../lib/beacon';
-import { IconAlert, IconInfo, IconReport } from './Icons';
+import { IconReport } from './Icons';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -150,7 +150,7 @@ export default function Dashboard(p: AppProps) {
                 : undefined
           }
         >
-          <span aria-hidden>{n.urgency === 'emergency' ? <IconAlert /> : n.urgency === 'same day' ? <IconAlert /> : <IconInfo size={15} />}</span>
+          <span aria-hidden>{n.urgency === 'emergency' ? '🚨' : n.urgency === 'same day' ? '⚠️' : 'ℹ️'}</span>
           <span>
             <strong>{n.headline}.</strong> {n.detail} <em>({n.source})</em>
           </span>
