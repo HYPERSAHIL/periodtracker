@@ -24,6 +24,7 @@ export default function SettingsView(p: AppProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmErase, setConfirmErase] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [reminderMsg, setReminderMsg] = useState<string | null>(null);
   const [pinModal, setPinModal] = useState(false);
   const pinRef = useFocusTrap(pinModal);
   const [pin, setPin] = useState('');
@@ -224,6 +225,16 @@ export default function SettingsView(p: AppProps) {
     if (perm !== 'granted') perm = await Notification.requestPermission();
     track('reminder_permission', { via: 'web', result: perm });
     updateSettings({ reminders: perm === 'granted' });
+    // a switch that silently refuses to flip reads as a broken app, and Android
+    // Chrome denies notifications to PWAs that are not installed to the home
+    // screen. Say why, and say what to do about it.
+    setReminderMsg(
+      perm === 'granted'
+        ? null
+        : perm === 'denied'
+          ? tx(lang, 'Notifications are blocked for this site. Allow them in your browser settings, or add Period Tracker to your home screen, then try again.')
+          : tx(lang, 'Your browser would not ask for notification permission. Add Period Tracker to your home screen to enable reminders.')
+    );
   };
 
   const setMode = (m: Mode) => {
@@ -389,6 +400,7 @@ export default function SettingsView(p: AppProps) {
             onClick={() => enableReminders(!settings.reminders)}
           />
         </div>
+        {reminderMsg && <p className="hint" style={{ marginTop: -6, marginBottom: 10 }}>{reminderMsg}</p>}
         {settings.reminders && (
           <>
             <div className="set-row">

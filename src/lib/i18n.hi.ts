@@ -826,6 +826,10 @@ export const HI: Record<string, string> = {
   'Predictions & reminders': 'अनुमान और रिमाइंडर',
   'Pause predictions': 'अनुमान रोकें',
   'On automatically while in pregnancy mode': 'प्रेग्नेंसी मोड में अपने आप चालू',
+  'Notifications are blocked for this site. Allow them in your browser settings, or add Period Tracker to your home screen, then try again.':
+    'इस साइट के लिए नोटिफ़िकेशन ब्लॉक हैं। अपनी ब्राउज़र सेटिंग्स में उन्हें अनुमति दें, या Period Tracker को होम स्क्रीन पर जोड़ें, फिर दोबारा कोशिश करें।',
+  'Your browser would not ask for notification permission. Add Period Tracker to your home screen to enable reminders.':
+    'आपका ब्राउज़र नोटिफ़िकेशन की अनुमति नहीं माँग रहा। रिमाइंडर चालू करने के लिए Period Tracker को होम स्क्रीन पर जोड़ें।',
   'Reminders master': 'रिमाइंडर मास्टर',
   'Allow notifications. Then choose what you get and when': 'नोटिफिकेशन की इजाज़त दें। फिर चुनें क्या और कब पाएं',
   'Period coming': 'पीरियड आने वाला',
