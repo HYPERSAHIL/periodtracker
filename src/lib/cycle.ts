@@ -116,7 +116,11 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
     else excluded.push(len);
   }
   const included = allIntervals.slice(-6);
-  const usingDefaults = starts.length < 2;
+  // Two starts are not two usable observations: if every interval between them
+  // was out of range, `included` is empty and the Bayesian branch below fell
+  // back to a hardcoded 29 while still reporting usingDefaults=false, quietly
+  // discarding the cycle length the user set in Settings.
+  const usingDefaults = starts.length < 2 || included.length === 0;
 
   // Personalized luteal phase: LH-positive days followed by a period start give
   // ovulation→period gaps (clinically 10-17 days; FAM literature). Falls back
@@ -264,6 +268,14 @@ export function phaseFor(dateISO: string, stats: CycleStats, facts: Map<string, 
   if (!stats.lastStart || diffDays(stats.lastStart, dateISO) < 0) return 'unknown';
   const f = facts.get(dateISO);
   if (f?.period || f?.predicted) return 'menstrual';
+  // The period a user is in right now. They log the days they remember, so
+  // days 3-5 of a 5-day period usually carry no flow flag and fell through to
+  // the luteal catch-all below - telling someone on day 1 that PMS is next.
+  const open = stats.clusters[stats.clusters.length - 1];
+  if (open) {
+    const into = diffDays(open.start, dateISO);
+    if (into >= 0 && into < Math.max(open.length, stats.avgPeriod)) return 'menstrual';
+  }
   if (stats.ovulationDate) {
     const d = diffDays(stats.ovulationDate, dateISO);
     if (d >= -2 && d <= 2) return 'ovulation';

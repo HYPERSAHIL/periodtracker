@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { createContext, runInContext } from 'node:vm';
 import { DEFAULT_SETTINGS, type DayEntry, type Settings } from '../src/types';
 import { addDays, monthGrid, todayISO, weekdayHeads } from '../src/lib/date';
-import { buildFacts, computeStats, periodClusters } from '../src/lib/cycle';
+import { buildFacts, computeStats, periodClusters, phaseFor } from '../src/lib/cycle';
 import {
   loadEntries,
   loadSettings,
@@ -780,4 +780,45 @@ console.log('selfcheck: all 18 groups passed');
   }
 }
 
-console.log('selfcheck: all 25 groups passed');
+
+// 26. The period you are in right now is menstrual. phaseFor only looked at
+//     days carrying a flow flag, so the unlogged remainder of the current
+//     period fell into the luteal catch-all and the app told people on day 1
+//     that PMS symptoms are next. Also: two period starts whose interval is
+//     out of range left `included` empty, and the Bayesian branch then used a
+//     hardcoded 29 while still claiming the number came from her data.
+{
+  const bled = (offsets: number[]) =>
+    Object.fromEntries(
+      offsets.map((o) => {
+        const d = addDays(todayISO(), -o);
+        return [d, { date: d, flow: 'medium', checkedIn: true } as unknown as DayEntry];
+      })
+    );
+
+  // last month logged in full, this month started 2 days ago and only 2 days
+  // are logged so far - the case that used to read "luteal"
+  const open = computeStats(bled([33, 32, 31, 30, 29, 2, 1]), { ...DEFAULT_SETTINGS, onboarded: true });
+  const openFacts = buildFacts(bled([33, 32, 31, 30, 29, 2, 1]), open);
+  for (const o of [0, 1, 2]) {
+    assert.equal(
+      phaseFor(addDays(todayISO(), -o), open, openFacts),
+      'menstrual',
+      `day ${o} of the current period is menstrual, not luteal`
+    );
+  }
+  // and the far side of the cycle is still labelled correctly
+  assert.equal(phaseFor(addDays(todayISO(), -20), open, openFacts), 'unknown', 'before the last period is unknown');
+
+  // every interval out of range -> fall back to the user's own setting, and say so
+  const stuck = computeStats(bled([40, 37]), { ...DEFAULT_SETTINGS, onboarded: true, avgCycleLength: 45 });
+  assert.equal(stuck.avgCycle, 45, 'out-of-range intervals fall back to the configured cycle length');
+  assert.equal(stuck.usingDefaults, true, 'the fallback is reported honestly instead of as her own data');
+
+  // a usable interval still wins over the configured setting
+  const normal = computeStats(bled([60, 32]), { ...DEFAULT_SETTINGS, onboarded: true, avgCycleLength: 45 });
+  assert.equal(normal.avgCycle, 28, 'a real interval is used, not the configured default');
+  assert.equal(normal.usingDefaults, false, 'real data is reported as real data');
+}
+
+console.log('selfcheck: all 26 groups passed');
