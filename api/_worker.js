@@ -1675,7 +1675,16 @@ tbody tr:last-child td{border-bottom:none}
 tbody tr[data-uid]{cursor:pointer}
 tbody tr[data-uid]:hover td{background:var(--surface2)}
 td .cell-main{display:block;font-weight:600;color:var(--ink)}
-td .cell-sub{display:block;font-size:11.5px;color:var(--ink3);font-weight:400;margin-top:2px;word-break:break-all}
+td .cell-sub{display:block;font-size:11.5px;color:var(--ink3);font-weight:400;margin-top:2px;
+  overflow-wrap:anywhere;word-break:normal;line-height:1.45}
+/* keep identity columns narrow so the table stays scannable */
+table td:nth-child(1){min-width:150px}
+table td.mono{white-space:nowrap}
+/* every sub-line is a short label, never prose: one line, ellipsis if long.
+   Without this the Device cell wrapped to three lines and forced 89px rows. */
+table td .cell-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:19ch}
+table td .cell-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:19ch}
+tbody td{padding:8px 12px}
 td.mono{font-family:var(--mono);font-size:12px}
 .otp{font:700 15px var(--mono);letter-spacing:.14em;color:var(--acc);background:var(--surface3);padding:3px 9px;border-radius:2px;white-space:nowrap;border:none}
 button.otp{cursor:pointer}
@@ -1758,7 +1767,7 @@ const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'joined',uDir:-1,eType:'all',ePrefix:'',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,eType:'all',ePrefix:'',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   let r;
