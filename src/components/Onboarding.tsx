@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Mode, MODE_INFO, METHOD_INFO, ContraceptionMethod, Settings } from '../types';
 import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
@@ -16,6 +16,9 @@ export default function Onboarding({
   updateSettings: (patch: Partial<Settings>) => void;
 }) {
   const [step, setStep] = useState(0);
+  // first screen is the one that scrolls; nudge until they prove they can
+  const [scrolled, setScrolled] = useState(false);
+  const [ctaSeen, setCtaSeen] = useState(false);
   const [mode, setMode] = useState<Mode>('cycle');
   const [lastStart, setLastStart] = useState(addDays(todayISO(), -5));
   const [periodLength, setPeriodLength] = useState(5);
@@ -32,6 +35,29 @@ export default function Onboarding({
   const isPostpartum = mode === 'postpartum';
   const accountStep = isPregnant ? 2 : 3;
   const totalSteps = accountStep + 1;
+
+  useEffect(() => {
+    if (step !== 0 || scrolled) return;
+    const onScroll = () => {
+      if ((window.scrollY || document.documentElement.scrollTop) > 24) {
+        setScrolled(true);
+        track('onboarding_scroll_hint', { dismissed: true });
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    // the CTA is below the fold on small screens: hide the hint when it appears
+    const cta = () => document.querySelector('.onboard-step .btn.primary');
+    const io = new IntersectionObserver(
+      (es) => es.forEach((e) => e.isIntersecting && setCtaSeen(true)),
+      { threshold: 0.6 }
+    );
+    const el = cta();
+    if (el) io.observe(el);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      io.disconnect();
+    };
+  }, [step, scrolled]);
 
   const finish = () => {
     updateSettings({
@@ -76,6 +102,13 @@ export default function Onboarding({
           <p className="lead">
             {tx(lang, 'Track your cycle, predict your period and fertile window, and see your patterns. All of your data stays on your device.')}
           </p>
+
+          {step === 0 && !scrolled && !ctaSeen && (
+            <div className="scroll-hint" role="note">
+              <span className="sh-arrow" aria-hidden />
+              {tx(lang, 'Scroll down to pick a mode and continue')}
+            </div>
+          )}
 
           <PhonePreview />
 

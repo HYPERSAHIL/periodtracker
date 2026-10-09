@@ -2271,21 +2271,26 @@ h3 svg,
 
 /* Onboarding: on the info steps the primary action stays pinned to the
    bottom, so a tall step never hides Continue below the fold. Step 1 (mode
-   picker) keeps its natural flow because its CTA belongs with the cards. */
+   picker) keeps its natural flow because its CTA belongs with the cards.
+
+   The scrim lives on the STEP, not the button: as a ::after on the button it
+   painted a dark --bg gradient across the button's own gradient. */
+.onboard-step.has-cta::before {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: calc(96px + env(safe-area-inset-bottom));
+  margin-top: -96px;
+  background: linear-gradient(to top, var(--bg) 62%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .onboard-step.has-cta > .btn.primary {
   position: sticky;
   bottom: calc(10px + env(safe-area-inset-bottom));
   z-index: 3;
-}
-
-.onboard-step.has-cta > .btn.primary::after {
-  /* let the button sit on a soft scrim so text scrolling under it stays legible */
-  content: '';
-  position: absolute;
-  inset: -14px -22px calc(-14px - env(safe-area-inset-bottom));
-  background: linear-gradient(to top, var(--bg) 55%, transparent);
-  z-index: -1;
-  pointer-events: none;
 }
 
 .onboard-step.has-cta > .btn.ghost {
@@ -2294,11 +2299,6 @@ h3 svg,
   z-index: 3;
 }
 
-/* short viewports: keep the pair together rather than overlapping */
-@media (max-height: 700px) {
-  .onboard-step.has-cta > .btn.ghost {
-    bottom: calc(62px + env(safe-area-inset-bottom));
-  }
 }
 
 /* the group list lives inside the "More sections" disclosure, so it needs a
@@ -2321,4 +2321,47 @@ h3 svg,
   font-size: 12px;
   font-weight: 800;
   color: var(--rose-600);
+}
+
+/* first-run scroll nudge: sits above the fold on step 1 only */
+.scroll-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 14px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  animation: hintIn 400ms var(--ease-out);
+}
+
+.sh-arrow {
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--rose-600);
+  border-bottom: 2px solid var(--rose-600);
+  transform: rotate(45deg) translate(-2px, -2px);
+  flex: none;
+  animation: hintBob 1.8s ease-in-out infinite;
+}
+
+@keyframes hintIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hintBob {
+  0%, 100% { transform: rotate(45deg) translate(-2px, -2px); }
+  50% { transform: rotate(45deg) translate(1px, 1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint,
+  .sh-arrow {
+    animation: none;
+  }
 }
