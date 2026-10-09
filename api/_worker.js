@@ -1445,9 +1445,18 @@ async function refreshFleet(env) {
         ).bind(...args, limit, offset).all().catch(() => ({ results: [] }));
         const ids = (rows.results || []).map((g) => g.last_id);
         const metaById = {};
+        // SQLite caps bound parameters, so one IN(...) with every group id threw
+        // and the catch swallowed it: the grouped view silently lost every
+        // payload. Chunk it instead, and let a genuine failure be visible.
         if (ids.length) {
-          const mr = await env.DB.prepare('SELECT id, meta, endpoint FROM events WHERE id IN (' + ids.map(() => '?').join(',') + ')').bind(...ids).all().catch(() => ({ results: [] }));
-          for (const m of mr.results || []) metaById[m.id] = m;
+          for (let i = 0; i < ids.length; i += 40) {
+            const chunk = ids.slice(i, i + 40);
+            const mr = await env.DB
+              .prepare('SELECT id, meta, endpoint FROM events WHERE id IN (' + chunk.map(() => '?').join(',') + ')')
+              .bind(...chunk)
+              .all();
+            for (const row of mr.results || []) metaById[row.id] = row;
+          }
         }
         out = (rows.results || []).map((g) => ({
           ...g,
