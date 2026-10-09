@@ -12,6 +12,7 @@ import { DayFacts, Phase } from '../lib/cycle';
 import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
 import { track } from '../lib/beacon';
+import { IconAlert, IconDna, IconDroplet, IconMic, IconPill, IconShield, IconSmoke, IconStop } from './Icons';
 
 const cToF = (c: number) => (c * 9) / 5 + 32;
 const fToC = (f: number) => ((f - 32) * 5) / 9;
@@ -349,7 +350,7 @@ export default function DaySheet({
             <label>{tx(lang, 'Tests')}</label>
             <div className="chips">
               <button type="button" className={`chip${d.lhTest === 'positive' ? ' on' : ''}`} onClick={() => set({ lhTest: d.lhTest === 'positive' ? null : 'positive' })}>
-                🟣 {tx(lang, 'LH positive')}
+                <IconDroplet /> {tx(lang, 'LH positive')}
               </button>
               <button type="button" className={`chip${d.lhTest === 'negative' ? ' on' : ''}`} onClick={() => set({ lhTest: d.lhTest === 'negative' ? null : 'negative' })}>
                 {tx(lang, 'LH negative')}
@@ -372,10 +373,10 @@ export default function DaySheet({
             <label>{tx(lang, 'Intimacy')}</label>
             <div className="chips">
               <button type="button" className={`chip${d.intercourse === 'protected' ? ' on' : ''}`} onClick={() => set({ intercourse: d.intercourse === 'protected' ? null : 'protected' })}>
-                💞 {tx(lang, 'Protected')}
+                <IconShield /> {tx(lang, 'Protected')}
               </button>
               <button type="button" className={`chip${d.intercourse === 'unprotected' ? ' on' : ''}`} onClick={() => set({ intercourse: d.intercourse === 'unprotected' ? null : 'unprotected' })}>
-                💞 {tx(lang, 'Unprotected')}
+                <IconAlert /> {tx(lang, 'Unprotected')}
               </button>
             </div>
             <div className="chips" style={{ marginTop: 8 }}>
@@ -454,7 +455,7 @@ export default function DaySheet({
                 </button>
               ))}
               <button type="button" className={`chip${d.smoked ? ' on' : ''}`} onClick={() => set({ smoked: !d.smoked })}>
-                🚬 {tx(lang, 'Smoked/vaped')}
+                <IconSmoke /> {tx(lang, 'Smoked/vaped')}
               </button>
             </div>
           </div>
@@ -465,13 +466,13 @@ export default function DaySheet({
             <label>{tx(lang, 'Medication')}</label>
             <div className="chips">
               <button type="button" className={`chip${d.pillTaken ? ' on' : ''}`} onClick={() => set({ pillTaken: !d.pillTaken, pillMissed: false })}>
-                💊 {tx(lang, 'Contraception taken')}
+                <IconPill /> {tx(lang, 'Contraception taken')}
               </button>
               <button type="button" className={`chip${d.pillMissed ? ' on' : ''}`} onClick={() => set({ pillMissed: !d.pillMissed, pillTaken: false })}>
                 ⏰ {tx(lang, 'Missed / late')}
               </button>
               <button type="button" className={`chip${d.supplements ? ' on' : ''}`} onClick={() => set({ supplements: !d.supplements })}>
-                🧬 {tx(lang, 'Supplements/prenatal')}
+                <IconDna /> {tx(lang, 'Supplements/prenatal')}
               </button>
             </div>
           </div>
@@ -718,7 +719,7 @@ function VoiceNote({ lang, onText }: { lang: string; onText: (t: string) => void
   };
   return (
     <button type="button" className="chip" style={{ marginTop: 8 }} onClick={toggle} aria-pressed={listening}>
-      {listening ? `⏹ ${tx(lang, 'Stop listening')}` : `🎙 ${tx(lang, 'Dictate note')}`}
+      {listening ? <><IconStop /> {tx(lang, 'Stop listening')}</> : <><IconMic /> {tx(lang, 'Dictate note')}</>}
     </button>
   );
 }

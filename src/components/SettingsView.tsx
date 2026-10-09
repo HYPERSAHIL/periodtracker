@@ -12,6 +12,7 @@ import { Stepper } from './Onboarding';
 import InstallCard from './InstallCard';
 import { todayISO, prettyDate } from '../lib/date';
 import { ContraceptionMethod, METHOD_INFO, Mode, MODE_INFO, MOODS, SYMPTOMS, TRACKER_SECTIONS } from '../types';
+import { IconLock, ModeGlyph } from './Icons';
 
 const MODES: Mode[] = ['cycle', 'ttc', 'pregnant', 'perimenopause', 'postpartum'];
 const METHODS: ContraceptionMethod[] = ['none', 'pill', 'patch', 'ring', 'injection', 'implant', 'iud', 'condom', 'other'];
@@ -254,7 +255,7 @@ export default function SettingsView(p: AppProps) {
               className={`mode-card${settings.mode === m ? ' on' : ''}`}
               onClick={() => setMode(m)}
             >
-              <span className="mc-emoji" aria-hidden>{MODE_INFO[m].emoji}</span>
+              <ModeGlyph name={MODE_INFO[m].icon} />
               <span className="mc-label">{txd(lang, `mode.${m}`, MODE_INFO[m].label)}</span>
               <span className="mc-blurb">{txd(lang, `mode.${m}.blurb`, MODE_INFO[m].blurb)}</span>
             </button>
@@ -1060,7 +1061,7 @@ export default function SettingsView(p: AppProps) {
         <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && setPinModal(false)}>
           <div className="sheet" role="dialog" aria-modal="true">
             <div className="grab" />
-            <h2>🔐 {tx(lang, 'App PIN')}</h2>
+            <h2><IconLock /> {tx(lang, 'App PIN')}</h2>
             <p className="hint" style={{ marginBottom: 14 }}>
               {tx(lang, '4-8 digits. This is a convenience gate, not encryption. Your data itself is unchanged on disk.')}
             </p>

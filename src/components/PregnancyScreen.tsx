@@ -6,6 +6,7 @@ import { prettyDate, todayISO, toISO } from '../lib/date';
 import { tx } from '../lib/i18n';
 import { track } from '../lib/beacon';
 import type { ApptItem, KickSession } from '../types';
+import { IconBaby, IconSparkle } from './Icons';
 
 const defaultAppts = (lang: string): ApptItem[] => [
   { id: 1, text: tx(lang, 'First prenatal visit (8 to 10 weeks)'), done: false },
@@ -60,7 +61,7 @@ export default function PregnancyScreen(p: AppProps) {
     return (
       <div className="card">
         <div className="empty">
-          <div className="big">🤰</div>
+          <div className="big"><IconBaby /></div>
           <strong>{tx(lang, 'Pregnancy mode is on')}</strong>
           <br />
           <br />
@@ -79,7 +80,7 @@ export default function PregnancyScreen(p: AppProps) {
         <div className="ring" />
         <div className="ring r2" />
         <div aria-label="Current pregnancy week" className="cycle-day">
-          {past ? '🌟' : info.weeks}
+          {past ? <IconSparkle size={22} /> : info.weeks}
           <span>{past ? tx(lang, 'due time') : tx(lang, 'weeks + {n} day{s}', { n: info.days, s: info.days === 1 ? '' : 's' })}</span>
         </div>
         <div className="phase">{tx(lang, 'Trimester')} {info.trimester}</div>
@@ -112,7 +113,7 @@ export default function PregnancyScreen(p: AppProps) {
       <div className="card">
         <h3>{tx(lang, 'Today · {date}', { date: prettyDate(today, { weekday: true }) })}</h3>
         <p style={{ margin: '0 0 12px', fontSize: 14.5 }}>
-          👶 {tx(lang, 'About the size of {size}', { size: babySize(info.weeks) })}
+          <IconBaby /> {tx(lang, 'About the size of {size}', { size: babySize(info.weeks) })}
         </p>
         <button className="btn primary" onClick={() => p.openDay(today)}>
           {todayEntry ? tx(lang, 'Edit today’s log') : tx(lang, 'Log today')}
@@ -150,7 +151,7 @@ export default function PregnancyScreen(p: AppProps) {
                 )
               }
             >
-              👶 {tx(lang, 'Tap · kick!')}
+              <IconBaby /> {tx(lang, 'Tap · kick!')}
             </button>
             <button
               className="btn ghost"

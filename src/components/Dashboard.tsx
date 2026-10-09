@@ -7,6 +7,7 @@ import { diffDays, prettyDate, todayISO } from '../lib/date';
 import { FLOWS, MUCUS_OPTIONS, METHOD_INFO } from '../types';
 import { safetyTriage } from '../lib/safety';
 import { track } from '../lib/beacon';
+import { IconAlert, IconBandage, IconClock, IconDove, IconDroplet, IconHeart, IconInfo, IconLeaf, IconMilk, IconMoon, IconPill, IconReport, IconSparkle, IconSprout } from './Icons';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -149,7 +150,7 @@ export default function Dashboard(p: AppProps) {
                 : undefined
           }
         >
-          <span aria-hidden>{n.urgency === 'emergency' ? '🚨' : n.urgency === 'same day' ? '⚠️' : 'ℹ️'}</span>
+          <span aria-hidden>{n.urgency === 'emergency' ? <IconAlert /> : n.urgency === 'same day' ? <IconAlert /> : <IconInfo size={15} />}</span>
           <span>
             <strong>{n.headline}.</strong> {n.detail} <em>({n.source})</em>
           </span>
@@ -158,28 +159,28 @@ export default function Dashboard(p: AppProps) {
 
       {stats.stale && (
         <div className="banner">
-          🕰️ {tx(lang, 'Your last logged period is {n} days ago. Too far back to forecast from. Predictions resume when you log your next period.', { n: daysSinceLast ?? '?' })}
+          <IconClock /> {tx(lang, 'Your last logged period is {n} days ago. Too far back to forecast from. Predictions resume when you log your next period.', { n: daysSinceLast ?? '?' })}
         </div>
       )}
       {settings.predictionsPaused && settings.mode !== 'pregnant' && (
-        <div className="banner">🌙 {tx(lang, 'Predictions are paused. Log freely. Nothing will be forecast until you resume them in Settings.')}</div>
+        <div className="banner"><IconMoon /> {tx(lang, 'Predictions are paused. Log freely. Nothing will be forecast until you resume them in Settings.')}</div>
       )}
       {stats.lateBy && settings.mode !== 'perimenopause' && (!settings.irregular || stats.lateBy > 14) && (
         <div className="banner">
-          🕊️ {tx(lang, 'Your period is {n} day{s} past the estimate (±{u}d). Late periods are common. Stress, illness, and sleep all shift cycles. If you might be pregnant, a test now is reliable.', { n: stats.lateBy, s: stats.lateBy === 1 ? '' : 's', u: stats.uncertaintyDays })}
+          <IconDove /> {tx(lang, 'Your period is {n} day{s} past the estimate (±{u}d). Late periods are common. Stress, illness, and sleep all shift cycles. If you might be pregnant, a test now is reliable.', { n: stats.lateBy, s: stats.lateBy === 1 ? '' : 's', u: stats.uncertaintyDays })}
         </div>
       )}
       {settings.mode === 'ttc' && inFertile && settings.showFertileWindow && !stats.fertileSuppressed && (
         <div className="banner" style={{ background: 'var(--leaf-100)', borderColor: 'var(--leaf-600)', color: 'var(--leaf-700)' }}>
-          🌱 {tx(lang, "You're inside your fertile window. An LH test today can help confirm ovulation is near.")}
+          <IconSprout /> {tx(lang, "You're inside your fertile window. An LH test today can help confirm ovulation is near.")}
         </div>
       )}
       {settings.mode === 'perimenopause' && daysSinceLast !== null && daysSinceLast > 60 && (
-        <div className="banner">🍂 {tx(lang, '{n} days since your last period. Gaps like this are common in perimenopause. Worth a clinician chat if they persist.', { n: daysSinceLast })}</div>
+        <div className="banner"><IconLeaf /> {tx(lang, '{n} days since your last period. Gaps like this are common in perimenopause. Worth a clinician chat if they persist.', { n: daysSinceLast })}</div>
       )}
       {!stats.predictionsPaused && !stats.stale && stats.daysUntilNext !== null && stats.daysUntilNext >= 0 && stats.daysUntilNext <= 3 && settings.mode !== 'perimenopause' && (
         <div className="banner">
-          🌸{' '}
+          <IconSparkle size={16} />{' '}
           {stats.daysUntilNext === 0
             ? tx(lang, 'Your period is expected around today.')
             : stats.daysUntilNext === 1
@@ -189,7 +190,7 @@ export default function Dashboard(p: AppProps) {
       )}
       {methodInfo.hormonal && renewalIn !== null && renewalIn <= 7 && (
         <div className="banner">
-          💊{' '}
+          <IconPill size={16} />{' '}
           {renewalIn < 0
             ? tx(lang, 'Contraception change was due {n} day{s} ago ({date}).', { n: -renewalIn, s: renewalIn === -1 ? '' : 's', date: prettyDate(renewalDue!) })
             : renewalIn === 0
@@ -199,7 +200,7 @@ export default function Dashboard(p: AppProps) {
       )}
       {lastLhPositive && lhAgo !== null && lhAgo >= 0 && lhAgo <= 3 && !stats.fertileSuppressed && (
         <div className="banner" style={{ background: '#f3e8ff', borderColor: '#c084fc', color: '#6b21a8' }}>
-          🟣 {tx(lang, 'LH test was positive on {date}. Ovulation likely within ~36 hours of that test.', { date: prettyDate(lastLhPositive.date, { weekday: true }) })}
+          <IconDroplet /> {tx(lang, 'LH test was positive on {date}. Ovulation likely within ~36 hours of that test.', { date: prettyDate(lastLhPositive.date, { weekday: true }) })}
         </div>
       )}
 
@@ -250,7 +251,7 @@ export default function Dashboard(p: AppProps) {
       )}
 
       <div className="card">
-        <h3>🌿 {tx(lang, 'In sync with your cycle')}</h3>
+        <h3><IconSprout /> {tx(lang, 'In sync with your cycle')}</h3>
         {(PHASE_TIPS[phase] ?? PHASE_TIPS.unknown).map((tip) => (
           <p key={tip.slice(0, 24)} style={{ fontSize: 13.5, margin: '0 0 6px' }}>
             • {tx(lang, tip)}
@@ -300,7 +301,7 @@ export default function Dashboard(p: AppProps) {
             <div className="d">{tx(lang, 'Printable summary of your last 6 months (symptoms & cycle lengths). Free, no paywall.')}</div>
           </div>
           <button className="btn ghost sm" onClick={p.openReport} style={{ flexShrink: 0 }}>
-            🖨️ {tx(lang, 'View')}
+            <IconReport /> {tx(lang, 'View')}
           </button>
         </div>
       )}
@@ -396,7 +397,7 @@ function RecoveryCheck({ lang }: { lang: string }) {
   };
   return (
     <div className="card">
-      <h3>🩹 {tx(lang, 'Recovery watch')}</h3>
+      <h3><IconBandage /> {tx(lang, 'Recovery watch')}</h3>
       {items.map((t) => (
         <button
           key={t}
@@ -435,7 +436,7 @@ function PostpartumMood({ p, lang }: { p: AppProps; lang: string }) {
   );
   return (
     <div className="card">
-      <h3>💜 {tx(lang, 'How have the last 2 weeks felt?')}</h3>
+      <h3><IconHeart /> {tx(lang, 'How have the last 2 weeks felt?')}</h3>
       {ask(tx(lang, 'Little interest or pleasure in things'), a, setA)}
       {ask(tx(lang, 'Feeling down or hopeless'), b, setB)}
       {done && (
@@ -481,7 +482,7 @@ function LamCard({ p, lang }: { p: AppProps; lang: string }) {
   );
   return (
     <div className="card">
-      <h3>🍼 {tx(lang, 'Postpartum & feeding')}</h3>
+      <h3><IconMilk /> {tx(lang, 'Postpartum & feeding')}</h3>
       {!birth ? (
         <p style={{ fontSize: 13.5, color: 'var(--text-2)', margin: 0 }}>
           {tx(lang, 'Add the birth date in Settings → Mode to unlock LAM tracking.')}

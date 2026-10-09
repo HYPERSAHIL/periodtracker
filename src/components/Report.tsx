@@ -8,6 +8,7 @@ import { tx, txd } from '../lib/i18n';
 import { prettyDate } from '../lib/date';
 import { todayISO } from '../lib/date';
 import { FLOWS } from '../types';
+import { IconReport } from './Icons';
 
 export default function Report(p: AppProps & { closeReport: () => void }) {
   const lang = p.settings.lang;
@@ -76,7 +77,7 @@ export default function Report(p: AppProps & { closeReport: () => void }) {
               document.title = prev;
             }, 500);
             track('report_printed', { months });
-          }}>🖨️ {tx(lang, 'Print / save as PDF')}</button>
+          }}><IconReport /> {tx(lang, 'Print / save as PDF')}</button>
           <button className="btn ghost" style={{ marginTop: 10 }} onClick={() => {
             const blob = new Blob([entriesToCSV(p.entries)], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);

@@ -4,7 +4,7 @@ import { todayISO, addDays, fromISO, prettyDate } from '../lib/date';
 import { dueFromLmp } from '../lib/pregnancy';
 import { Lang, tx, txd } from '../lib/i18n';
 import { track } from '../lib/beacon';
-import { Logo } from './Icons';
+import { Logo, ModeGlyph } from './Icons';
 import AccountScreen from './AccountScreen';
 import PhonePreview from './PhonePreview';
 
@@ -99,7 +99,7 @@ export default function Onboarding({
                 className={`mode-card${mode === m ? ' on' : ''}`}
                 onClick={() => { setMode(m); track('onboarding_mode_selected', { mode: m }); }}
               >
-                <span className="mc-emoji" aria-hidden>{MODE_INFO[m].emoji}</span>
+                <ModeGlyph name={MODE_INFO[m].icon} />
                 <span className="mc-label">{txd(lang, `mode.${m}`, MODE_INFO[m].label)}</span>
                 <span className="mc-blurb">{txd(lang, `mode.${m}.blurb`, MODE_INFO[m].blurb)}</span>
               </button>

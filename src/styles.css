@@ -1388,6 +1388,11 @@ input[type='date']:focus-visible {
 
 .mode-card .mc-emoji {
   font-size: 22px;
+  line-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
 }
 
 .mode-card .mc-label {
@@ -2100,4 +2105,25 @@ label.mini {
 
 .set-row > div:last-child {
   flex: none;
+}
+
+/* inline icons sit on the text baseline, not the emoji baseline */
+.mc-emoji,
+.btn svg,
+.chip svg,
+h3 svg,
+.banner svg,
+.empty svg {
+  vertical-align: -0.18em;
+}
+
+.mc-emoji svg {
+  display: block;
+}
+
+/* empty-state glyph: was a 44px emoji, now a stroke mark in the rose accent */
+.empty .big svg {
+  color: var(--acc);
+  margin: 0 auto 10px;
+  display: block;
 }

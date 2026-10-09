@@ -7,6 +7,7 @@ import { prettyDate } from '../lib/date';
 import { tx, txd } from '../lib/i18n';
 import { track } from '../lib/beacon';
 import { DayEntry } from '../types';
+import { IconChartBig, IconDroplet, IconReport, IconSparkle } from './Icons';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -106,11 +107,11 @@ export default function Insights(p: AppProps) {
     return (
       <>
         <div className="card" style={{ display: 'flex', justifyContent: 'center' }}>
-          <button className="btn ghost sm" onClick={p.openReport}>🖨️ {tx(lang, 'Clinician report')}</button>
+          <button className="btn ghost sm" onClick={p.openReport}><IconReport /> {tx(lang, 'Clinician report')}</button>
         </div>
         <div className="card">
           <div className="empty">
-            <div className="big">📊</div>
+            <div className="big"><IconChartBig /></div>
             <strong>{tx(lang, 'No data yet')}</strong>
             <br />
             <br />
@@ -144,7 +145,7 @@ export default function Insights(p: AppProps) {
           <button className={win === 6 ? 'on' : ''} onClick={() => { setWin(6); track('screen_insights_window', { cycles: 6 }); }}>{tx(lang, '6 cycles')}</button>
           <button className={win === 12 ? 'on' : ''} onClick={() => { setWin(12); track('screen_insights_window', { cycles: 12 }); }}>{tx(lang, '12 cycles')}</button>
         </div>
-        <button className="btn ghost sm" onClick={p.openReport}>🖨️ {tx(lang, 'Clinician report')}</button>
+        <button className="btn ghost sm" onClick={p.openReport}><IconReport /> {tx(lang, 'Clinician report')}</button>
       </div>
 
       <div className="card">
@@ -270,12 +271,12 @@ export default function Insights(p: AppProps) {
         <div className="card">
           <h3>{tx(lang, 'Fertility clues')}</h3>          {shift && (
             <p style={{ fontSize: 13.5, margin: '0 0 8px' }}>
-              🌡️ {tx(lang, 'Sustained temperature rise on {date} (+{v}°C) · ovulation likely the day before. A clue, not proof.', { date: prettyDate(shift.date, { weekday: true }), v: shift.rise })}
+              <IconSparkle /> {tx(lang, 'Sustained temperature rise on {date} (+{v}°C) · ovulation likely the day before. A clue, not proof.', { date: prettyDate(shift.date, { weekday: true }), v: shift.rise })}
             </p>
           )}
           {fertileMucus.length > 0 && (
             <p style={{ fontSize: 13.5, margin: 0 }}>
-              💧 {tx(lang, 'Fertile-type discharge on {dates}.', { dates: fertileMucus.map((e) => prettyDate(e.date)).join(', ') })}
+              <IconDroplet /> {tx(lang, 'Fertile-type discharge on {dates}.', { dates: fertileMucus.map((e) => prettyDate(e.date)).join(', ') })}
             </p>
           )}
           {stats.lastStart &&
