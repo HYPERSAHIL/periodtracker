@@ -1109,17 +1109,28 @@ async function route(request, env, url, rid = null) {
 
   if (path === '/api/email/unsub' && (method === 'GET' || method === 'POST')) {
     await ensureEmailSubs();
-    const token = url.searchParams.get('token') || '';
+    // RFC 8058 one-click unsubscribe POSTs the token as the raw request body,
+    // not as a query string. Reading only searchParams deleted nothing while
+    // still replying "Unsubscribed", so the user kept getting mail they had
+    // told us to stop.
+    let token = url.searchParams.get('token') || '';
+    if (!token && method === 'POST') {
+      token = (await request.text().catch(() => '')).trim().slice(0, 64);
+    }
+    let ok = false;
     if (/^[a-f0-9]{32}$/.test(token)) {
       const row = await env.DB.prepare('SELECT user_id FROM email_subs WHERE unsub_token = ?').bind(token).first();
       await env.DB.prepare('DELETE FROM email_subs WHERE unsub_token = ?').bind(token).run();
-      await logEvent(env, request, row ? row.user_id : null, 'email_unsub_link', { matched: !!row });
+      ok = !!row;
+      await logEvent(env, request, row ? row.user_id : null, 'email_unsub_link', { matched: ok, via: method });
     } else {
       await logEvent(env, request, null, 'email_unsub_link', { matched: false, badToken: true });
     }
     return new Response(
       '<!doctype html><html><body style="font-family:sans-serif;padding:40px;text-align:center">' +
-      '<h2>Unsubscribed</h2><p>You will no longer receive cycle summaries. Re-enable anytime in the app.</p>' +
+      (ok
+        ? '<h2>Unsubscribed</h2><p>You will no longer receive cycle summaries. Re-enable anytime in the app.</p>'
+        : '<h2>Nothing to unsubscribe</h2><p>This link did not match an active subscription. Turn summaries off in the app if they keep arriving.</p>') +
       '</body></html>',
       { headers: { 'Content-Type': 'text/html' } }
     );
