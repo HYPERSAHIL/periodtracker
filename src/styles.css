@@ -2396,3 +2396,9 @@ h3 svg,
     min-width: 44px;
   }
 }
+
+/* onboarding escape hatch: must read as secondary to the account CTAs */
+.acct2-skip {
+  width: 100%;
+  margin-top: 14px;
+}

@@ -19,11 +19,15 @@ export default function AccountScreen({
   onDone,
   onClose,
   lang,
+  skippable,
 }: {
   user: CloudUser | null;
   onDone: () => void;
   onClose?: () => void;
   lang?: string;
+  /** Onboarding only. The app promises tracking works with no account, so the
+      first run must not trap someone in signup before they can use it. */
+  skippable?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>(user && !user.anonymous ? 'signin' : 'signup');
   const [name, setName] = useState('');
@@ -284,6 +288,17 @@ export default function AccountScreen({
           )}
 
           {err && <p className="acct2-err">{err}</p>}
+          {skippable && (
+            <button
+              className="btn ghost acct2-skip"
+              onClick={() => {
+                track('onboarding_account_skipped');
+                onDone();
+              }}
+            >
+              {tx(lang, 'Continue without an account')}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -149,6 +149,7 @@ export const HI: Record<string, string> = {
   'Backup code': 'बैकअप कोड',
   'Restoring…': 'वापस आ रहा है…',
   'Restore my data': 'मेरा डेटा वापस लाएं',
+  'Continue without an account': 'बिना अकाउंट के आगे बढ़ें',
   'I have a backup code': 'मेरे पास बैकअप कोड है',
   'Create an account instead': 'इसके बजाय खाता बनाएं',
   'Verify your email': 'अपना ईमेल सत्यापित करें',

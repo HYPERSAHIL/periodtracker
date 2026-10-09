@@ -305,7 +305,7 @@ export default function Onboarding({
         </div>
       )}
 
-      {step === accountStep && <AccountScreen user={null} onDone={finish} lang={lang} />}
+      {step === accountStep && <AccountScreen user={null} onDone={finish} lang={lang} skippable />}
     </div>
   );
 }
