@@ -1690,6 +1690,23 @@ td.mono{font-family:var(--mono);font-size:12px}
 button.otp{cursor:pointer}
 button.otp:hover{background:var(--acc-tint)}
 .empty-cell{text-align:center;color:var(--ink3);padding:24px}
+/* every logged field, grouped; empties recede so the filled ones read first */
+.det{width:1%;white-space:nowrap}
+.detbtn{border:1px solid var(--line2);background:var(--surface);color:var(--ink2);
+  padding:4px 9px;border-radius:999px;font:600 11px var(--sans);cursor:pointer}
+.detbtn:hover{border-color:var(--acc);color:var(--ink)}
+.detbtn.on{background:var(--ink);border-color:var(--ink);color:var(--canvas)}
+tr.edrow>td{padding:0;background:var(--canvas);border-bottom:1px solid var(--line)}
+.edetail{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:14px 16px}
+.egroup{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:10px 12px}
+.egroup h4{margin:0 0 7px;font:700 9.5px var(--mono);letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink3)}
+.efield{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;line-height:1.7}
+.efield .ek{color:var(--ink3)}
+.efield .ev{color:var(--ink);font-weight:600;text-align:right}
+.efield.empty .ev{color:var(--ink3);opacity:.5;font-family:var(--mono);font-weight:400}
+@media(max-width:700px){.edetail{grid-template-columns:1fr}}
+
 /* entries: notes in full, missing values visibly absent rather than blank */
 td.note{width:44%;max-width:0}
 .notetext{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;color:var(--ink);line-height:1.5}
@@ -1767,7 +1784,7 @@ const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,eType:'all',ePrefix:'',evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 async function api(p,opt={}){
   let r;
@@ -2200,6 +2217,41 @@ function delUser(){
   if(!confirm('Delete this user and all their data?'))return;
   api('/users/'+S.sel.user.id,{method:'DELETE'}).then(()=>{S.view='list';refresh()});
 }
+// Every field an entry can hold. The table keeps the scannable columns; this
+// is the rest, grouped the way the day sheet groups them while logging, so you
+// can see exactly what she filled in and what was left empty.
+const ENTRY_GROUPS=[
+  ['Check-in',[['Checked in',e=>e.checkedIn?'yes':'no']]],
+  ['Body',[['Discharge',e=>e.mucus],['Intimacy',e=>e.intercourse]]],
+  ['Measurements',[['Temperature',e=>e.bbt!=null?e.bbt.toFixed(2)+' °C':null],
+                   ['Weight',e=>e.weight!=null?e.weight+' kg':null]]],
+  ['Tests',[['LH test',e=>e.lhTest],['Pregnancy test',e=>e.pregnancyTest]]],
+  ['Symptoms & mood',[['Severity',e=>e.symptomSeverity],['Routine impact',e=>e.routineImpact],
+                      ['Pain',e=>e.painLevel!=null?e.painLevel+'/10':null],
+                      ['Pain areas',e=>e.painAreas&&e.painAreas.length?e.painAreas.join(', '):null]]],
+  ['Migraine',[['Migraine day',e=>e.migraine?'yes':null],['Aura',e=>e.migraineAura?'yes':null],
+               ['Med taken',e=>e.migraineMed?'yes':null],['Med helped',e=>e.migraineHelped?'yes':null]]],
+  ['Other flags',[['GI issues',e=>e.giIssues?'yes':null],['Bladder pain',e=>e.bladderPain?'yes':null],
+                  ['Endo flare',e=>e.endoFlare?'yes':null]]],
+  ['Sleep & energy',[['Sleep',e=>e.sleepHours!=null?e.sleepHours+' h':null],
+                     ['Quality',e=>e.sleepQuality],['Drive',e=>e.drive]]],
+  ['Activity',[['Steps',e=>e.steps],['Exercise',e=>e.exerciseMinutes!=null?e.exerciseMinutes+' min':null],
+               ['Water',e=>e.water!=null?e.water+' glasses':null]]],
+  ['Lifestyle',[['Alcohol',e=>e.alcohol],['Caffeine',e=>e.caffeine],
+                ['Smoked',e=>e.smoked?'yes':null],['Supplements',e=>e.supplements?'yes':null],
+                ['Pill taken',e=>e.pillTaken?'yes':null],['Pill missed',e=>e.pillMissed?'yes':null]]],
+];
+function entryDetail(e){
+  return '<div class="edetail">'+ENTRY_GROUPS.map(g=>{
+    const cells=g[1].map(([label,fn])=>{
+      let v;try{v=fn(e)}catch{v=null}
+      const empty=(v===null||v===undefined||v===''||(Array.isArray(v)&&!v.length));
+      return '<div class="efield'+(empty?' empty':'')+'"><span class="ek">'+esc(label)+
+             '</span><span class="ev">'+(empty?'—':esc(String(v)))+'</span></div>';
+    }).join('');
+    return '<div class="egroup"><h4>'+esc(g[0])+'</h4>'+cells+'</div>';
+  }).join('')+'</div>';
+}
 // Every logged day, notes in full. Filtering is client side so the full set
 // stays available; notes are the thing you actually came to read.
 function entryTable(entries){
@@ -2213,24 +2265,31 @@ function entryTable(entries){
   const cell=(v)=>v?'<span class="v-cell">'+esc(v)+'</span>':'<span class="nullv">—</span>';
   return '<h2>Logged entries ('+entries.length+')</h2>'+
     '<div class="toolbar">'+
-      '<input id="dq" placeholder="Search date, symptom, note…" value="'+esc(S.dq||'')+'" oninput="S.dq=this.value;renderDetailOnly()">'+
+      '<input id="dq" placeholder="Search date, symptom, note…" value="'+esc(S.dq||'')+'" oninput="S.dq=this.value;S.eOpen={};renderDetailOnly()">'+
       '<div class="seg2"><button class="'+(mode==='all'?'on':'')+'" onclick="setDMode(&apos;all&apos;)">All '+entries.length+'</button>'+
       '<button class="'+(mode==='notes'?'on':'')+'" onclick="setDMode(&apos;notes&apos;)">Notes '+noteRows.length+'</button></div>'+
       '<span class="grow"></span><span class="sub">'+rows.length+' shown</span>'+
     '</div>'+
     '<div class="tblwrap"><div class="tblscroll"><table class="entries"><thead><tr>'+
-      '<th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th></tr></thead><tbody>'+
-    (rows.length?rows.map(e=>'<tr><td data-l="Date" class="mono nowrap">'+esc(e.date)+'</td>'+
-      '<td data-l="Flow">'+cell(e.flow)+'</td>'+
+      '<th>Date</th><th>Flow</th><th>Symptoms</th><th>Moods</th><th>Note</th><th></th></tr></thead><tbody>'+
+    (rows.length?rows.map(e=>{
+      const open=!!(S.eOpen&&S.eOpen[e.date]);
+      return '<tr><td data-l="Date" class="mono nowrap">'+esc(e.date)+'</td>'+
+      '<td data-l="Flow">'+cell(e.flow)+(e.clots?' <span class="pill n">clots</span>':'')+'</td>'+
       '<td data-l="Symptoms">'+cell((e.symptoms||[]).join(', '))+'</td>'+
       '<td data-l="Moods">'+cell((e.moods||[]).join(', '))+'</td>'+
       '<td data-l="Note" class="note">'+(e.note&&e.note.trim()
         ? '<div class="notetext">'+esc(e.note)+'</div>'
-        : '<span class="nullv">—</span>')+'</td></tr>').join('')
-      : '<tr><td colspan="5" class="empty-cell">Nothing matches that filter.</td></tr>')+
+        : '<span class="nullv">—</span>')+'</td>'+
+      '<td class="det"><button class="detbtn'+(open?' on':'')+'" onclick="toggleEntry(&apos;'+esc(e.date)+'&apos;)" '+
+        'aria-expanded="'+open+'" title="Show everything logged on this day">'+(open?'Hide':'All fields')+'</button></td></tr>'+
+      (open?'<tr class="edrow"><td colspan="6">'+entryDetail(e)+'</td></tr>':'');
+    }).join('')
+      : '<tr><td colspan="6" class="empty-cell">Nothing matches that filter.</td></tr>')+
     '</tbody></table></div></div>';
 }
-function setDMode(m){S.dMode=m;renderDetailOnly()}
+function setDMode(m){S.dMode=m;S.eOpen={};renderDetailOnly()}
+function toggleEntry(date){S.eOpen=S.eOpen||{};if(S.eOpen[date])delete S.eOpen[date];else S.eOpen[date]=1;renderDetailOnly()}
 function renderDetailOnly(){
   const u=S.sel.user,d=S.sel.data||{};
   const entries=Object.values(d.entries||{}).sort((a,b)=>b.date.localeCompare(a.date));
@@ -2274,7 +2333,6 @@ function renderDetail(app){
     '<div><b>Timezone</b> '+(u.timezone||'—')+'</div><div><b>Language</b> '+(u.language||'—')+'</div></div></div>'+
     '</div>'+
     '<div>'+(Object.keys(flowCounts).length?'<div class="toolbar" style="gap:6px">'+Object.entries(flowCounts).map(([f,c])=>'<span class="pill '+(f==='heavy'?'n':'a')+'">'+esc(f)+' ×'+c+'</span>').join('')+'</div>':'')+'</div>'+
-    (u.lastNote?'<div class="pane latestnote"><h3>Latest note</h3><div class="notetext">'+esc(u.lastNote.note)+'</div><p class="sub">'+esc(u.lastNote.date)+'</p></div>':'')+
     '<div style="margin:14px 0"><button class="danger" onclick="delUser()">Delete user &amp; data</button> <button class="ghost sm" onclick="userActivity(\\''+u.id+'\\')">View activity</button></div>'+
     '<div id="entryhost">'+entryTable(entries)+'</div>'+
     '<h2>Settings JSON</h2><pre>'+esc(JSON.stringify(d.settings||{},null,1))+'</pre>';

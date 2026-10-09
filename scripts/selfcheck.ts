@@ -660,9 +660,12 @@ console.log('selfcheck: all 18 groups passed');
   }
 
   // the pieces the owner relies on, asserted on the real output
-  for (const needle of ['setEvPrefix', 'entryTable', 'nullsLast', 'notecount', 'Latest note'])
+  for (const needle of ['setEvPrefix', 'entryTable', 'nullsLast', 'notecount', 'entryDetail', 'toggleEntry'])
     assert.ok(inline[1].includes(needle), `rendered admin script contains ${needle}`);
   assert.ok(html.includes('Continue without an account') === false, 'admin page is unrelated to app copy');
+  // the Latest note card duplicated the note already shown in full in the table
+  assert.ok(!inline[1].includes('Latest note'), 'no duplicate Latest note block in the entries view');
+  assert.ok(html.includes('All fields'), 'entries expose every logged field on demand');
 }
 
 console.log('selfcheck: all 23 groups passed');
