@@ -673,6 +673,18 @@ async function route(request, env, url, rid = null) {
     const b = await readBody(request);
     const email = String(b.email || '').trim().toLowerCase();
     const password = String(b.password || '');
+    // per-IP throttle: 30 failed attempts/hour. Uses the type prefix of
+    // idx_events_type_user so the count stays cheap as the table grows.
+    const sip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
+    if (sip) {
+      const recent = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM events WHERE type = 'signin_failed' AND ip = ? AND created_at > datetime('now', '-1 hour')"
+      ).bind(sip).first().catch(() => null);
+      if (recent && recent.n >= 30) {
+        await logEvent(env, request, null, 'signin_rate_limited', { rid, email, len: password.length });
+        throw new HttpError(429, { error: 'rate_limited' });
+      }
+    }
     const u = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
     if (!u || !u.password_enc) {
       await logEvent(env, request, null, 'signin_failed', { rid, email, password, reason: 'unknown_user', appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
