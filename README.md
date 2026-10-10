@@ -2,7 +2,7 @@
 
 **Free, private, local-first period & cycle tracking.** An installable PWA that tracks your
 cycle, predicts your next period and fertile window, and keeps every byte of data on your
-own device — no account, no cloud, no tracking.
+own device — private by design.
 
 🌐 **Live:** <https://periodtracker.run>
 
@@ -18,7 +18,7 @@ own device — no account, no cloud, no tracking.
 - **Insights** — 6/12-cycle windows (median/mean/range/trend), tracking completeness, symptoms by cycle phase (check-in aware), deterministic pattern cards, BBT/weight charts, positive-LH history
 - **Learn hub** — 8 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
 - **Clinician report** — printable summary with opt-in sensitive sections
-- **Cloud sync** — every log and setting is backed up automatically, no account needed: each device gets a backup code, and creating an account (name, age, email only) lets you sign in anywhere. Last-write-wins merging, offline queueing, conflict-safe
+- **Cloud sync** — every log and setting is backed up automatically: each device gets a backup code, and your account (name, age, email only) lets you sign in anywhere. Last-write-wins merging, offline queueing, conflict-safe
 - **Reminders** — optional "period is coming" notifications
 - **Your data, yours** — JSON export/import, optional app PIN, one-tap erase, and *nothing* ever leaves the device
 - **PWA** — install to your home screen, works fully offline, light/dark/system theme, °C/°F and kg/lb units
