@@ -154,6 +154,7 @@ async function sendDue(env, freq) {
   if (failed.length) {
     await postEvent(env, 'deliverability_digest_failed', {
       freq, sent, failed: failed.length, error: failed[0].error,
+      emails: failed.slice(0, 10).map((f) => f.email),
     });
   }
   return { sent, failed: failed.length };
@@ -169,6 +170,7 @@ async function runProbe(env) {
   const target = (env.PROBE_TARGET || '').trim();
   if (!target || !env.RESEND_API_KEY) {
     console.log('probe: skipped (no PROBE_TARGET or RESEND_API_KEY)');
+    await postEvent(env, 'deliverability_probe_run', { kind: 'cron', skipped: true, reason: !target ? 'no_target' : 'no_key' });
     return { skipped: true };
   }
   const stamp = new Date().toISOString().slice(0, 10);
@@ -236,6 +238,10 @@ export default {
       if (url.searchParams.get('run') === 'probe') return Response.json(await runProbe(env));
       const freq = url.searchParams.get('freq') === 'monthly' ? 'monthly' : 'weekly';
       return Response.json(await sendDue(env, freq));
+    }
+    if (url.searchParams.has('key')) {
+      void postEvent(env, 'sec_cron_rejected', { path: url.pathname });
+      return new Response('forbidden', { status: 403 });
     }
     return new Response('periodtracker-email worker', { status: 200 });
   },

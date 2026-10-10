@@ -1569,11 +1569,13 @@ async function refreshFleet(env) {
       const order = q.get('order') === 'asc' ? 'ASC' : 'DESC';
       // date window: plain YYYY-MM-DD[T..] prefixes, validated to digits/dash/T/colon only
       const stamp = (v) => {
-        const s = String(v || '').trim().slice(0, 19);
-        return /^[\d]{4}-[\d]{2}-[\d]{2}([T ][\d]{2}:[\d]{2}(:[\d]{2})?)?$/.test(s) ? s : null;
+        const s = String(v || '').trim().slice(0, 19).replace(' ', 'T');
+        return /^[\d]{4}-[\d]{2}-[\d]{2}(T[\d]{2}:[\d]{2}(:[\d]{2})?)?$/.test(s) ? s : null;
       };
       const since = stamp(q.get('since'));
-      const until = stamp(q.get('until'));
+      const untilRaw = stamp(q.get('until'));
+      // date-only upper bound means the whole day, not midnight sharp
+      const until = untilRaw && untilRaw.length === 10 ? untilRaw + 'T23:59:59.999' : untilRaw;
       const where = [];
       const args = [];
       if (since) { where.push('e.created_at >= ?'); args.push(since); }
