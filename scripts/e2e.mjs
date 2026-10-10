@@ -76,8 +76,10 @@ const step = async (name, fn, shot) => {
     passed++;
     console.log(`ok: ${name}`);
   } catch (e) {
-    const msg = `FAIL: ${name}: ${String(e).split('\n')[0].slice(0, 220)}`;
+    const full = String(e).slice(0, 600);
+    const msg = `FAIL: ${name}: ${full.split('\n')[0].slice(0, 220)}`;
     console.log(msg);
+    for (const ln of full.split('\n').slice(1, 4)) console.log(`   ... ${ln.slice(0, 200)}`);
     errors.push(msg);
     try {
       if (shot) await shot.screenshot({ path: `/tmp/e2e-${name.replace(/[^a-z]+/gi, '-')}.png` });
@@ -127,10 +129,14 @@ try {
     await step('pain 7/10 + pelvis persists', async () => {
       await seedAndGoto(page, ctx);
       await page.getByRole('button', { name: 'Log today' }).click();
+      await page.getByRole('button', { name: 'More sections' }).click();
+      await page.locator('.sheet-group-head', { hasText: 'Body' }).click();
       await page.locator('#pain-range').fill('7');
       await page.getByRole('button', { name: /pelvis/i }).click();
       await page.getByRole('button', { name: 'Save' }).click();
       await page.getByRole('button', { name: 'Edit today’s log' }).click();
+      await page.getByRole('button', { name: 'More sections' }).click();
+      await page.locator('.sheet-group-head', { hasText: 'Body' }).click();
       const val = await page.locator('#pain-range').inputValue();
       if (val !== '7') throw new Error('pain level not persisted: ' + val);
     }, page);
@@ -301,10 +307,14 @@ try {
     await step('migraine day + aura persists', async () => {
       await seedAndGoto(page, ctx);
       await page.getByRole('button', { name: 'Log today' }).click();
+      await page.getByRole('button', { name: 'More sections' }).click();
+      await page.locator('.sheet-group-head', { hasText: 'Health' }).click();
       await page.getByRole('button', { name: 'Migraine day' }).click();
       await page.getByRole('button', { name: 'Aura', exact: true }).click();
       await page.getByRole('button', { name: 'Save' }).click();
       await page.getByRole('button', { name: 'Edit today’s log' }).click();
+      await page.getByRole('button', { name: 'More sections' }).click();
+      await page.locator('.sheet-group-head', { hasText: 'Health' }).click();
       const chip = page.getByRole('button', { name: 'Migraine day' });
       if ((await chip.getAttribute('class') || '').includes(' on') === false) throw new Error('migraine not persisted');
     }, page);
