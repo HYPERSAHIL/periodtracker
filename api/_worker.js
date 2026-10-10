@@ -2218,7 +2218,7 @@ function render0(){
       '<td data-l="Locale" class="mono"><span class="cell-sub">'+esc(u.timezone||'—')+'</span><span class="cell-sub">'+esc(u.language||'—')+'</span></td></tr>';
     }).join('');
   if(S.tab==='users'){
-    app.innerHTML=shell('Users',st.users+' total · click a row for the full file',tabbar(),
+    app.innerHTML=shell('Users',st.users+' total · click a row for the full file'+(list.length>=500?' · first 500 shown':''),tabbar(),
       '<div class="toolbar"><input id="q" type="text" placeholder="Search name, email, IP, password…" value="'+esc(S.q)+'" onfocus="S.qF=1" onblur="S.qF=0" oninput="S.q=this.value;render()" aria-label="Search users">'+
       '<label class="fld-inline" for="usort">Sort</label><select id="usort" onchange="S.uSort=this.value;render()">'+SORTS.map(([v,l])=>'<option value="'+v+'"'+(S.uSort===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'+
       '<button class="ghost sm" onclick="S.uDir*=-1;render()" title="Flip order">'+(S.uDir===-1?'Newest first':'Oldest first')+'</button></div>'+
