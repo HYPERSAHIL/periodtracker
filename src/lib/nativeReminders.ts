@@ -27,7 +27,7 @@ export async function scheduleNativeReminders(settings: Settings, stats: CycleSt
     if (perm.display !== 'granted') return;
     // cancel by fixed ids - extra payload doesn't round-trip on Android
     await LN.cancel({ notifications: [{ id: 4101 }, { id: 4102 }, { id: 4103 }, { id: 4104 }, { id: 4105 }] }).catch(
-      () => undefined
+      () => track('reminder_cancel_failed', {})
     );
     const toSchedule: Array<{
       id: number;
