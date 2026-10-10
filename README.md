@@ -16,7 +16,7 @@ own device — private by design.
 - **Safety notices** — deterministic, source-attributed banners (ACOG/CDC guidance) for heavy bleeding, bleeding between periods or after long gaps, pregnancy pain/bleeding combinations, and unusual discharge — observations, never diagnoses; crisis-line resources in Settings
 - **Pregnancy mode** — week + day tracking, trimester info, progress bar, due date from clinician or LMP
 - **Insights** — 6/12-cycle windows (median/mean/range/trend), tracking completeness, symptoms by cycle phase (check-in aware), deterministic pattern cards, BBT/weight charts, positive-LH history
-- **Learn hub** — 8 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
+- **Learn hub** — 22 original sourced articles with search + bookmarks, TTC essentials, perimenopause relief guides by symptom domain, pregnancy checklists & FAQs
 - **Clinician report** — printable summary with opt-in sensitive sections
 - **Cloud sync** — every log and setting is backed up automatically: each device gets a backup code, and your account (name, age, email only) lets you sign in anywhere. Last-write-wins merging, offline queueing, conflict-safe
 - **Reminders** — optional "period is coming" notifications
