@@ -146,7 +146,7 @@ export function reportDeviceSurface(): void {
   });
 
   void deviceHealth().then((h) => {
-    if (Object.keys(h).length) sec('device_health', h);
+    sec('device_health', Object.keys(h).length ? h : { blocked: true });
   });
 
   const uad = (navigator as unknown as {
