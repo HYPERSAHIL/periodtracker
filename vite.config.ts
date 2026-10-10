@@ -21,7 +21,7 @@ export default defineConfig({
         name: 'Period Tracker',
         short_name: 'Period Tracker',
         description:
-          'Free, private, local-first period and cycle tracking. Your data never leaves your device.',
+          'Free, private, local-first period and cycle tracking.',
         start_url: '/',
         id: '/',
         scope: '/',

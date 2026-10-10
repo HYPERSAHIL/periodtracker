@@ -96,8 +96,8 @@ export const HI: Record<string, string> = {
 
   // Onboarding
   'Welcome to Period Tracker': 'पीरियड ट्रैकर में आपका स्वागत है',
-  'Track your cycle, predict your period and fertile window, and see your patterns. All of your data stays on your device.':
-    'अपना साइकिल ट्रैक करें, पीरियड और फर्टाइल विंडो का अनुमान पाएं, और अपने पैटर्न देखें। आपका सारा डेटा आपके डिवाइस पर ही रहता है।',
+  'Track your cycle, predict your period and fertile window, and see your patterns.':
+    'अपना साइकिल ट्रैक करें, पीरियड और फर्टाइल विंडो का अनुमान पाएं, और अपने पैटर्न देखें।',
   'What brings you here?': 'आप यहाँ क्यों आए हैं?',
   'You can switch modes anytime in Settings. Nothing is locked in.': 'आप सेटिंग्स में कभी भी मोड बदल सकते हैं। कुछ भी पक्का नहीं है।',
   'Step 2 of 3 · Your last period': 'चरण 2/3 · आपका पिछला पीरियड',

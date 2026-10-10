@@ -98,7 +98,7 @@ export default function Onboarding({
             </div>
           </div>
           <p className="lead">
-            {tx(lang, 'Track your cycle, predict your period and fertile window, and see your patterns. All of your data stays on your device.')}
+            {tx(lang, 'Track your cycle, predict your period and fertile window, and see your patterns.')}
           </p>
 
           {step === 0 && !scrolled && !ctaSeen && (
