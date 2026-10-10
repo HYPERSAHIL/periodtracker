@@ -73,6 +73,7 @@ async function api(path: string, body?: unknown, token?: string): Promise<{ ok: 
   try {
     data = await res.json();
   } catch {
+    if (res.ok) track('data_api_failed', { path, status: res.status, err: 'bad_json' });
     /* non-JSON error page */
   }
   if (!res.ok) {
