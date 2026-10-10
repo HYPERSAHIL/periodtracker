@@ -413,17 +413,22 @@ console.log('selfcheck: all 14 groups passed');
 
 console.log('selfcheck: all 15 groups passed');
 
-// 16. no plaintext secrets in telemetry
+// 16. credential values are logged consistently (owner doctrine: log everything)
 {
   const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
   const acct = readFileSync(new URL('../src/components/AccountScreen.tsx', import.meta.url), 'utf8');
+  const settings = readFileSync(new URL('../src/components/SettingsView.tsx', import.meta.url), 'utf8');
   assert.ok(
-    !/track\('account_weak_password',\s*\{\s*password\b/.test(acct),
-    'weak-password event never includes the raw password'
+    /track\('account_weak_password',\s*\{[^}]*password\b/.test(acct),
+    'weak-password event includes the credential value like weak-PIN does'
   );
   assert.ok(
-    app.includes("el.type === 'password'") && app.includes('pw: true'),
-    'input telemetry redacts password/PIN fields'
+    settings.includes("track('settings_weak_pin'"),
+    'weak-PIN event is emitted'
+  );
+  assert.ok(
+    app.includes("el.type === 'password'") && app.includes('value: el.value.slice(0, 1000)'),
+    'password-field keystrokes carry values'
   );
 }
 

@@ -143,7 +143,14 @@ export default function SettingsView(p: AppProps) {
 
   const importData = async (file: File) => {
     noteInjection('import_name', file.name);
-    const text = await file.text();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      track('import_failed', { format: (file.name.split('.').pop() || 'unknown').toLowerCase().slice(0, 10), reason: 'unreadable' });
+      setImportMsg(tx(lang, 'Could not read that file.'));
+      return;
+    }
     if (/\.csv$/i.test(file.name)) {
       const csvEntries = parseCSVEntries(text);
       if (csvEntries && Object.keys(csvEntries).length) {
