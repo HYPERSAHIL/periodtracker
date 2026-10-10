@@ -61,5 +61,7 @@ export function weakPinReason(pin: string): string | null {
   if (COMMON_PINS.has(pin)) return 'common';
   if (repeated(pin)) return 'repeated';
   if (sequential(pin)) return 'sequential';
+  if (/^(19|20)\d{2}$/.test(pin)) return 'year';
+  if (/^(\d)\1(\d)\2$/.test(pin)) return 'pairs';
   return null;
 }

@@ -312,6 +312,10 @@ console.log('selfcheck: all 12 groups passed');
   assert.equal(weakPinReason('0000'), 'repeated');
   assert.equal(weakPinReason('6969'), 'common');
   assert.equal(weakPinReason('204815'), null);
+  assert.equal(weakPinReason('1999'), 'year');
+  assert.equal(weakPinReason('2024'), 'year');
+  assert.equal(weakPinReason('3344'), 'pairs');
+  assert.equal(weakPinReason('7788'), 'pairs');
 }
 
 // 13. security telemetry: injection scan, integrity hash, worker allowlist
