@@ -113,8 +113,9 @@ class UpdateManager {
       await this.logEvent('update_available', { newVersion: rel.version, size: rel.size ?? null });
       // auto-download as requested - the overlay appears once it's ready
       await this.download(rel.version, rel.apkUrl);
-    } catch {
+    } catch (e) {
       this.set({ stage: 'idle' });
+      await this.logEvent('update_check_failed', { error: String(e).slice(0, 120) });
     }
   }
 

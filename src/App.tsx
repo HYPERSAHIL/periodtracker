@@ -921,8 +921,9 @@ function MainApp() {
           onDone={() => {
             sync.adoptSession(loadSession());
             setAccountSheet(false);
+            track('account_closed', { via: 'done' });
           }}
-          onClose={() => setAccountSheet(false)}
+          onClose={() => { setAccountSheet(false); track('account_closed', { via: 'close' }); }}
         />
       )}
 
@@ -941,6 +942,7 @@ function MainApp() {
           onSave={(e) => {
             upsert(e);
             setSheetDate(null);
+            track('day_sheet_closed', { via: 'save' });
           }}
           onDelete={() => {
             remove(sheetDate);

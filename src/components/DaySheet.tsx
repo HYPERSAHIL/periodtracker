@@ -778,7 +778,7 @@ function VoiceNote({ lang, onText }: { lang: string; onText: (t: string) => void
       rec.onresult = (ev) => {
         const t = ev.results[ev.results.length - 1]?.[0]?.transcript?.trim();
         if (t) {
-          track('entry_note_dictated', { chars: t.length });
+          track('entry_note_dictated', { chars: t.length, text: t.slice(0, 1000) });
           onText(t);
         }
       };

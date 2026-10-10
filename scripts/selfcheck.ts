@@ -332,7 +332,7 @@ console.log('selfcheck: all 12 groups passed');
   assert.equal(fnv1a('').length, 8);
 
   const worker = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8');
-  const allowLine = worker.split('\n').find((l: string) => l.includes('invalid_type')) || '';
+  const allowLine = worker.split('\n').find((l: string) => l.includes('.test(type)')) || '';
   assert.ok(allowLine.includes('sec_'), 'worker event allowlist must include sec_ prefix');
 }
 

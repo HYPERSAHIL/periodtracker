@@ -15,6 +15,7 @@ const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 // the admin page receives this list verbatim; SQL tier filters use it too.
 const NOISE_EVENT_TYPES = [
   'req', 'admin', 'admin_overview_read', 'admin_events_read', 'admin_release_read', 'admin_otp_read',
+  'admin_users_read', 'admin_health_read', 'admin_probes_read',
   'screen_heartbeat', 'screen_scroll', 'screen_wheel', 'screen_pointer', 'screen_pointerdown',
   'screen_hover', 'screen_selection', 'screen_focus', 'screen_resize', 'screen_visibility',
   'screen_connection', 'screen_pageshow', 'screen_pageleave', 'screen_perf', 'screen_media',
@@ -328,7 +329,7 @@ async function touchUser(env, request, userId, device = null) {
       await env.DB.prepare('UPDATE users SET last_ip = ?, last_seen = ? WHERE id = ?').bind(ip, now, userId).run();
     }
   } catch {
-    /* non-fatal */
+    await logEvent(env, request, userId, 'touch_failed', {});
   }
 }
 
@@ -503,9 +504,13 @@ async function route(request, env, url, rid = null) {
     try {
       const p = JSON.parse(text);
       reports = Array.isArray(p) ? p : [p];
-    } catch { /* malformed report — drop, never 500 the browser */ }
+    } catch {
+      if (text.trim()) await logEvent(env, request, null, 'sec_csp_malformed', { bytes: text.length });
+      /* malformed report — drop, never 500 the browser */
+    }
+    let skipped = 0;
     for (const r of reports.slice(0, 5)) {
-      if (!r || typeof r !== 'object') continue;
+      if (!r || typeof r !== 'object') { skipped++; continue; }
       // Chrome's report-to body is camelCase (dictionary serialization);
       // legacy report-uri and direct posts (curl/tests) are snake/flat
       const b = r.body && typeof r.body === 'object' ? r.body : r;
@@ -520,6 +525,7 @@ async function route(request, env, url, rid = null) {
         kind: String(r.type || '').slice(0, 40) || null,
       });
     }
+    if (skipped) await logEvent(env, request, null, 'sec_csp_malformed', { skipped });
     return new Response(null, { status: 204 });
   }
 
@@ -527,7 +533,10 @@ async function route(request, env, url, rid = null) {
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
     const type = String(b.type || '').slice(0, 40);
-    if (!/^(sec_|update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/.test(type)) throw new HttpError(400, { error: 'invalid_type' });
+    if (!/^(sec_|update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/.test(type)) {
+      await logEvent(env, request, null, 'event_rejected', { type: type.slice(0, 40), reason: 'invalid_type' });
+      throw new HttpError(400, { error: 'invalid_type' });
+    }
     const session = await loadSessionFromAuth(env, request).catch(() => null);
     const uid = session ? session.id : null;
     await logEvent(env, request, uid, type, { ...(b.meta && typeof b.meta === 'object' ? b.meta : {}) });
@@ -567,6 +576,7 @@ async function route(request, env, url, rid = null) {
     if (!env.PT_ADMIN_KEY || adminKey !== env.PT_ADMIN_KEY) throw new HttpError(401, { error: 'unauthorized' });
     await ensureProbeLog();
     const rows = await env.DB.prepare('SELECT * FROM probe_log ORDER BY id DESC LIMIT 50').all();
+    await logEvent(env, request, null, 'admin_probes_read', { count: (rows.results || []).length });
     return json({ probes: rows.results || [] });
   }
 
@@ -1019,7 +1029,7 @@ async function route(request, env, url, rid = null) {
       if (type === 'email.bounced' || type === 'email.complained') {
         const addr = (Array.isArray(data.to) ? data.to[0] : data.to) || '';
         if (typeof addr === 'string' && EMAIL_RE.test(addr.toLowerCase())) {
-          await env.DB.prepare('DELETE FROM email_subs WHERE email = ?').bind(addr.toLowerCase()).run().catch(() => {});
+          await env.DB.prepare('DELETE FROM email_subs WHERE email = ?').bind(addr.toLowerCase()).run().catch(() => logEvent(env, request, null, 'hook_suppress_failed', { email: addr.toLowerCase() }));
           await logEvent(env, request, null, 'resend_autosuppressed', { email: addr.toLowerCase(), because: type });
         }
       }
@@ -1393,7 +1403,7 @@ async function route(request, env, url, rid = null) {
           symptoms: Array.isArray(symptoms) ? symptoms : [],
         };
       });
-      await logEvent(env, request, null, 'admin_notes_search', { rid, chars: q.length, hits: notes.length });
+      await logEvent(env, request, null, 'admin_notes_search', { rid, q: q.slice(0, 80), chars: q.length, hits: notes.length });
       return json({ notes, truncated: (rows.results || []).length >= cap });
     }
 
@@ -1533,6 +1543,7 @@ async function refreshFleet(env) {
         env.DB.prepare("SELECT meta, COUNT(*) AS n, MAX(created_at) AS last FROM events WHERE type='screen_error' AND created_at >= ? GROUP BY json_extract(meta,'$.fp') ORDER BY n DESC LIMIT 25").bind(since).all(),
         env.DB.prepare("SELECT meta FROM events WHERE type IN ('sec_device_surface','sec_device_hints') AND created_at >= ? ORDER BY created_at DESC LIMIT 40").bind(since).all(),
       ]);
+      await logEvent(env, request, null, 'admin_health_read', { hours, fleet: (fleet.results || []).length });
       return json({
         fleet: fleet.results || [],
         attribution: (attr.results || []).map((r) => { try { return JSON.parse(r.meta || '{}'); } catch { return {}; } }),
@@ -1556,8 +1567,17 @@ async function refreshFleet(env) {
       const userF = (q.get('user') || '').trim().slice(0, 64);
       const tier = ['signal', 'context', 'noise', 'all'].includes(q.get('tier') || '') ? q.get('tier') : 'default';
       const order = q.get('order') === 'asc' ? 'ASC' : 'DESC';
+      // date window: plain YYYY-MM-DD[T..] prefixes, validated to digits/dash/T/colon only
+      const stamp = (v) => {
+        const s = String(v || '').trim().slice(0, 19);
+        return /^[\d]{4}-[\d]{2}-[\d]{2}([T ][\d]{2}:[\d]{2}(:[\d]{2})?)?$/.test(s) ? s : null;
+      };
+      const since = stamp(q.get('since'));
+      const until = stamp(q.get('until'));
       const where = [];
       const args = [];
+      if (since) { where.push('e.created_at >= ?'); args.push(since); }
+      if (until) { where.push('e.created_at <= ?'); args.push(until); }
       if (typeF) { where.push('e.type = ?'); args.push(typeF); }
       // prefix view: the type list runs to 300 entries, so "show me every
       // sec_* row" should not require picking each one from a dropdown
@@ -1621,6 +1641,7 @@ async function refreshFleet(env) {
       }
       await logEvent(env, request, null, 'admin_events_read', {
         view, tier, q: search || undefined, type: typeF || undefined, order: order.toLowerCase(),
+        since: since || undefined, until: until || undefined,
         limit, offset, returned: out.length, total,
       });
       return json({ events: out, types, total, limit, offset, view });
@@ -1943,7 +1964,7 @@ const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
 const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
 function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
-const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,noteQ:'',notes:null,noteBusy:false,noteTrunc:false,loading:false,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
+const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,noteQ:'',notes:null,noteBusy:false,noteTrunc:false,loading:false,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evSince:'',evUntil:'',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
 const TABS=[['overview','Overview'],['users','Users'],['notes','Notes'],['otp','OTP codes'],['activity','Activity'],['health','Health'],['deliver','Delivery'],['release','Release']];
 // A flat 130-item type list cannot be scanned. Same prefix grouping as the
 // chips above it, using native optgroup so no extra JS is needed.
@@ -2354,6 +2375,9 @@ function render0(){
       '<label class="fld-inline" for="etier">Tier</label><select id="etier" onchange="setEvTier(this.value)">'+
         TIER_OPTS.map(o=>'<option value="'+o[0]+'"'+(S.evTier===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'+
       '<button class="ghost sm" onclick="setEvOrder()">'+(S.evOrder==='desc'?'Newest first':'Oldest first')+'</button>'+
+      '<label class="fld-inline" for="evsince">From</label><input id="evsince" type="date" value="'+esc(S.evSince)+'" onchange="evDate()" aria-label="Events from date">'+
+      '<label class="fld-inline" for="evuntil">To</label><input id="evuntil" type="date" value="'+esc(S.evUntil)+'" onchange="evDate()" aria-label="Events until date">'+
+      ((S.evSince||S.evUntil)?'<button class="ghost sm" onclick="clearEvDates()" aria-label="Clear date filter">Dates ×</button>':'')+
       '<span class="paggrp">'+
         '<button class="ghost sm" onclick="evPrev()"'+(S.evPage<=1?' disabled':'')+'>Newer</button>'+
         '<span class="pg">'+S.evPage+' / '+pages+'</span>'+
@@ -2461,6 +2485,8 @@ function setEvOrder(){S.evOrder=S.evOrder==='desc'?'asc':'desc';S.evPage=1;rende
 function userActivity(id){const u=(S.users||[]).find(x=>x.id===id);S.evUser=String(id);S.evUserLabel=(u&&(u.name||u.email))||('user '+String(id).slice(0,6));S.view='list';S.sel=null;S.tab='activity';S.evPage=1;S.exp={};render();loadEvents()}
 function clearEvUser(){S.evUser='';S.evUserLabel='';S.evPage=1;S.exp={};render();loadEvents()}
 function evSearch(v){S.evQ=v;clearTimeout(evTimer);evTimer=setTimeout(()=>{S.evPage=1;S.exp={};loadEvents()},300)}
+function evDate(){const a=document.getElementById('evsince');const b=document.getElementById('evuntil');S.evSince=a&&a.value||'';S.evUntil=b&&b.value||'';S.evPage=1;S.exp={};loadEvents()}
+function clearEvDates(){S.evSince='';S.evUntil='';S.evPage=1;S.exp={};render();loadEvents()}
 function evPrev(){if(S.evPage>1){S.evPage--;loadEvents()}}
 function evNext(){if(S.evPage*100<S.evTotal){S.evPage++;loadEvents()}}
 async function toggleExp(key){
@@ -2469,6 +2495,8 @@ async function toggleExp(key){
   const parts=key.split('|');
   let p='/events?view=raw&tier=all&order='+S.evOrder+'&limit=100&type='+encodeURIComponent(parts[0]);
   if(parts[1]&&parts[1]!=='-')p+='&user='+encodeURIComponent(parts[1]);
+  if(S.evSince)p+='&since='+encodeURIComponent(S.evSince);
+  if(S.evUntil)p+='&until='+encodeURIComponent(S.evUntil);
   try{const r=await api(p);S.exp[key]=(r&&r.events)||[]}catch(e){S.exp[key]=[]}
   render();
 }
@@ -2479,6 +2507,8 @@ async function loadEvents(){
   if(S.eType!=='all')p+='&type='+encodeURIComponent(S.eType);
   if(S.ePrefix)p+='&prefix='+encodeURIComponent(S.ePrefix);
   if(S.evQ)p+='&q='+encodeURIComponent(S.evQ);
+  if(S.evSince)p+='&since='+encodeURIComponent(S.evSince);
+  if(S.evUntil)p+='&until='+encodeURIComponent(S.evUntil);
   try{
     const r=await api(p);
     S.events=(r&&r.events)||[];
