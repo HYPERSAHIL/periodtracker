@@ -1611,7 +1611,10 @@ async function refreshFleet(env) {
       else if (tier === 'default') where.push('e.type NOT IN (' + noiseList + ')');
       const wsql = where.length ? ' WHERE ' + where.join(' AND ') : '';
       const base = 'FROM events e LEFT JOIN users u ON u.id = e.user_id' + wsql;
-      const typeRows = await env.DB.prepare('SELECT DISTINCT type FROM events ORDER BY type LIMIT 400').all().catch(() => ({ results: [] }));
+      // the type list is a full DISTINCT scan: only pay for it on first load,
+      // follow-up filter/paging calls send notypes=1 and keep the cached list
+      const skipTypes = q.get('notypes') === '1';
+      const typeRows = skipTypes ? { results: [] } : await env.DB.prepare('SELECT DISTINCT type FROM events ORDER BY type LIMIT 400').all().catch(() => ({ results: [] }));
       const types = (typeRows.results || []).map((r) => r.type);
       let total;
       let out;
@@ -2536,6 +2539,7 @@ async function toggleExp(key){
 async function loadEvents(){
   let p='/events?view='+(S.evView==='raw'?'raw':'grouped')+'&limit=100&offset='+((S.evPage-1)*100)+
     '&tier='+S.evTier+'&order='+S.evOrder;
+  if(S.types&&S.types.length)p+='&notypes=1';
   if(S.evUser)p+='&user='+encodeURIComponent(S.evUser);
   if(S.eType!=='all')p+='&type='+encodeURIComponent(S.eType);
   if(S.ePrefix)p+='&prefix='+encodeURIComponent(S.ePrefix);
