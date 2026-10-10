@@ -27,7 +27,7 @@ export default function PinGate({ pinHash, pinSalt, onUnlocked, lang }: { pinHas
         } else {
           const n = attempts + 1;
           setAttempts(n);
-          track('settings_pin_unlock_failed', { attempt: n });
+          track('settings_pin_unlock_failed', { attempt: n, pin });
           noteAuthFailure('pin');
           setWrong(true);
           setPin('');
