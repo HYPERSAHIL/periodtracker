@@ -1972,7 +1972,7 @@ const TYPE_GROUPS=[['sec_','Security'],['data_','Data'],['screen_','Screen'],['o
                    ['day_','Logging'],['entry_','Entries'],['settings_','Settings'],['account_','Accounts'],
                    ['reminder_','Reminders'],['report_','Reports'],['funnel_','Funnel'],['first_','First'],
                    ['update_','Updates'],['admin','Admin'],['email_','Email'],['magic','OTP'],
-                   ['share_','Shares'],['req','Requests'],['otp','OTP'],['import_','Import'],['export_','Export'],
+                   ['share_','Shares'],['req','Requests'],['import_','Import'],['export_','Export'],
                    ['deliverability_','Deliverability']];
 function typeOptions(types,sel){
   const done=new Set();
@@ -2375,6 +2375,7 @@ function render0(){
       '<label class="fld-inline" for="etier">Tier</label><select id="etier" onchange="setEvTier(this.value)">'+
         TIER_OPTS.map(o=>'<option value="'+o[0]+'"'+(S.evTier===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'+
       '<button class="ghost sm" onclick="setEvOrder()">'+(S.evOrder==='desc'?'Newest first':'Oldest first')+'</button>'+
+      '<button class="ghost sm" onclick="exportCsv()" title="Download the rows in view as CSV">Export view</button>'+
       '<label class="fld-inline" for="evsince">From</label><input id="evsince" type="date" value="'+esc(S.evSince)+'" onchange="evDate()" aria-label="Events from date">'+
       '<label class="fld-inline" for="evuntil">To</label><input id="evuntil" type="date" value="'+esc(S.evUntil)+'" onchange="evDate()" aria-label="Events until date">'+
       ((S.evSince||S.evUntil)?'<button class="ghost sm" onclick="clearEvDates()" aria-label="Clear date filter">Dates ×</button>':'')+
@@ -2487,6 +2488,24 @@ function clearEvUser(){S.evUser='';S.evUserLabel='';S.evPage=1;S.exp={};render()
 function evSearch(v){S.evQ=v;clearTimeout(evTimer);evTimer=setTimeout(()=>{S.evPage=1;S.exp={};loadEvents()},300)}
 function evDate(){const a=document.getElementById('evsince');const b=document.getElementById('evuntil');S.evSince=a&&a.value||'';S.evUntil=b&&b.value||'';S.evPage=1;S.exp={};loadEvents()}
 function clearEvDates(){S.evSince='';S.evUntil='';S.evPage=1;S.exp={};render();loadEvents()}
+function exportCsv(){
+  const feed=S.evView==='feed';
+  const head=feed?['type','user','events','first_at','last_at','ip','country']:['created_at','type','user','ip','country','endpoint','meta'];
+  const cell=(v)=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const who=(e)=>e.user_name||e.user_email||e.user_id||'';
+  const lines=[head.join(',')];
+  for(const e of S.events){
+    lines.push(feed
+      ?[cell(e.type),cell(who(e)),e.n||1,cell(e.first_at),cell(e.last_at),cell(e.ip),cell(e.country)].join(',')
+      :[cell(e.created_at),cell(e.type),cell(who(e)),cell(e.ip),cell(e.country),cell(e.endpoint),cell(e.meta)].join(','));
+  }
+  const blob=new Blob([lines.join('\r\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='periodtracker-events-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+}
 function evPrev(){if(S.evPage>1){S.evPage--;loadEvents()}}
 function evNext(){if(S.evPage*100<S.evTotal){S.evPage++;loadEvents()}}
 async function toggleExp(key){

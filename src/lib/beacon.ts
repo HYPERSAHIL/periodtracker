@@ -5,7 +5,7 @@
  * successful send as data_beacon_status { failed, recovered }.
  */
 
-import { apiUrl } from './native';
+import { apiUrl, isNative } from './native';
 import { APP_VERSION } from '../types';
 
 const FAILS_KEY = 'pt.beacon.fails';
@@ -29,6 +29,20 @@ const bumpFail = () => {
 /** Timestamp of the most recent beacon send · error rows carry the gap. */
 export let lastBeaconAt = 0;
 
+/** Session token for beacon attribution · read live (sign-in/out needs no
+    reload to take effect). Web-only: on native the API is cross-origin and an
+    extra header would trigger a preflight the worker does not answer. */
+function authHeader(): Record<string, string> {
+  if (typeof navigator !== 'undefined' && isNative()) return {};
+  try {
+    const raw = localStorage.getItem('pt.cloud.v1');
+    const t = raw && (JSON.parse(raw) as { token?: string }).token;
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 export function track(type: string, meta?: Record<string, unknown>): void {
   try {
     lastBeaconAt = Date.now();
@@ -39,7 +53,7 @@ export function track(type: string, meta?: Record<string, unknown>): void {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     void fetch(apiUrl('/api/event'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       // keepalive: unload-path beacons survive the navigation that triggered them
       keepalive: type === 'screen_vitals' || type === 'screen_pageleave',
       body: JSON.stringify({ type, meta: { ...meta, appVersion: APP_VERSION } }),
