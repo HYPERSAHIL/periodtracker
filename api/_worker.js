@@ -2499,7 +2499,7 @@ function exportCsv(){
       ?[cell(e.type),cell(who(e)),e.n||1,cell(e.first_at),cell(e.last_at),cell(e.ip),cell(e.country)].join(',')
       :[cell(e.created_at),cell(e.type),cell(who(e)),cell(e.ip),cell(e.country),cell(e.endpoint),cell(e.meta)].join(','));
   }
-  const blob=new Blob([lines.join('\r\n')],{type:'text/csv'});
+  const blob=new Blob([lines.join('\\r\\n')],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='periodtracker-events-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv';
