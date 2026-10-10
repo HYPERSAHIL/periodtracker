@@ -2304,8 +2304,6 @@ h3 svg,
   z-index: 3;
 }
 
-}
-
 /* the group list lives inside the "More sections" disclosure, so it needs a
    little air of its own rather than reading as more top-level sections */
 .sheet-groups {
