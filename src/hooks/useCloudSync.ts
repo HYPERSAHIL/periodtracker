@@ -159,7 +159,7 @@ export function useCloudSync({
     cloudRef.current.token = null;
     setCloudUser(null);
     try {
-      const s = await ensureAnonymousSession();
+      const s = await ensureAnonymousSession(deviceInfo(APP_VERSION));
       cloudRef.current.token = s.token;
       setCloudUser(s.user);
       await runSync(entriesRef.current, settingsRef.current);
