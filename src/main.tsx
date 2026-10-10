@@ -37,6 +37,7 @@ try {
   LQ?.setConsumer((params) => {
     const files = (params as { files?: File[] })?.files ?? [];
     if (!files.length) return;
+    if (files.length > 1) track('share_target_dropped', { reason: 'multi_file', count: files.length - 1 });
     void files[0]
       .text()
       .then((text) => {
