@@ -867,7 +867,7 @@ function MainApp() {
   };
 
   if (settings.pinHash && settings.pinSalt && !unlocked) {
-    return <PinGate pinHash={settings.pinHash} pinSalt={settings.pinSalt} onUnlocked={() => setUnlocked(true)} lang={lang} />;
+    return withBoundary(<PinGate pinHash={settings.pinHash} pinSalt={settings.pinSalt} onUnlocked={() => setUnlocked(true)} lang={lang} />, tx(lang, 'Lock'), lang);
   }
 
   return (
@@ -882,10 +882,10 @@ function MainApp() {
         </header>
 
         {!settings.onboarded ? (
-          <Onboarding updateSettings={updateSettings} />
+          withBoundary(<Onboarding updateSettings={updateSettings} />, tx(lang, 'Setup'), lang)
         ) : showReport ? (
           <main className="screen">
-            <Report {...props} closeReport={closeReport} />
+            {withBoundary(<Report {...props} closeReport={closeReport} />, tx(lang, 'Report'), lang)}
           </main>
         ) : (
           <>
@@ -914,7 +914,7 @@ function MainApp() {
         </nav>
       )}
 
-      {accountSheet && (
+      {accountSheet && withBoundary(
         <AccountScreen
           user={sync.cloudUser}
           lang={lang}
@@ -924,12 +924,14 @@ function MainApp() {
             track('account_closed', { via: 'done' });
           }}
           onClose={() => { setAccountSheet(false); track('account_closed', { via: 'close' }); }}
-        />
+        />,
+        tx(lang, 'Account'),
+        lang
       )}
 
       <UpdateOverlay lang={lang} />
 
-      {sheetDate && (
+      {sheetDate && withBoundary(
         <DaySheet
           key={sheetDate}
           date={sheetDate}
@@ -948,7 +950,9 @@ function MainApp() {
             remove(sheetDate);
             setSheetDate(null);
           }}
-        />
+        />,
+        tx(lang, 'Day sheet'),
+        lang
       )}
     </>
   );
