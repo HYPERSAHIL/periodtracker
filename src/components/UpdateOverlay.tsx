@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UpdateState, updater } from '../lib/updater';
 import { tx } from '../lib/i18n';
+import { track } from '../lib/beacon';
 import { Logo } from './Icons';
 
 /**
@@ -11,6 +12,19 @@ export default function UpdateOverlay({ lang }: { lang?: string }) {
   const [state, setState] = useState<UpdateState>(updater.state);
 
   useEffect(() => updater.subscribe(setState), []);
+
+  // funnel views: transitions bracket the overlay (downloaded → install_started)
+  // but the time spent staring at each stage was invisible
+  const shownRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      (state.stage === 'ready' || state.stage === 'need_permission' || state.stage === 'downloading') &&
+      shownRef.current !== state.stage
+    ) {
+      shownRef.current = state.stage;
+      track('update_ready_shown', { stage: state.stage, version: state.version ?? null });
+    }
+  }, [state]);
 
   // nothing to show while checking/idle on web or up-to-date builds
   if (state.stage === 'idle' || state.stage === 'checking' || state.stage === 'available') return null;
