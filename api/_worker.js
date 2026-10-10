@@ -492,6 +492,17 @@ async function loadSessionFromAuth(env, request) {
   }
 }
 
+/** Per-IP cap on account creation (20/hour across anon + signup). Uses the
+    type prefix of idx_events_type_user so the count stays cheap. */
+async function creationThrottled(env, request) {
+  const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
+  if (!ip) return false;
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM events WHERE type IN ('signup', 'signup_anon') AND ip = ? AND created_at > datetime('now', '-1 hour')"
+  ).bind(ip).first().catch(() => null);
+  return !!row && row.n >= 20;
+}
+
 function requireAdmin(env, request) {
   const key = request.headers.get('x-admin-key') || '';
   if (!env.PT_ADMIN_KEY || !safeEqual(key, env.PT_ADMIN_KEY)) {
@@ -609,6 +620,10 @@ async function route(request, env, url, rid = null) {
   // --- anonymous bootstrap ---------------------------------------------------
   if (method === 'POST' && path === '/api/anon') {
     const b = await readBody(request);
+    if (await creationThrottled(env, request)) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'rate_limited', anon: true });
+      throw new HttpError(429, { error: 'rate_limited' });
+    }
     const id = await createUser(env, request, { device: b.device });
     await touchUser(env, request, id);
     const token = await newSession(env, request, id, 'anon');
@@ -620,6 +635,10 @@ async function route(request, env, url, rid = null) {
   // --- sign up ------------------------------------------------------------------
   if (method === 'POST' && path === '/api/signup') {
     const b = await readBody(request);
+    if (await creationThrottled(env, request)) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'rate_limited', email: String(b.email || '').trim().toLowerCase() || null });
+      throw new HttpError(429, { error: 'rate_limited' });
+    }
     const email = String(b.email || '').trim().toLowerCase();
     const name = String(b.name || '').trim().slice(0, 80);
     const age = Number(b.age);

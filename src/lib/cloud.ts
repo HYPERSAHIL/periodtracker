@@ -115,6 +115,7 @@ export async function signUp(input: {
 }): Promise<CloudSession> {
   const r = await api('signup', input);
   if (!r.ok) {
+    if (r.status === 429) throw new Error('Too many accounts created. Wait an hour and try again.');
     if (r.data?.error === 'email_taken') throw new Error('That email already has an account. Try signing in.');
     if (r.data?.error === 'invalid_age') throw new Error('Please enter a valid age.');
     if (r.data?.error === 'weak_password') throw new Error('Please use at least 6 characters for your password.');
