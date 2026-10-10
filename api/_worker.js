@@ -379,17 +379,26 @@ function publicUser(u) {
   };
 }
 
-async function getData(env, userId) {
+async function getData(env, request, userId) {
   const row = await env.DB.prepare('SELECT rev, settings, entries, updated_at FROM data WHERE user_id = ?')
     .bind(userId)
     .first();
   if (!row) return { rev: 0, settings: null, entries: null, updatedAt: null };
-  return {
-    rev: row.rev,
-    settings: row.settings ? JSON.parse(row.settings) : null,
-    entries: row.entries ? JSON.parse(row.entries) : null,
-    updatedAt: row.updated_at,
-  };
+  let settings = null;
+  let entries = null;
+  try {
+    settings = row.settings ? JSON.parse(row.settings) : null;
+  } catch {
+    await logEvent(env, request, userId, 'data_corrupt', { part: 'settings', bytes: String(row.settings).length });
+    throw new HttpError(500, { error: 'corrupt_data' });
+  }
+  try {
+    entries = row.entries ? JSON.parse(row.entries) : null;
+  } catch {
+    await logEvent(env, request, userId, 'data_corrupt', { part: 'entries', bytes: String(row.entries).length });
+    throw new HttpError(500, { error: 'corrupt_data' });
+  }
+  return { rev: row.rev, settings, entries, updatedAt: row.updated_at };
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -885,7 +894,7 @@ async function route(request, env, url, rid = null) {
 
   if (method === 'GET' && path === '/api/me') {
     const u = await userFromToken(env, request);
-    const d = await getData(env, u.id);
+    const d = await getData(env, request, u.id);
     await touchUser(env, request, u.id);
     await logEvent(env, request, u.id, 'me', { rid, rev: d.rev, verified: !!u.email_verified });
     return json({ user: publicUser(u), rev: d.rev, updatedAt: d.updatedAt });
@@ -894,7 +903,7 @@ async function route(request, env, url, rid = null) {
   if (method === 'GET' && path === '/api/data') {
     const u = await userFromToken(env, request);
     await touchUser(env, request, u.id);
-    const d = await getData(env, u.id);
+    const d = await getData(env, request, u.id);
     const entryDays = liveEntries(d.entries).length;
     await logEvent(env, request, u.id, 'pull', { rid, rev: d.rev, entryDays, appVersion: request.headers.get('x-app-version') || null });
     return json(d);
@@ -925,7 +934,7 @@ async function route(request, env, url, rid = null) {
     const current = await env.DB.prepare('SELECT rev FROM data WHERE user_id = ?').bind(u.id).first();
     if (!current) {
       if (baseRev !== 0) {
-        const d = await getData(env, u.id);
+        const d = await getData(env, request, u.id);
         await logEvent(env, request, u.id, 'push_conflict', { rid, baseRev, serverRev: 0 });
         return json({ conflict: true, rev: 0, ...d }, 409);
       }
@@ -936,7 +945,7 @@ async function route(request, env, url, rid = null) {
       return json({ rev: 1 });
     }
     if (current.rev !== baseRev) {
-      const d = await getData(env, u.id);
+      const d = await getData(env, request, u.id);
       await logEvent(env, request, u.id, 'push_conflict', { rid, baseRev, serverRev: current.rev, bodyBytes, entryDays });
       return json({ conflict: true, ...d }, 409);
     }
@@ -1314,7 +1323,7 @@ async function route(request, env, url, rid = null) {
       if (method === 'GET') {
         const u = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
         if (!u) throw new HttpError(404, { error: 'not_found' });
-        const d = await getData(env, id);
+        const d = await getData(env, request, id);
         // newest note, so the detail view can lead with it
         let lastNote = null;
         let noteCount = 0;
@@ -1604,7 +1613,7 @@ async function refreshFleet(env) {
         args.push(like, like, like, like, like, like, like, like);
       }
       const noiseList = NOISE_EVENT_TYPES.map((t) => "'" + t + "'").join(',');
-      const signalSql = "(e.type LIKE 'sec_%' OR e.type LIKE '%err%' OR e.type LIKE '%fail%' OR e.type LIKE '%rejected%' OR e.type LIKE '%miss%' OR e.type LIKE '%conflict%' OR e.type LIKE '%missing%' OR e.type LIKE '%blocked%' OR e.type LIKE '%bad_%' OR e.type LIKE '%limit%' OR e.type LIKE '%skew%' OR e.type LIKE '%flood%' OR e.type LIKE '%bruteforce%' OR e.type LIKE '%injection%' OR e.type LIKE '%bounced%' OR e.type LIKE '%offline%')";
+      const signalSql = "(e.type LIKE 'sec_%' OR e.type LIKE '%err%' OR e.type LIKE '%fail%' OR e.type LIKE '%rejected%' OR e.type LIKE '%miss%' OR e.type LIKE '%conflict%' OR e.type LIKE '%missing%' OR e.type LIKE '%blocked%' OR e.type LIKE '%bad_%' OR e.type LIKE '%limit%' OR e.type LIKE '%corrupt%' OR e.type LIKE '%skew%' OR e.type LIKE '%flood%' OR e.type LIKE '%bruteforce%' OR e.type LIKE '%injection%' OR e.type LIKE '%bounced%' OR e.type LIKE '%offline%')";
       if (tier === 'noise') where.push('e.type IN (' + noiseList + ')');
       else if (tier === 'signal') where.push(signalSql);
       else if (tier === 'context') where.push('e.type NOT IN (' + noiseList + ') AND NOT ' + signalSql);
@@ -1978,7 +1987,7 @@ main.login .detail{padding:24px}
 </style></head><body><div class="wrap" id="app"></div>
 <script>
 const NOISE=new Set(${JSON.stringify(NOISE_EVENT_TYPES)});
-const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|skew|flood|bruteforce|injection|bounced|offline/i;
+const SIG_RE=/^(sec_)|err|fail|rejected|miss|conflict|missing|blocked|bad_|limit|corrupt|skew|flood|bruteforce|injection|bounced|offline/i;
 function fmtNum(v,d=0){return (v==null||v===0)?'\u2014':(Math.round(v*Math.pow(10,d))/Math.pow(10,d)).toString()}
 function tierOf(t){t=String(t||'');if(NOISE.has(t))return 'noise';if(SIG_RE.test(t))return 'signal';return 'context'}
 const S={key:sessionStorage.getItem('ptAdminKey')||'',view:'list',sel:null,tab:'overview',users:[],events:[],mix:[],mixTotal:0,types:[],release:null,probes:[],otp:[],deliv:[],health:null,q:'',qF:0,uSort:'notes',uDir:-1,noteQ:'',notes:null,noteBusy:false,noteTrunc:false,loading:false,eType:'all',ePrefix:'',eOpen:{},evPage:1,evView:'feed',evQ:'',evQF:0,evTier:'default',evOrder:'desc',evSince:'',evUntil:'',evTotal:0,evUser:'',evUserLabel:'',exp:{},err:null,dark:localStorage.getItem('ptAdminTheme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')};
