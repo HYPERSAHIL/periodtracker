@@ -102,7 +102,7 @@ export default function AccountScreen({
               role="tab"
               aria-selected={tab === t}
               className={tab === t ? 'on' : ''}
-              onClick={() => setTab(t)}
+              onClick={() => { setTab(t); track('account_tab_switched', { tab: t }); }}
             >
               {t === 'signup' ? tx(lang, 'Create') : tx(lang, 'Sign in')}
             </button>
@@ -194,7 +194,7 @@ export default function AccountScreen({
                 <label htmlFor="si-pass">{tx(lang, 'Password')}</label>
                 <input id="si-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tx(lang, 'Your password')} autoComplete="current-password" />
               </div>
-              <button className="btn primary acct2-btn" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password), 'signin')}>
+              <button className="btn primary acct2-btn" disabled={busy || !email.trim() || !password} onClick={() => run(() => signIn(email.trim(), password, deviceInfo(APP_VERSION)), 'signin')}>
                 {busy ? tx(lang, 'Signing in…') : tx(lang, 'Sign in')}
               </button>
             </>

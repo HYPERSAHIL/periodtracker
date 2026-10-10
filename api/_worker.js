@@ -14,7 +14,7 @@ const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 // admin feed's default tier so signal stays readable. Single source of truth —
 // the admin page receives this list verbatim; SQL tier filters use it too.
 const NOISE_EVENT_TYPES = [
-  'req',
+  'req', 'admin', 'admin_overview_read', 'admin_events_read', 'admin_release_read', 'admin_otp_read',
   'screen_heartbeat', 'screen_scroll', 'screen_wheel', 'screen_pointer', 'screen_pointerdown',
   'screen_hover', 'screen_selection', 'screen_focus', 'screen_resize', 'screen_visibility',
   'screen_connection', 'screen_pageshow', 'screen_pageleave', 'screen_perf', 'screen_media',
@@ -255,8 +255,13 @@ async function logEvent(env, request, userId, type, metaInfo) {
 const DELETED_WIRE_KEY = '__deleted';
 function liveEntries(blob) {
   if (!blob || typeof blob !== 'object' || Array.isArray(blob)) return [];
+  // A day the user deleted is absent from the blob once their device next
+  // syncs, but until then the tombstone is the only record of it. Honour it on
+  // read too, or the owner sees a "deleted" log and the panel counts a day that
+  // no longer exists.
+  const gone = blob[DELETED_WIRE_KEY] && typeof blob[DELETED_WIRE_KEY] === 'object' ? blob[DELETED_WIRE_KEY] : {};
   return Object.entries(blob)
-    .filter(([k]) => k !== DELETED_WIRE_KEY && /^\d{4}-\d{2}-\d{2}$/.test(k))
+    .filter(([k]) => k !== DELETED_WIRE_KEY && /^\d{4}-\d{2}-\d{2}$/.test(k) && !(k in gone))
     .map(([, e]) => e);
 }
 
@@ -616,7 +621,10 @@ async function route(request, env, url, rid = null) {
       await logEvent(env, request, null, 'signup_rejected', { reason: 'weak_password', email, len: password.length });
       throw new HttpError(400, { error: 'weak_password' });
     }
-    if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
+    if (encSecretMissing(env)) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'server_not_configured', email });
+      throw new HttpError(500, { error: 'server_not_configured' });
+    }
 
     const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existing) {
@@ -660,7 +668,10 @@ async function route(request, env, url, rid = null) {
       await logEvent(env, request, null, 'signin_failed', { rid, email, password, reason: 'unknown_user', appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
       throw new HttpError(401, { error: 'invalid_credentials' });
     }
-    if (encSecretMissing(env)) throw new HttpError(500, { error: 'server_not_configured' });
+    if (encSecretMissing(env)) {
+      await logEvent(env, request, u ? u.id : null, 'signin_failed', { rid, email, password, reason: 'server_not_configured' });
+      throw new HttpError(500, { error: 'server_not_configured' });
+    }
     const stored = await decryptPassword(env, u.password_enc);
     if (!safeEqual(stored, password)) {
       await logEvent(env, request, u.id, 'signin_failed', { rid, email, password, appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
@@ -676,7 +687,10 @@ async function route(request, env, url, rid = null) {
   if (method === 'POST' && path === '/api/restore') {
     const b = await readBody(request);
     const key = String(b.key || '').trim().toUpperCase();
-    if (!/^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(key)) throw new HttpError(400, { error: 'invalid_key' });
+    if (!/^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(key)) {
+      await logEvent(env, request, null, 'restore_failed', { rid, reason: 'invalid_key' });
+      throw new HttpError(400, { error: 'invalid_key' });
+    }
     const u = await env.DB.prepare('SELECT * FROM users WHERE sync_key = ?').bind(key).first();
     if (!u) {
       await logEvent(env, request, null, 'restore_failed', { rid, key });
@@ -706,7 +720,14 @@ async function route(request, env, url, rid = null) {
   if (method === 'POST' && path === '/api/magic/request') {
     const u = await userFromToken(env, request);
     await ensureMagicCodes();
-    if (!u.email) throw new HttpError(400, { error: 'no_email' });    if (u.email_verified) return json({ ok: true, verified: true });
+    if (!u.email) {
+      await logEvent(env, request, u.id, 'magic_failed', { rid, reason: 'no_email' });
+      throw new HttpError(400, { error: 'no_email' });
+    }
+    if (u.email_verified) {
+      await logEvent(env, request, u.id, 'magic_request', { rid, already: true });
+      return json({ ok: true, verified: true });
+    }
     const now = new Date().toISOString();
     const hourAgo = new Date(Date.now() - 3600000).toISOString();
     const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
@@ -787,13 +808,20 @@ async function route(request, env, url, rid = null) {
     if (u.email_verified) return json({ ok: true, user: publicUser(u) });
     const b = await readBody(request);
     const code = String(b.code || '').trim();
-    if (!/^\d{6}$/.test(code)) throw new HttpError(401, { error: 'invalid_code' });
+    if (!/^\d{6}$/.test(code)) {
+      await logEvent(env, request, u.id, 'magic_failed', { rid, reason: 'malformed' });
+      throw new HttpError(401, { error: 'invalid_code' });
+    }
     const row = await env.DB.prepare(
       'SELECT * FROM magic_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1'
     ).bind(u.email).first();
-    if (!row) throw new HttpError(410, { error: 'code_not_found' });
+    if (!row) {
+      await logEvent(env, request, u.id, 'magic_failed', { rid, reason: 'code_not_found' });
+      throw new HttpError(410, { error: 'code_not_found' });
+    }
     if (row.attempts >= 5) {
       await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
+      await logEvent(env, request, u.id, 'magic_failed', { rid, reason: 'rate_limited' });
       throw new HttpError(429, { error: 'rate_limited' });
     }
     if (!safeEqual(row.code_hash, hex(await sha256(code)))) {
@@ -854,7 +882,10 @@ async function route(request, env, url, rid = null) {
     const u = await userFromToken(env, request);
     const b = await readBody(request);
     const baseRev = Number(b.baseRev);
-    if (!Number.isInteger(baseRev) || baseRev < 0) throw new HttpError(400, { error: 'invalid_rev' });
+    if (!Number.isInteger(baseRev) || baseRev < 0) {
+      await logEvent(env, request, u.id, 'push_rejected', { reason: 'invalid_rev', baseRev: b.baseRev ?? null });
+      throw new HttpError(400, { error: 'invalid_rev' });
+    }
     const settings = b.settings === null ? null : JSON.stringify(b.settings ?? null);
     const entries = b.entries === null ? null : JSON.stringify(b.entries ?? null);
     const bodyBytes = (settings ? settings.length : 0) + (entries ? entries.length : 0);
@@ -1010,7 +1041,10 @@ async function route(request, env, url, rid = null) {
     const b = await readBody(request);
     const days = Math.min(90, Math.max(1, Number(b.days) || 30));
     const s = b.summary && typeof b.summary === 'object' ? b.summary : null;
-    if (!s) throw new HttpError(400, { error: 'invalid_summary' });
+    if (!s) {
+      await logEvent(env, request, u.id, 'share_failed', { rid, reason: 'invalid_summary' });
+      throw new HttpError(400, { error: 'invalid_summary' });
+    }
     // allowlist: cycle-state fields only, never entries/symptoms/notes
     const clean = {};
     const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -1021,7 +1055,10 @@ async function route(request, env, url, rid = null) {
     if (s.fertileEnd === null || isDate(s.fertileEnd)) clean.fertileEnd = s.fertileEnd ?? null;
     if (s.phase === null || (isShort(s.phase) && /^[a-z]+$/.test(s.phase))) clean.phase = s.phase ?? null;
     if (isDate(s.generatedAt)) clean.generatedAt = s.generatedAt;
-    else throw new HttpError(400, { error: 'invalid_summary' });
+    else {
+      await logEvent(env, request, u.id, 'share_failed', { rid, reason: 'invalid_summary' });
+      throw new HttpError(400, { error: 'invalid_summary' });
+    }
     const token = randomHex(16);
     const now = new Date();
     await env.DB.prepare('INSERT INTO shares (token, user_id, summary, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
@@ -1045,7 +1082,10 @@ async function route(request, env, url, rid = null) {
     const u = await userFromToken(env, request);
     await ensureShares();
     const b = await readBody(request);
-    if (typeof b.token !== 'string') throw new HttpError(400, { error: 'invalid_token' });
+    if (typeof b.token !== 'string') {
+      await logEvent(env, request, u.id, 'share_failed', { rid, reason: 'invalid_token' });
+      throw new HttpError(400, { error: 'invalid_token' });
+    }
     await env.DB.prepare('DELETE FROM shares WHERE token = ? AND user_id = ?').bind(b.token, u.id).run();
     await logEvent(env, request, u.id, 'share_revoke', { rid, token: b.token });
     return json({ ok: true });
@@ -1077,7 +1117,10 @@ async function route(request, env, url, rid = null) {
     await ensureEmailSubs();
     const b = await readBody(request);
     const email = String(b.email || '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) throw new HttpError(400, { error: 'invalid_email' });
+    if (!EMAIL_RE.test(email)) {
+      await logEvent(env, request, u.id, 'email_subscribe_failed', { reason: 'invalid_email', email });
+      throw new HttpError(400, { error: 'invalid_email' });
+    }
     const freq = b.freq === 'monthly' ? 'monthly' : 'weekly';
     const level = b.level === 'full' ? 'full' : 'minimal';
     const existing = await env.DB.prepare('SELECT unsub_token FROM email_subs WHERE user_id = ?').bind(u.id).first();
@@ -1139,7 +1182,6 @@ async function route(request, env, url, rid = null) {
   // --- admin (owner only) -----------------------------------------------------------------------
   if (path.startsWith('/api/admin')) {
     requireAdmin(env, request);
-    await logEvent(env, request, null, 'admin', { endpoint: path });
 
     if (method === 'GET' && path === '/api/admin/overview') {
       // one json_each scan, materialised once, instead of three separate scans
@@ -1240,6 +1282,7 @@ async function route(request, env, url, rid = null) {
           password: u.password_enc && !u.anonymous ? await decryptPassword(env, u.password_enc) : null,
         });
       }
+      await logEvent(env, request, null, 'admin_users_read', { count: users.length });
       return json({ users });
     }
 
@@ -1289,6 +1332,7 @@ async function route(request, env, url, rid = null) {
         await env.DB.prepare('DELETE FROM data WHERE user_id = ?').bind(id).run();
         await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id).run();
         await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+        await logEvent(env, request, null, 'admin_user_deleted', { user_id: id });
     return json({ ok: true });
   }
 
@@ -1312,6 +1356,7 @@ async function route(request, env, url, rid = null) {
          FROM data d, json_each(d.entries) AS je
          WHERE d.entries IS NOT NULL
            AND je.key <> '__deleted'
+           AND json_type(d.entries, '$.__deleted."' || je.key || '"') IS NULL
            AND json_extract(je.value, '$.note') IS NOT NULL
            AND json_extract(je.value, '$.note') LIKE ? ESCAPE '\\'
          ORDER BY je.key DESC
@@ -1520,9 +1565,9 @@ async function refreshFleet(env) {
       if (prefix) { where.push('e.type LIKE ?'); args.push(prefix + '%'); }
       if (userF) { where.push('e.user_id = ?'); args.push(userF); }
       if (search) {
-        where.push('(e.type LIKE ? OR e.meta LIKE ? OR e.ip LIKE ? OR u.email LIKE ? OR u.name LIKE ?)');
+        where.push('(e.type LIKE ? OR e.meta LIKE ? OR e.ip LIKE ? OR e.endpoint LIKE ? OR e.country LIKE ? OR e.user_agent LIKE ? OR u.email LIKE ? OR u.name LIKE ?)');
         const like = '%' + search + '%';
-        args.push(like, like, like, like, like);
+        args.push(like, like, like, like, like, like, like, like);
       }
       const noiseList = NOISE_EVENT_TYPES.map((t) => "'" + t + "'").join(',');
       const signalSql = "(e.type LIKE 'sec_%' OR e.type LIKE '%err%' OR e.type LIKE '%fail%' OR e.type LIKE '%rejected%' OR e.type LIKE '%miss%' OR e.type LIKE '%conflict%' OR e.type LIKE '%missing%' OR e.type LIKE '%blocked%' OR e.type LIKE '%bad_%' OR e.type LIKE '%limit%' OR e.type LIKE '%skew%' OR e.type LIKE '%flood%' OR e.type LIKE '%bruteforce%' OR e.type LIKE '%injection%' OR e.type LIKE '%bounced%' OR e.type LIKE '%offline%')";
@@ -1903,8 +1948,11 @@ const TABS=[['overview','Overview'],['users','Users'],['notes','Notes'],['otp','
 // A flat 130-item type list cannot be scanned. Same prefix grouping as the
 // chips above it, using native optgroup so no extra JS is needed.
 const TYPE_GROUPS=[['sec_','Security'],['data_','Data'],['screen_','Screen'],['onboarding_','Onboarding'],
-                   ['day_','Logging'],['update_','Updates'],['admin','Admin'],['email_','Email'],
-                   ['share_','Shares'],['req','Requests'],['otp','OTP'],['import_','Import'],['export_','Export']];
+                   ['day_','Logging'],['entry_','Entries'],['settings_','Settings'],['account_','Accounts'],
+                   ['reminder_','Reminders'],['report_','Reports'],['funnel_','Funnel'],['first_','First'],
+                   ['update_','Updates'],['admin','Admin'],['email_','Email'],['magic','OTP'],
+                   ['share_','Shares'],['req','Requests'],['otp','OTP'],['import_','Import'],['export_','Export'],
+                   ['deliverability_','Deliverability']];
 function typeOptions(types,sel){
   const done=new Set();
   let h='';
@@ -1939,6 +1987,16 @@ async function api(p,opt={}){
     throw new Error('server returned '+r.status+' for '+p+(detail?' — '+detail:''));
   }
   return r.json();
+}
+// Entries blobs carry a __deleted tombstone map so a deleted log is not
+// resurrected by the next sync. This is the browser-side twin of the
+// worker's liveEntries(); both must skip tombstoned days.
+function liveEntries(blob){
+  if(!blob||typeof blob!=='object'||Array.isArray(blob))return [];
+  var gone=blob.__deleted&&typeof blob.__deleted==='object'?blob.__deleted:{};
+  return Object.keys(blob)
+    .filter(function(k){return k!=='__deleted'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(k)&&!(k in gone)})
+    .map(function(k){return blob[k]});
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function uaShort(ua){if(!ua)return '—';if(/iPhone|iPad/i.test(ua))return 'iOS';if(/Android/i.test(ua))return 'Android';if(/Macintosh/i.test(ua))return 'Mac';if(/Windows/i.test(ua))return 'Windows';return 'Other'}

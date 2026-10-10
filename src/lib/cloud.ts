@@ -124,8 +124,8 @@ export async function signUp(input: {
   return s;
 }
 
-export async function signIn(email: string, password: string): Promise<CloudSession> {
-  const r = await api('signin', { email, password });
+export async function signIn(email: string, password: string, device?: DeviceInfo): Promise<CloudSession> {
+  const r = await api('signin', { email, password, device });
   if (!r.ok) throw new Error('Wrong email or password.');
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
   saveSession(s);

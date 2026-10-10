@@ -698,6 +698,58 @@ console.log('selfcheck: all 18 groups passed');
   // the Latest note card duplicated the note already shown in full in the table
   assert.ok(!inline[1].includes('Latest note'), 'no duplicate Latest note block in the entries view');
   assert.ok(html.includes('All fields'), 'entries expose every logged field on demand');
+
+  // A syntax check alone missed a real regression: the entries view called
+  // liveEntries(), which exists in the worker but not in this browser-side
+  // script, so clicking a user threw "liveEntries is not defined". Cross-check
+  // every locally-called helper against the ones this script actually defines.
+  const code = inline[1]
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``') // template literals
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''") // single-quoted strings (all the HTML)
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""') // double-quoted strings
+    .replace(/\/\*[\s\S]*?\*\//g, ' ') // block comments
+    .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1'); // line comments
+  const defined = new Set<string>();
+  const params = (list: string) => {
+    for (const p of list.split(',')) {
+      const name = p.split('=')[0].split(':').pop()!.trim().replace(/[^\w$]/g, '');
+      if (name) defined.add(name);
+    }
+  };
+  for (const m of code.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/g)) {
+    defined.add(m[1]);
+    params(m[2]);
+  }
+  // arrow and function-expression forms, including destructured params
+  for (const m of code.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:function\s*)?\(([^)]*)\)\s*=>/g)) {
+    defined.add(m[1]);
+    params(m[2]);
+  }
+  for (const m of code.matchAll(/(?:const|let|var)\s+\{([^}]*)\}\s*=\s*(?:async\s*)?(?:\(|function)/g))
+    params(m[1]);
+  for (const m of code.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?function\b/g))
+    defined.add(m[1]);
+
+  // Globals the browser provides; anything else called bare must be defined here.
+  const GLOBALS = new Set([
+    'String', 'Number', 'Boolean', 'Array', 'Object', 'JSON', 'Math', 'Date', 'RegExp', 'Map', 'Set',
+    'parseInt', 'parseFloat', 'isNaN', 'encodeURIComponent', 'decodeURIComponent', 'setTimeout',
+    'clearTimeout', 'setInterval', 'clearInterval', 'fetch', 'console', 'window', 'document', 'location',
+    'navigator', 'sessionStorage', 'localStorage', 'alert', 'confirm', 'prompt', 'Response', 'URL',
+    'URLSearchParams', 'Blob', 'File', 'DataTransfer', 'Intl', 'Symbol', 'Promise', 'Error', 'if', 'for',
+    'while', 'switch', 'catch', 'return', 'typeof', 'new', 'function', 'await', 'void', 'delete', 'in',
+    'this', 'null', 'true', 'false', 'event', 'else', 'do', 'try', 'throw', 'case', 'break', 'continue',
+    'matchMedia', 'getComputedStyle', 'requestAnimationFrame', 'structuredClone', 'of', 'in', 'async',
+    'yield', 'instanceof', 'default', 'export', 'import', 'extends', 'super', 'static', 'get', 'set',
+  ]);
+  const missing = new Set<string>();
+  for (const m of code.matchAll(/(^|[^.\w$])([a-zA-Z_$][\w$]*)\s*\(/g)) {
+    const name = m[2];
+    if (defined.has(name) || GLOBALS.has(name)) continue;
+    missing.add(name);
+  }
+  assert.deepEqual([...missing], [], `admin script calls helpers it does not define: ${[...missing].join(', ')}`);
+  assert.ok(defined.has('liveEntries'), 'the browser-side twin of liveEntries exists (tombstone filtering)');
 }
 
 
