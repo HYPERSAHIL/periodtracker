@@ -16,7 +16,7 @@ export default defineConfig({
     },
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', '_redirects'],
+      includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png', '_redirects'],
       manifest: {
         name: 'Period Tracker',
         short_name: 'Period Tracker',
