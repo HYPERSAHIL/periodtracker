@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react';
 import { tx } from '../lib/i18n';
 import { track } from '../lib/beacon';
 
+/** iOS has no install prompt event, so card views would otherwise be invisible in the funnel. */
+function IosHint({ lang }: { lang: string }) {
+  useEffect(() => {
+    track('update_pwa_install', { stage: 'shown', via: 'ios' });
+  }, []);
+  return (
+    <p className="hint" style={{ margin: 0 }}>
+      {tx(lang, 'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app · no App Store needed.')}
+    </p>
+  );
+}
 interface DeferredPrompt extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: string }>;
@@ -67,9 +78,7 @@ export default function InstallCard({ lang }: { lang: string }) {
           </button>
         </>
       ) : (
-        <p className="hint" style={{ margin: 0 }}>
-          {tx(lang, 'On iPhone: tap Share, then “Add to Home Screen”. Opens fullscreen like a native app · no App Store needed.')}
-        </p>
+        <IosHint lang={lang} />
       )}
     </div>
   );
