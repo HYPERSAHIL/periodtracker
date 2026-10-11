@@ -114,6 +114,17 @@ export default function DaySheet({
   const BBT_MAX_C = 40;
   const bbtBad = bbtC !== null && (bbtC < BBT_MIN_C || bbtC > BBT_MAX_C);
   const bbtStored = bbtBad ? null : bbtC;
+  // one row per bad episode (not per keystroke): transition into bad fires,
+  // returning to range re-arms
+  const bbtBadSeen = useRef(false);
+  useEffect(() => {
+    if (bbtBad && !bbtBadSeen.current) {
+      bbtBadSeen.current = true;
+      track('entry_bbt_rejected', { value: bbtText.slice(0, 20), unit: settings.tempUnit });
+    } else if (!bbtBad) {
+      bbtBadSeen.current = false;
+    }
+  }, [bbtBad, bbtText, settings.tempUnit]);
   const weightKg =
     Number.isFinite(parsedWeight) && parsedWeight > 0
       ? settings.weightUnit === 'lb'
