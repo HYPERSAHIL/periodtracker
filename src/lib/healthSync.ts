@@ -30,8 +30,13 @@ export async function pushRecentToHealth(entries: Record<string, DayEntry>): Pro
       .filter((d) => d.flow || d.bbt != null || d.weight != null);
     if (!days.length) return;
     const plugin = registerPlugin<HealthBridge>('HealthBridge');
-    await plugin.push({ days: JSON.stringify(days) });
-    track('data_health_push', { ok: true, kind: 'health', days: days.length });
+    // the native sides are staged stubs for now (see health-bridge/): they
+    // resolve {ok:false, staged:true} until the SDK wiring lands, so read the
+    // return instead of treating resolve as success
+    const ret = (await plugin.push({ days: JSON.stringify(days) })) as
+      | { ok?: boolean; staged?: boolean }
+      | undefined;
+    track('data_health_push', { ok: ret?.ok === true, kind: 'health', days: days.length, staged: ret?.staged ?? null });
   } catch {
     track('data_health_push', { ok: false, kind: 'health' });
   }
