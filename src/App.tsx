@@ -747,6 +747,10 @@ function MainApp() {
 
   const eraseAll = useCallback(() => {
     const erased = Object.keys(entries).length;
+    // Tombstone every erased day like remove() does: without this the next
+    // sync merges the server copy back and the "erased" data resurrects.
+    const at = Date.now();
+    saveDeleted({ ...loadDeleted(), ...Object.fromEntries(Object.keys(entries).map((d) => [d, at])) });
     setEntries({});
     setSettings((s) => ({ ...s, lastPeriodStart: null, predictionsPaused: false, updatedAt: Date.now() }));
     track('data_erased', { days: erased });
