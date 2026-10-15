@@ -651,7 +651,12 @@ function MainApp() {
         });
       })
       .catch(() => {
-        /* storage API blocked (private mode) · screen_session is best-effort */
+        track('screen_session', {
+          entry: document.referrer ? 'referral' : 'direct',
+          onboarded: bootOnboarded.current,
+          hasAccount: !!loadSession(),
+          storageBlocked: true,
+        });
       });
     if (!isNative()) {
       try {
