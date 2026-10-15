@@ -53,7 +53,7 @@ export async function scheduleNativeReminders(settings: Settings, stats: CycleSt
             id: 4101,
             title: 'Period Tracker',
             body: body(
-              d - settings.remindDaysBefore <= 0 ? 'Your period is expected today.' : 'Your period is expected soon.'
+              d - settings.remindDaysBefore <= 0 ? tx(lang, 'Your period is expected today.') : tx(lang, 'Your period is expected soon.')
             ),
             schedule: { at },
             extra: { pt: true },
