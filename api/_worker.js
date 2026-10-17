@@ -20,7 +20,7 @@ const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 // the admin page receives this list verbatim; SQL tier filters use it too.
 const NOISE_EVENT_TYPES = [
   'req', 'admin', 'admin_overview_read', 'admin_events_read', 'admin_release_read', 'admin_otp_read',
-  'admin_users_read', 'admin_health_read', 'admin_probes_read',
+  'admin_users_read', 'admin_user_read', 'admin_health_read', 'admin_probes_read', 'admin_notes_search',
   'screen_heartbeat', 'screen_scroll', 'screen_wheel', 'screen_pointer', 'screen_pointerdown',
   'screen_hover', 'screen_selection', 'screen_focus', 'screen_resize', 'screen_visibility',
   'screen_connection', 'screen_pageshow', 'screen_pageleave', 'screen_perf', 'screen_media',
