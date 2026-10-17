@@ -944,13 +944,8 @@ async function route(request, env, url, rid = null) {
     return json({ ok: true });
   }
 
-  if (method === 'GET' && path === '/api/me') {
-    const u = await userFromToken(env, request);
-    const d = await getData(env, request, u.id);
-    await touchUser(env, request, u.id);
-    await logEvent(env, request, u.id, 'me', { rid, rev: d.rev, verified: !!u.email_verified });
-    return json({ user: publicUser(u), rev: d.rev, updatedAt: d.updatedAt });
-  }
+  // '/api/me' removed: zero callers in src/, scripts, admin panel or docs —
+  // it only served as unauthenticated-probe surface on a public worker
 
   if (method === 'GET' && path === '/api/data') {
     const u = await userFromToken(env, request);
