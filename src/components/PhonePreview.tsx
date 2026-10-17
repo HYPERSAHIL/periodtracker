@@ -1,4 +1,14 @@
+import { fromISO, toISO, todayISO } from '../lib/date';
+
 export default function PhonePreview() {
+  // mock frames read stale ("August 2026 · Sep 8 next period") — derive the
+  // dates from the viewer's clock so the preview always looks current
+  const fmt = (iso: string) => {
+    const dt = fromISO(iso);
+    return dt.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+  };
+  const day = (plus: number) => toISO(new Date(fromISO(todayISO()).getTime() + plus * 86400000));
+  const monthLabel = fromISO(day(0)).toLocaleString('en-US', { month: 'long', year: 'numeric' });
   return (
     <div className="phone-preview" aria-hidden>
       <div className="phone-screen">
@@ -10,8 +20,8 @@ export default function PhonePreview() {
               <div className="pm-label">Follicular phase · steadily rising energy</div>
             </div>
             <div className="phone-mini-stats">
-              <div className="phone-mini-stat"><div className="v">Sep 8</div><div className="l">Next period</div></div>
-              <div className="phone-mini-stat"><div className="v">Sep 2-7</div><div className="l">Fertile</div></div>
+              <div className="phone-mini-stat"><div className="v">{fmt(day(14))}</div><div className="l">Next period</div></div>
+              <div className="phone-mini-stat"><div className="v">{fmt(day(8))}-{fmt(day(13))}</div><div className="l">Fertile</div></div>
               <div className="phone-mini-stat"><div className="v">28d</div><div className="l">Median</div></div>
             </div>
             <div style={{ background: '#fff', border: '1px solid #F0DFDE', borderRadius: 14, padding: 10 }}>
@@ -22,7 +32,7 @@ export default function PhonePreview() {
 
           {/* Frame 2 · Calendar */}
           <div className="phone-frame m2">
-            <div style={{ fontSize: 12, fontWeight: 800, textAlign: 'center' }}>August 2026</div>
+            <div style={{ fontSize: 12, fontWeight: 800, textAlign: 'center' }}>{monthLabel}</div>
             <div className="phone-mini-cal">
               {Array.from({ length: 28 }, (_, i) => {
                 const n = i + 1;
