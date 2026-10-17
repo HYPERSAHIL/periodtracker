@@ -7,6 +7,11 @@
  */
 
 const NEVER = '9999-12-31T23:59:59.000Z';
+// tokens with real lifetimes: sessions die with inactivity (90d), OTPs are
+// short-lived (15m). NEVER remains reserved for share links, where expiry is
+// an explicit product promise made in the UI copy.
+const SESSION_TTL_MS = 90 * 86400000;
+const OTP_TTL_MS = 15 * 60000;
 const MAX_BODY = 6_000_000;
 const KEY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -336,9 +341,20 @@ async function touchUser(env, request, userId, device = null) {
 async function newSession(env, request, userId, via) {
   const token = randomHex(32);
   const ip = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || null;
-  await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
-    .bind(hex(await sha256(token)), userId, NEVER)
+  // legacy rows were issued with a decorative NEVER expiry; give them a real
+  // grace cutoff once — idempotent, no rows match after the first run
+  await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at = ?')
+    .bind(new Date(Date.now() + 7 * 86400000).toISOString(), NEVER)
     .run();
+  await env.DB.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
+    .bind(hex(await sha256(token)), userId, new Date(Date.now() + SESSION_TTL_MS).toISOString())
+    .run();
+  // piggyback cleanup: issuance is low-frequency, so reclaim expired rows here —
+  // keeps the table tracking live tokens without a dedicated cron trigger
+  await env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?')
+    .bind(new Date().toISOString())
+    .run()
+    .catch(() => {});
   // session lifecycle: new token issued — previous IP/device for this user is
   // already on their row (touchUser), so flag movement here for review
   const prev = await env.DB.prepare('SELECT last_ip, country, app_version FROM users WHERE id = ?')
@@ -358,9 +374,9 @@ async function userFromToken(env, request) {
   if (!m) throw new HttpError(401, { error: 'unauthorized' });
   const row = await env.DB.prepare(
     `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ?`
+     WHERE s.token_hash = ? AND s.expires_at > ?`
   )
-    .bind(hex(await sha256(m[1])))
+    .bind(hex(await sha256(m[1])), new Date().toISOString())
     .first();
   if (!row) throw new HttpError(401, { error: 'unauthorized' });
   return row;
@@ -384,8 +400,10 @@ async function getData(env, request, userId) {
     .bind(userId)
     .first();
   if (!row) return { rev: 0, settings: null, entries: null, updatedAt: null };
-  let settings = null;
-  let entries = null;
+  // declared without initializers on purpose: the try paths always assign and
+  // the catch paths throw, so no assigned value could survive here unread
+  let settings;
+  let entries;
   try {
     settings = row.settings ? JSON.parse(row.settings) : null;
   } catch {
@@ -798,10 +816,16 @@ async function route(request, env, url, rid = null) {
       }
     }
     const code = String(100000 + Math.floor(Math.random() * 900000));
-    const expires = NEVER;
+    const expires = new Date(Date.now() + OTP_TTL_MS).toISOString();
     await env.DB.prepare(
       'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
     ).bind(u.email, hex(await sha256(code)), expires, now, ip).run();
+    // piggyback cleanup: OTP issuance is bounded by rate limits, so reclaim
+    // dead codes here instead of letting the table grow forever
+    await env.DB.prepare('DELETE FROM magic_codes WHERE expires_at < ?')
+      .bind(new Date().toISOString())
+      .run()
+      .catch(() => {});
     if (!env.EMAIL && !env.RESEND_API_KEY) {
       // dev/preview without any mail provider: nothing can deliver the
       // code, so verification completes here instead of stranding the user.
@@ -868,6 +892,15 @@ async function route(request, env, url, rid = null) {
     if (!row) {
       await logEvent(env, request, u.id, 'magic_failed', { rid, reason: 'code_not_found' });
       throw new HttpError(410, { error: 'code_not_found' });
+    }
+    const nowIso = new Date().toISOString();
+    if (row.expires_at <= nowIso) {
+      // the column existed but was never enforced — a code requested days ago
+      // still verified. Dead codes are cleared and the client's code_expired
+      // branch (cloud.ts) finally gets a server response to match.
+      await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
+      await logEvent(env, request, u.id, 'magic_failed', { rid, reason: 'expired' });
+      throw new HttpError(410, { error: 'code_expired' });
     }
     if (row.attempts >= 5) {
       await env.DB.prepare('DELETE FROM magic_codes WHERE email = ?').bind(u.email).run();
@@ -1052,6 +1085,11 @@ async function route(request, env, url, rid = null) {
         return json({ ok: true });
       }
       await env.DB.prepare('INSERT INTO hook_seen (svix_id, created_at) VALUES (?, ?)').bind(svixId, new Date().toISOString()).run();
+      // webhook volume is email-event-scale, not per-request: piggybacking the
+      // purge here keeps hook_seen bounded (svix retries arrive within minutes,
+      // so anything older than 30 days has long stopped mattering)
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+      await env.DB.prepare('DELETE FROM hook_seen WHERE created_at < ?').bind(cutoff).run().catch(() => {});
     } catch {
       /* dedupe table failure must not block the webhook */
     }
@@ -1701,10 +1739,11 @@ async function refreshFleet(env) {
       if (!env.RESEND_API_KEY && !env.EMAIL) throw new HttpError(502, { error: 'email_failed' });
       const code = String(100000 + Math.floor(Math.random() * 900000));
       const now = new Date().toISOString();
+      const expires = new Date(Date.now() + OTP_TTL_MS).toISOString();
       await env.DB.prepare(
         'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
-      ).bind(email, hex(await sha256(code)), NEVER, now, 'admin').run();
-      const text = `Your Period Tracker verification code is ${code} (single-use — it stays valid until you enter it). Enter it in the app to confirm this email is yours.`;
+      ).bind(email, hex(await sha256(code)), expires, now, 'admin').run();
+      const text = `Your Period Tracker verification code is ${code} (single-use, valid for 15 minutes). Enter it in the app to confirm this email is yours.`;
       const esc2 = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
       try {
         if (env.EMAIL) {
