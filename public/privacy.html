@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy · Period Tracker</title>
+  <meta name="robots" content="index, follow" />
+  <meta name="description" content="What Period Tracker collects, stores, encrypts and deletes — in plain language." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 20px 80px; line-height: 1.6; color: #1c1917; }
+    h1 { font-size: 1.7rem; } h2 { font-size: 1.1rem; margin-top: 2rem; }
+    code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    ul { padding-left: 1.2rem; } li { margin: 4px 0; }
+    .card { background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 12px; padding: 12px 16px; margin: 16px 0; }
+    .muted { color: #57534e; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p><em>Last updated: October 2026 · applies to periodtracker.run and the Period Tracker Android/iOS apps.</em></p>
+
+  <div class="card"><strong>Short version:</strong> your cycle logs are stored on <strong>your device first</strong>. If you create an account, a copy syncs to our server so you can restore on a new device. Telemetry (usage events) is collected in the operator's own admin panel — it is <strong>not</strong> shared with advertisers or data brokers, and there is no third-party analytics tracker on the pages.</div>
+
+  <h2>What is stored on your device</h2>
+  <ul>
+    <li>Periods, symptoms, moods, notes, measurements, and settings live in local browser/OS storage. The app works without any account.</li>
+    <li>The optional app PIN is stored as a salted SHA-256 hash — it is a lock for prying eyes, <strong>not</strong> encryption of the data itself.</li>
+  </ul>
+
+  <h2>What syncs to the server when you have an account</h2>
+  <ul>
+    <li><strong>Account data:</strong> email; a password stored encrypted (AES-GCM with a server-held key); optionally a display name and age; whether your email is verified.</li>
+    <li><strong>Your cycle backup:</strong> your settings and day logs (entries) are stored as JSON so they can be restored. These are stored in the site's own Cloudflare D1 database.</li>
+    <li><strong>Deleted days travel as tombstones</strong> so a deletion also removes the server copy on the next sync.</li>
+  </ul>
+
+  <h2>Telemetry (usage events)</h2>
+  <p>The app sends event records to the site's own logging endpoint (no third-party analytics). Depending on what you do, event metadata can include:</p>
+  <ul>
+    <li>Request-level: IP address, country (from Cloudflare), browser user-agent, endpoint, timestamp.</li>
+    <li>Interaction: which screens you open, button taps, form fields you click or type into (with the values you typed, including verification codes on failures), dictated note text, notes you search for.</li>
+    <li>Device/context: screen size, language, time zone, referrer, connection type, hardware hints (cores/memory), install state.</li>
+    <li>Email events (delivery/bounce) if the service emails you.</li>
+  </ul>
+  <p>This telemetry exists to debug crashes and improve flows, and is visible only to the site operator. It is <strong>not</strong> sold or shared with third parties. It is <strong>not</strong> anonymous with respect to your account: event rows carry your account id when you are signed in.</p>
+
+  <h2>What is never done</h2>
+  <ul>
+    <li>No third-party analytics scripts (the only external script is Cloudflare Web Insights).</li>
+    <li>No ads, no data-sale, no profiling by outside companies.</li>
+    <li>No reading of data from visitors' browsers beyond what the app itself needs.</li>
+    <li>Partner share links expose <strong>only</strong> a read-only summary (cycle day, next period, fertile window) — never symptoms, notes, or history.</li>
+  </ul>
+
+  <h2>Retention & deletion</h2>
+  <ul>
+    <li>Sign-in sessions expire after 90 days; email verification codes after 15 minutes; webhook dedupe rows after 30 days.</li>
+    <li>Deleting the app's data removes device data immediately; account/server copies are removed when you use in-app deletion (erase-all also clears the server copy on next sync) or when the operator deletes your account.</li>
+    <li>Usage-event rows are kept for diagnostics; ask the operator to purge the log if you want yours removed.</li>
+  </ul>
+
+  <h2>Security</h2>
+  <ul>
+    <li>Transport is HTTPS-only; the worker sets a restrictive CSP, nosniff, frame-ancestors 'none'.</li>
+    <li>Passwords are AES-GCM encrypted at rest with a server-held key; sync tokens and OTP codes are stored hashed.</li>
+    <li>The admin panel requires a secret key and is rate-limited.</li>
+    <li>Sign-in failures are rate-limited per IP (30/hour) and account creation per IP (20/hour).</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Period Tracker is not directed at children under 13, and accounts require an age field at signup. If an account belongs to someone under 13 (or under 16 in the EEA/UK), the operator will delete it.</p>
+
+  <h2>Health-data caveat</h2>
+  <p>This is a personal health record tool, not a medical device, and the developer is not a covered entity under HIPAA. Treat your data accordingly: export and back it up privately.</p>
+
+  <h2>Contact</h2>
+  <p>Questions, deletions or export requests: use the in-app <a href="/#settings">Settings → About</a> links or write to <strong>updates@periodtracker.run</strong>.</p>
+
+  <p class="muted">Related: <a href="/terms">Terms of Service</a></p>
+</body>
+</html>

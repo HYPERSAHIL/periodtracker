@@ -1028,4 +1028,6 @@ export const HI: Record<string, string> = {
   'Account': 'खाता',
   'Day sheet': 'दिन की शीट',
   'Could not read that file.': 'वह फ़ाइल पढ़ी नहीं जा सकी।',
+  'Privacy Policy': 'गोपनीयता नीति',
+  'Terms of Service': 'सेवा की शर्तें',
 };

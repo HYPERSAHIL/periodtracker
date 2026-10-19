@@ -1077,6 +1077,11 @@ export default function SettingsView(p: AppProps) {
         <p className="hint" style={{ marginTop: 8 }}>
           {tx(lang, 'Fertility estimates are informational only and must never be used as contraception.')}
         </p>
+        <p style={{ margin: '10px 0 0', fontSize: 13 }}>
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'var(--rose-600)', fontWeight: 700 }}>{tx(lang, 'Privacy Policy')}</a>
+          {' · '}
+          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'var(--rose-600)', fontWeight: 700 }}>{tx(lang, 'Terms of Service')}</a>
+        </p>
       </div>
 
       {pinModal && (
