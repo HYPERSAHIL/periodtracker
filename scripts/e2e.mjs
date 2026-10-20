@@ -347,6 +347,41 @@ try {
     }, page);
     await ctx.close();
   }
+  // 12. richer install manifest: screenshots + description + shortcuts, all reachable
+  {
+    const { ctx, page } = await freshPage(browser, 'manifest');
+    await step('manifest richer-install fields + assets served', async () => {
+      await seedAndGoto(page, ctx);
+      const m = await page.evaluate(async () => {
+        const link = document.querySelector('link[rel="manifest"]');
+        const r = await fetch(link.href);
+        return await r.json();
+      });
+      if (!(m.description?.length >= 120 && m.description.length <= 340)) throw new Error('missing/oversized description');
+      const shots = m.screenshots || [];
+      if (shots.length < 3) throw new Error('no screenshots');
+      if (!shots.some((s) => s.form_factor === 'narrow' && s.label)) throw new Error('no labeled narrow screenshot');
+      for (const s of shots) {
+        const dim = s.sizes.split('x').map(Number);
+        if (dim[1] / dim[0] > 2.3 || dim[0] > 3840 || dim[1] > 3840) throw new Error('screenshot out of spec: ' + s.sizes);
+        const res = await page.request.get(`${URL.replace(/\/$/, '')}${s.src}`);
+        if (res.status() !== 200) throw new Error('screenshot 404: ' + s.src);
+      }
+      if (!(m.shortcuts?.length >= 2)) throw new Error('no app shortcuts');
+      if (m.launch_handler?.client_mode !== 'navigate-existing') throw new Error('no launch_handler');
+      // shortcut URLs must land on the right tab
+      for (const sc of m.shortcuts) {
+        const p2 = await ctx.newPage();
+        await p2.goto(`${URL.replace(/\/$/, '')}${sc.url}`);
+        await p2.waitForTimeout(600);
+        const active = await p2.evaluate(() => document.querySelector('.nav .on, nav .on, .bottombar .on')?.textContent?.trim() ?? '');
+        await p2.close();
+        const want = sc.short_name;
+        if (active && !active.toLowerCase().includes(want.toLowerCase())) throw new Error(`shortcut ${sc.url} landed on "${active}"`);
+      }
+    }, page);
+    await ctx.close();
+  }
 } finally {
   await browser.close();
   server.kill();

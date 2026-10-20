@@ -105,7 +105,19 @@ function MainApp() {
     const id = window.setInterval(() => setMinTick((t) => t + 1), 60000);
     return () => window.clearInterval(id);
   }, []);
-  const [tab, setTab] = useState<Tab>('home');
+  const [tab, setTab] = useState<Tab>(() => {
+    // manifest shortcuts launch with ?screen=<tab> — land directly and strip
+    try {
+      const s = new URLSearchParams(location.search).get('screen');
+      if (s && ['home', 'calendar', 'insights', 'learn', 'settings'].includes(s)) {
+        history.replaceState(null, '', '/');
+        return s as Tab;
+      }
+    } catch {
+      /* URL parse failure opens home */
+    }
+    return 'home';
+  });
   const [sheetDate, setSheetDate] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('pt.unlocked') === '1');
