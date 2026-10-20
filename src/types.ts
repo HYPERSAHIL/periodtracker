@@ -301,7 +301,7 @@ export const METHOD_INFO: Record<ContraceptionMethod, { label: string; hormonal:
 
 export type Tab = 'home' | 'calendar' | 'insights' | 'learn' | 'settings';
 
-export const APP_VERSION = '3.0.1';
+export const APP_VERSION = '3.0.2';
 
 /** Logging sheet sections - ids are stable and persisted in trackerOrder/trackerHidden. */
 export interface TrackerSectionDef {
