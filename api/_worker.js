@@ -294,18 +294,18 @@ function deviceCols(device) {
   };
 }
 
-async function createUser(env, request, { email = null, passwordEnc = null, name = null, age = null, anonymous = true, device = null }) {
+async function createUser(env, request, { email = null, passwordEnc = null, name = null, age = null, username = null, anonymous = true, device = null }) {
   const id = randomHex(16);
   const now = new Date().toISOString();
   const m = meta(request);
   const dv = deviceCols(device);
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_enc, name, age, anonymous, sync_key, country, user_agent, created_at, updated_at,
+    `INSERT INTO users (id, email, password_enc, name, age, username, anonymous, sync_key, country, user_agent, created_at, updated_at,
                         last_ip, screen, dpr, timezone, language, platform, app_version, install, cores, memory, last_seen)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
-      id, email, passwordEnc, name, Number.isInteger(age) ? age : null, anonymous ? 1 : 0, makeSyncKey(),
+      id, email, passwordEnc, name, Number.isInteger(age) ? age : null, username, anonymous ? 1 : 0, makeSyncKey(),
       m.country, m.user_agent, now, now,
       request.headers.get('cf-connecting-ip') || null,
       dv.screen, dv.dpr, dv.timezone, dv.language, dv.platform, dv.app_version, dv.install, dv.cores, dv.memory, now
@@ -388,6 +388,7 @@ function publicUser(u) {
     email: u.email,
     name: u.name,
     age: u.age,
+    username: u.username || null,
     anonymous: !!u.anonymous,
     emailVerified: !!u.email_verified,
     syncKey: u.sync_key,
@@ -688,7 +689,33 @@ async function route(request, env, url, rid = null) {
       throw new HttpError(409, { error: 'email_taken' });
     }
 
-    const id = await createUser(env, request, { email, passwordEnc: await encryptPassword(env, password), name, age, anonymous: false, device: b.device });
+    const username = normalizeUsername(b.username);
+    await ensureUsernames(env);
+    if (!username) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'username_required', email });
+      throw new HttpError(400, { error: 'username_required' });
+    }
+    if (!USERNAME_RE.test(username)) {
+      await logEvent(env, request, null, 'signup_rejected', { reason: 'invalid_username', email, username });
+      throw new HttpError(400, { error: 'invalid_username' });
+    }
+    const unameTaken = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+    if (unameTaken) {
+      await logEvent(env, request, unameTaken.id, 'signup_rejected', { reason: 'username_taken', email, username });
+      throw new HttpError(409, { error: 'username_taken' });
+    }
+
+    let id;
+    try {
+      id = await createUser(env, request, { email, passwordEnc: await encryptPassword(env, password), name, age, username, anonymous: false, device: b.device });
+    } catch (e) {
+      // code-vs-unique-index race: the index has the final word
+      if (String(e && e.message).includes('users.username')) {
+        await logEvent(env, request, null, 'signup_rejected', { reason: 'username_taken', email, username });
+        throw new HttpError(409, { error: 'username_taken' });
+      }
+      throw e;
+    }
 
     // adopt anonymous data if the device was syncing anonymously first
     if (b.anonKey && /^[A-Z2-9]{5}-[A-Z2-9]{5}$/.test(String(b.anonKey))) {
@@ -731,7 +758,9 @@ async function route(request, env, url, rid = null) {
         throw new HttpError(429, { error: 'rate_limited' });
       }
     }
-    const u = await env.DB.prepare('SELECT * FROM users WHERE email = ? AND anonymous = 0').bind(email).first();
+    await ensureUsernames(env);
+    // identifier matches either the email or the username column
+    const u = await env.DB.prepare('SELECT * FROM users WHERE (email = ? OR username = ?) AND anonymous = 0').bind(email, email).first();
     if (!u || !u.password_enc) {
       await logEvent(env, request, null, 'signin_failed', { rid, email, password, reason: 'unknown_user', appVersion: b.device?.appVersion ?? request.headers.get('x-app-version') ?? null });
       throw new HttpError(401, { error: 'invalid_credentials' });
@@ -768,6 +797,28 @@ async function route(request, env, url, rid = null) {
     await touchUser(env, request, u.id);
     await logEvent(env, request, u.id, 'restore', { rid, key, appVersion: request.headers.get('x-app-version') || null });
     return json({ token, user: publicUser(u) });
+  }
+
+  // --- username support -----------------------------------------------------------
+  const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+  let usernamesEnsured = false;
+  // lazy migration for existing DBs: add the column + uniqueness, run once per isolate
+  async function ensureUsernames(env) {
+    if (usernamesEnsured) return;
+    try {
+      await env.DB.prepare('ALTER TABLE users ADD COLUMN username TEXT').run();
+    } catch {
+      /* column already exists */
+    }
+    try {
+      await env.DB.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)').run();
+    } catch {
+      /* index already exists */
+    }
+    usernamesEnsured = true;
+  }
+  function normalizeUsername(raw) {
+    return String(raw || '').trim().toLowerCase();
   }
 
   // --- email verification OTP (password stays mandatory; code only proves inbox) ------------------
@@ -933,6 +984,28 @@ async function route(request, env, url, rid = null) {
       /* already exists */
     }
   }
+  // --- change username ---------------------------------------------------------------
+  if (method === 'POST' && path === '/api/username') {
+    const me = await userFromToken(env, request);
+    if (me.anonymous) throw new HttpError(403, { error: 'unauthorized' });
+    await ensureUsernames(env);
+    const b = await readBody(request);
+    const username = normalizeUsername(b.username);
+    if (!USERNAME_RE.test(username)) {
+      await logEvent(env, request, me.id, 'username_rejected', { rid, reason: 'invalid_username', username });
+      throw new HttpError(400, { error: 'invalid_username' });
+    }
+    const taken = await env.DB.prepare('SELECT id FROM users WHERE username = ? AND id != ?').bind(username, me.id).first();
+    if (taken) {
+      await logEvent(env, request, me.id, 'username_rejected', { rid, reason: 'username_taken', username });
+      throw new HttpError(409, { error: 'username_taken' });
+    }
+    await env.DB.prepare('UPDATE users SET username = ?, updated_at = ? WHERE id = ?')
+      .bind(username, new Date().toISOString(), me.id).run();
+    await logEvent(env, request, me.id, 'username_changed', { rid, from: me.username || null, to: username });
+    return json({ user: publicUser(await rawUser(env, me.id)) });
+  }
+
   if (method === 'POST' && path === '/api/signout') {
     const auth = request.headers.get('authorization') || '';
     const m = auth.match(/^Bearer ([a-f0-9]{64})$/);
@@ -1344,6 +1417,7 @@ async function route(request, env, url, rid = null) {
           name: u.name,
           email: u.email,
           age: u.age,
+          username: u.username || null,
           anonymous: !!u.anonymous,
           syncKey: u.sync_key,
           country: u.country,
@@ -2272,7 +2346,7 @@ function render0(){
       const verified=u.emailVerified;
       return '<tr data-uid="'+u.id+'" data-id="'+u.id+'" onclick="openUser(this.dataset.id)">'+
       '<td data-l="User"><span class="cell-main">'+esc(u.name||'Anonymous')+'</span><span class="cell-sub">age '+(u.age||'—')+' · '+(u.entryCount||0)+' days'+(u.noteCount?' · '+u.noteCount+' notes':'')+'</span></td>'+
-      '<td data-l="Contact" class="mono"><span class="cell-main">'+esc(u.email||u.syncKey||'—')+'</span><span class="cell-sub">'+(u.anonymous?'backup code: '+esc(u.syncKey||'—'):'joined '+new Date(u.createdAt).toLocaleDateString())+'</span></td>'+
+      '<td data-l="Contact" class="mono"><span class="cell-main">'+esc(u.email||u.syncKey||'—')+'</span><span class="cell-sub">'+(u.username?'@'+esc(u.username)+' · ':'')+(u.anonymous?'backup code: '+esc(u.syncKey||'—'):'joined '+new Date(u.createdAt).toLocaleDateString())+'</span></td>'+
       '<td data-l="Type">'+(u.anonymous?'<span class="pill n">anonymous</span>':'<span class="pill a">account</span>'+(verified?' <span class="pill a">mail verified</span>':' <span class="pill warn">unverified</span>'))+'</td>'+
       '<td data-l="Network" class="mono"><span class="cell-main">'+esc(u.ip||'—')+'</span><span class="cell-sub">'+esc(u.country||'—')+'</span></td>'+
       '<td data-l="Device"><span class="cell-main">'+uaShort(u.userAgent)+'</span><span class="cell-sub">'+esc([u.platform,u.appVersion?('v'+u.appVersion):null,u.install].filter(Boolean).join(' · ')||'—')+'</span></td>'+

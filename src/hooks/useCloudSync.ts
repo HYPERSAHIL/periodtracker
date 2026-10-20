@@ -7,6 +7,7 @@ import {
   SharedSummary,
   ShareRow,
   SyncStatus,
+  changeUsername,
   emailStatus,
   emailSubscribe,
   emailUnsubscribe,
@@ -229,5 +230,15 @@ export function useCloudSync({
     },
   };
 
-  return { syncStatus, pending, cloudUser, setCloudUser, adoptSession, runSync, signOutCloud, shareApi, emailApi, otpApi };
+  const userApi = {
+    changeUsername: async (username: string): Promise<CloudUser> => {
+      const t = cloudRef.current.token;
+      if (!t) throw new Error('no session');
+      const user = await changeUsername(t, username);
+      setCloudUser(user);
+      return user;
+    },
+  };
+
+  return { syncStatus, pending, cloudUser, setCloudUser, adoptSession, runSync, signOutCloud, shareApi, emailApi, otpApi, userApi };
 }

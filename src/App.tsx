@@ -75,6 +75,9 @@ export interface AppProps {
   cloudUser: CloudUser | null;
   openAccount: () => void;
   signOutCloud: () => void;
+  userApi: {
+    changeUsername: (username: string) => Promise<CloudUser>;
+  };
   shareApi: {
     create: (s: SharedSummary, days?: number) => Promise<{ token: string; expiresInDays: number | null }>;
     list: () => Promise<ShareRow[]>;
@@ -872,7 +875,7 @@ function MainApp() {
 
   const props: AppProps = {
     entries, settings, stats, facts, upsert, remove, replaceAll, updateSettings, eraseAll, openDay, openReport,
-    cloudUser: sync.cloudUser, openAccount, signOutCloud: sync.signOutCloud, shareApi: sync.shareApi, emailApi: sync.emailApi, otpApi: sync.otpApi,
+    cloudUser: sync.cloudUser, openAccount, signOutCloud: sync.signOutCloud, shareApi: sync.shareApi, emailApi: sync.emailApi, otpApi: sync.otpApi, userApi: sync.userApi,
   };
 
   if (settings.pinHash && settings.pinSalt && !unlocked) {

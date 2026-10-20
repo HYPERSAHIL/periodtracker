@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { track } from '../lib/beacon';
 import { noteAuthFailure } from '../lib/audit';
-import { CloudUser, loadSession, requestEmailCode, restoreWithKey, signIn, signUp, verifyEmailCode } from '../lib/cloud';
+import { CloudUser, USERNAME_RE, loadSession, requestEmailCode, restoreWithKey, signIn, signUp, verifyEmailCode } from '../lib/cloud';
 import { weakPasswordReason } from '../lib/crypto';
 import { deviceInfo } from '../lib/device';
 import { tx } from '../lib/i18n';
@@ -29,6 +29,7 @@ export default function AccountScreen({
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -126,12 +127,16 @@ export default function AccountScreen({
                 <input id="ac-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
               </div>
               <div className="acct2-field">
+                <label htmlFor="ac-user">{tx(lang, 'Username')}</label>
+                <input id="ac-user" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. pri_24" autoComplete="username" maxLength={20} inputMode="text" />
+              </div>
+              <div className="acct2-field">
                 <label htmlFor="ac-pass">{tx(lang, 'Password')}</label>
                 <input id="ac-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={tx(lang, 'At least 6 characters')} autoComplete="new-password" />
               </div>
               <button
                 className="btn primary acct2-btn"
-                disabled={busy || !name.trim() || !email.trim() || password.length < 6 || !age}
+                disabled={busy || !name.trim() || !email.trim() || password.length < 6 || !age || !USERNAME_RE.test(username.trim().toLowerCase())}
                 onClick={async () => {
                   setBusy(true);
                   setErr(null);
@@ -142,6 +147,7 @@ export default function AccountScreen({
                       name: name.trim(),
                       age: Number(age),
                       email: email.trim(),
+                      username: username.trim().toLowerCase(),
                       password,
                       anonKey: user?.anonymous ? user.syncKey : undefined,
                       device: deviceInfo(APP_VERSION),
@@ -183,8 +189,8 @@ export default function AccountScreen({
           {!verifyEmail && tab === 'signin' && (
             <>
               <div className="acct2-field">
-                <label htmlFor="si-email">{tx(lang, 'Email')}</label>
-                <input id="si-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                <label htmlFor="si-email">{tx(lang, 'Email or username')}</label>
+                <input id="si-email" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com or username" autoComplete="username" autoCapitalize="none" />
               </div>
               <div className="acct2-field">
                 <label htmlFor="si-pass">{tx(lang, 'Password')}</label>

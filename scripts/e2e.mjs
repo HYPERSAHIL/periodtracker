@@ -334,9 +334,16 @@ try {
       if (body.includes('email code instead')) throw new Error('passwordless path present');
       // create disabled without a password
       await page.getByPlaceholder('Your name').fill('Test');
-      await page.getByPlaceholder('you@example.com').first().fill('test@example.com');
+      await page.locator('#ac-age').fill('24');
+      await page.locator('#ac-email').fill('test@example.com');
+      await page.getByPlaceholder('e.g. pri_24').fill('tester_01');
       const btn = page.getByRole('button', { name: 'Create account' });
       if (await btn.isEnabled()) throw new Error('create enabled without password');
+      // username is mandatory too: valid password but missing/invalid username keeps it disabled
+      await page.getByPlaceholder('At least 6 characters').fill('hunter22');
+      if (!(await btn.isEnabled())) throw new Error('create disabled with all fields present');
+      await page.getByPlaceholder('e.g. pri_24').fill('bad name!');
+      if (await btn.isEnabled()) throw new Error('create enabled with invalid username');
     }, page);
     await ctx.close();
   }

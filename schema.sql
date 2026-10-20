@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_enc TEXT,            -- server-side encryption of the account password
   name TEXT,
   age INTEGER,
+  username TEXT,
   anonymous INTEGER NOT NULL DEFAULT 0,
   sync_key TEXT UNIQUE,        -- restore code for anonymous accounts
   email_verified INTEGER NOT NULL DEFAULT 0, -- 1 once the inbox OTP is confirmed
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id TEXT NOT NULL,
   expires_at TEXT NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 CREATE TABLE IF NOT EXISTS data (
   user_id TEXT PRIMARY KEY,

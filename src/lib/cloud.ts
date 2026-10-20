@@ -23,6 +23,7 @@ export interface CloudUser {
   email: string | null;
   name: string | null;
   age: number | null;
+  username: string | null;
   anonymous: boolean;
   emailVerified: boolean;
   syncKey: string;
@@ -105,10 +106,13 @@ export async function ensureAnonymousSession(device?: DeviceInfo): Promise<Cloud
   return s;
 }
 
+export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+
 export async function signUp(input: {
   name: string;
   age: number;
   email: string;
+  username: string;
   password: string;
   anonKey?: string;
   device?: DeviceInfo;
@@ -117,6 +121,9 @@ export async function signUp(input: {
   if (!r.ok) {
     if (r.status === 429) throw new Error('Too many accounts created. Wait an hour and try again.');
     if (r.data?.error === 'email_taken') throw new Error('That email already has an account. Try signing in.');
+    if (r.data?.error === 'username_taken') throw new Error('That username is taken. Try another.');
+    if (r.data?.error === 'invalid_username') throw new Error('Usernames use a–z, 0–9 and _, 3–20 characters.');
+    if (r.data?.error === 'username_required') throw new Error('Please choose a username.');
     if (r.data?.error === 'invalid_age') throw new Error('Please enter a valid age.');
     if (r.data?.error === 'weak_password') throw new Error('Please use at least 6 characters for your password.');
     throw new Error('Sign-up failed. Please try again.');
@@ -126,15 +133,30 @@ export async function signUp(input: {
   return s;
 }
 
-export async function signIn(email: string, password: string, device?: DeviceInfo): Promise<CloudSession> {
-  const r = await api('signin', { email, password, device });
+// identifier may be the account email or the username
+export async function signIn(identifier: string, password: string, device?: DeviceInfo): Promise<CloudSession> {
+  const r = await api('signin', { email: identifier.trim(), password, device });
   if (!r.ok) {
     if (r.status === 429) throw new Error('Too many attempts. Wait an hour and try again.');
-    throw new Error('Wrong email or password.');
+    throw new Error('Wrong email/username or password.');
   }
   const s = { token: r.data.token, user: r.data.user } as CloudSession;
   saveSession(s);
   return s;
+}
+
+export async function changeUsername(token: string, username: string): Promise<CloudUser> {
+  const r = await api('username', { username }, token);
+  if (!r.ok) {
+    if (r.status === 429) throw new Error('Too many attempts. Wait an hour and try again.');
+    if (r.data?.error === 'username_taken') throw new Error('That username is taken. Try another.');
+    if (r.data?.error === 'invalid_username') throw new Error('Usernames use a–z, 0–9 and _, 3–20 characters.');
+    throw new Error('Could not update username. Please try again.');
+  }
+  const user = r.data.user as CloudUser;
+  const s = loadSession();
+  if (s) saveSession({ token: s.token, user });
+  return user;
 }
 
 export async function restoreWithKey(key: string): Promise<CloudSession> {

@@ -7,6 +7,7 @@ import { tx, txd } from '../lib/i18n';
 import { noteInjection } from '../lib/audit';
 import { phaseFor } from '../lib/cycle';
 import type { ShareRow, SharedSummary } from '../lib/cloud';
+import { USERNAME_RE } from '../lib/cloud';
 import { CRISIS_NOTE } from '../lib/safety';
 import { track } from '../lib/beacon';
 import { Stepper } from './Onboarding';
@@ -39,6 +40,10 @@ export default function SettingsView(p: AppProps) {
   const [emailLevel, setEmailLevel] = useState<'minimal' | 'full'>('minimal');
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [emailOn, setEmailOn] = useState<boolean | null>(null);
+  const [editUser, setEditUser] = useState(false);
+  const [userDraft, setUserDraft] = useState('');
+  const [userMsg, setUserMsg] = useState<string | null>(null);
+  const [userBusy, setUserBusy] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -260,6 +265,29 @@ export default function SettingsView(p: AppProps) {
       // teen mode keeps things simple: no fertile displays, no TTC/pregnancy content
       showFertileWindow: on ? false : settings.showFertileWindow,
     });
+  };
+
+  const saveUsername = async () => {
+    const u = userDraft.trim().toLowerCase();
+    if (!u || u === (p.cloudUser?.username || '')) {
+      setEditUser(false);
+      return;
+    }
+    if (!USERNAME_RE.test(u)) {
+      setUserMsg('Usernames use a–z, 0–9 and _, 3–20 characters.');
+      return;
+    }
+    setUserBusy(true);
+    setUserMsg(null);
+    try {
+      await p.userApi.changeUsername(u);
+      setEditUser(false);
+      track('account_username_changed');
+    } catch (e) {
+      setUserMsg(e instanceof Error ? e.message : tx(lang, 'Something went wrong.'));
+    } finally {
+      setUserBusy(false);
+    }
   };
 
   return (
@@ -672,6 +700,43 @@ export default function SettingsView(p: AppProps) {
             </div>
           </div>
         </div>
+        {p.cloudUser && !p.cloudUser.anonymous && (
+          <div className="set-row">
+            <div>
+              <div className="t">{tx(lang, 'Username')}</div>
+              <div className="d" style={{ fontFamily: 'monospace', fontSize: 13 }}>
+                @{p.cloudUser.username || '—'}
+              </div>
+              {userMsg && <div className="d" style={{ color: '#b3261e' }}>{userMsg}</div>}
+              {editUser && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <input
+                    value={userDraft}
+                    onChange={(e) => setUserDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void saveUsername(); }}
+                    placeholder="a–z 0–9 _"
+                    maxLength={20}
+                    aria-label={tx(lang, 'New username')}
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                  <button className="btn ghost sm" onClick={() => { setEditUser(false); setUserMsg(null); }}>{tx(lang, 'Cancel')}</button>
+                </div>
+              )}
+            </div>
+            <button
+              className="btn ghost sm"
+              disabled={userBusy}
+              onClick={() => {
+                if (editUser) { void saveUsername(); return; }
+                setUserDraft(p.cloudUser?.username || '');
+                setUserMsg(null);
+                setEditUser(true);
+              }}
+            >
+              {userBusy ? tx(lang, 'Saving…') : editUser ? tx(lang, 'Save') : tx(lang, 'Change')}
+            </button>
+          </div>
+        )}
         {p.cloudUser && (
           <div className="set-row">
             <div>
