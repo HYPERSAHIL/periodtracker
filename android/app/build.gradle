@@ -1,14 +1,19 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace "run.periodtracker.app"
     compileSdk rootProject.ext.compileSdkVersion
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
     defaultConfig {
         applicationId "run.periodtracker.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "3.0.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +25,21 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Signing secrets live outside the repo (~/.gradle/gradle.properties,
+            // see RELEASE_SIGNING.md). Without them the release build falls back
+            // to the debug key so the task never hard-fails in CI.
+            def relStore = project.findProperty('PT_RELEASE_STORE')
+            if (relStore != null && new File(relStore.toString()).exists()) {
+                def relStoreFile = new File(relStore.toString())
+                signingConfig signingConfigs.create('ptRelease') {
+                    storeFile relStoreFile
+                    storePassword project.findProperty('PT_RELEASE_STORE_PASSWORD')?.toString()
+                    keyAlias project.findProperty('PT_RELEASE_KEY_ALIAS')?.toString()
+                    keyPassword project.findProperty('PT_RELEASE_KEY_PASSWORD')?.toString()
+                }
+            } else {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 }
@@ -35,6 +55,8 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // Health Connect write-back (HealthBridgePlugin.kt) — 1.1.0 stable
+    implementation 'androidx.health.connect:connect-client:1.1.0'
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

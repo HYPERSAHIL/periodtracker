@@ -30,13 +30,22 @@ export async function pushRecentToHealth(entries: Record<string, DayEntry>): Pro
       .filter((d) => d.flow || d.bbt != null || d.weight != null);
     if (!days.length) return;
     const plugin = registerPlugin<HealthBridge>('HealthBridge');
-    // the native sides are staged stubs for now (see health-bridge/): they
-    // resolve {ok:false, staged:true} until the SDK wiring lands, so read the
-    // return instead of treating resolve as success
+    // the native plugin is compiled into the Android shell now (Kotlin +
+    // Health Connect 1.1.0); it resolves {ok:false, needsPermissions:true,
+    // missing:[..]} until the user grants, so read the return instead of
+    // treating resolve as success
     const ret = (await plugin.push({ days: JSON.stringify(days) })) as
-      | { ok?: boolean; staged?: boolean }
+      | { ok?: boolean; staged?: boolean; needsPermissions?: boolean; count?: number; reason?: string }
       | undefined;
-    track('data_health_push', { ok: ret?.ok === true, kind: 'health', days: days.length, staged: ret?.staged ?? null });
+    track('data_health_push', {
+      ok: ret?.ok === true,
+      kind: 'health',
+      days: days.length,
+      staged: ret?.staged ?? null,
+      needsPermissions: ret?.needsPermissions === true,
+      count: ret?.count ?? null,
+      reason: ret?.reason ?? null,
+    });
   } catch {
     track('data_health_push', { ok: false, kind: 'health' });
   }

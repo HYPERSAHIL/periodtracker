@@ -1,9 +1,16 @@
-# Health write-back bridge (staging)
+# Health write-back bridge
 
 Two-way sync without a server: the app already *imports* from Apple Health
 XML and wearable CSVs; this stages the *export* direction to the OS health
-stores. Uncompiled here — no Xcode/Android SDK on this machine. Follows the
-same pattern as `android-widget/` and `plugins/apk-installer`.
+stores.
+
+- **Android: COMPILED AND SHIPPING.** The canonical source is now
+  `android/app/src/main/java/run/periodtracker/app/HealthBridgePlugin.kt`
+  (Kotlin — Health Connect's client library is suspend-based). Gradle deps +
+  manifest permissions live in the android/ tree. Idempotent per day via
+  `clientRecordId`. Needs device testing to verify grants & writes.
+- `HealthBridgePlugin.swift` — iOS Capacitor plugin (HealthKit), still staged
+  until a Mac/Xcode build.
 
 ## Files
 

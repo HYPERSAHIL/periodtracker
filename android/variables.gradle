@@ -1,6 +1,8 @@
 ext {
-    minSdkVersion = 22
-    compileSdkVersion = 34
+    // minSdk 26: Health Connect's client library requires it (Android 8.0+,
+    // 2017+ devices) — the only feature that constrains the floor
+    minSdkVersion = 26
+    compileSdkVersion = 36
     targetSdkVersion = 34
     androidxActivityVersion = '1.8.0'
     androidxAppCompatVersion = '1.6.1'

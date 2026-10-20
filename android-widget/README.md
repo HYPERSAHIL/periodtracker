@@ -1,8 +1,9 @@
-# Android home-screen widget (staging)
+# Android home-screen widget
 
-Drop-in widget for the Capacitor Android shell. Staged here because this
-machine has no Android SDK to compile-verify it — the code follows the same
-pattern as the in-repo `plugins/apk-installer` native plugin.
+Home-screen widget for the Capacitor Android shell. **Compiled into the APK
+(as of Oct 2026 this repo's android/ tree builds green).** The canonical copy
+lives in `android/app/src/main/java/run/periodtracker/app/CycleWidget.java`
+(these files stay in sync; if you edit one, edit both or delete this folder).
 
 ## What it shows
 
