@@ -71,6 +71,15 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        // self-declaration lets getInstalledRelatedApps() detect our own WebAPK
+        // install so the card can go away — prefer_related_applications stays unset
+        related_applications: [
+          {
+            platform: 'webapp',
+            url: 'https://periodtracker.run/manifest.webmanifest',
+            id: 'https://periodtracker.run/',
+          },
+        ],
       },
       workbox: {
         // screenshots are only needed in the install dialog (pre-install) —

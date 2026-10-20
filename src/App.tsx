@@ -59,6 +59,7 @@ import { scheduleNativeReminders } from './lib/nativeReminders';
 import { pushWidgetSnapshot } from './lib/widgetSnapshot';
 import { pushRecentToHealth } from './lib/healthSync';
 import PartnerView from './components/PartnerView';
+import InstallCard from './components/InstallCard';
 
 export interface AppProps {
   entries: Record<string, DayEntry>;
@@ -106,11 +107,12 @@ function MainApp() {
     return () => window.clearInterval(id);
   }, []);
   const [tab, setTab] = useState<Tab>(() => {
-    // manifest shortcuts launch with ?screen=<tab> — land directly and strip
+    // manifest shortcuts launch with ?screen=<tab> — land directly, strip, log
     try {
       const s = new URLSearchParams(location.search).get('screen');
       if (s && ['home', 'calendar', 'insights', 'learn', 'settings'].includes(s)) {
         history.replaceState(null, '', '/');
+        track('screen_shortcut_used', { screen: s });
         return s as Tab;
       }
     } catch {
@@ -916,6 +918,8 @@ function MainApp() {
             <main className="screen" key={tab}>
               {tab === 'home' &&
                 withBoundary(settings.mode === 'pregnant' ? <PregnancyScreen {...props} /> : <Dashboard {...props} />, tx(lang, 'Home'), lang)}
+              {/* install surface for every visitor — new and returning, at the top-level UI, not buried in Settings */}
+              {tab === 'home' && <InstallCard lang={lang} />}
               {tab === 'calendar' && withBoundary(<CalendarView {...props} />, tx(lang, 'Calendar'), lang)}
               {tab === 'insights' && withBoundary(<Insights {...props} />, tx(lang, 'Insights'), lang)}
               {tab === 'learn' && withBoundary(<Learn {...props} />, tx(lang, 'Learn'), lang)}

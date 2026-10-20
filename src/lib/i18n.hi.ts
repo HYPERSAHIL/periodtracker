@@ -935,6 +935,9 @@ export const HI: Record<string, string> = {
   Username: 'यूज़रनेम',
   'Email or username': 'ईमेल या यूज़रनेम',
   'New username': 'नया यूज़रनेम',
+  'In Chrome: menu ⋮ → Install app. Works offline, opens fullscreen, gets a home-screen icon like a real app.':
+    'Chrome में: मेनू ⋮ → Install app. ऑफ़लाइन चलता है, फुलस्क्रीन खुलता है, होम स्क्रीन पर नाम लगता है — असली ऐप जैसा।',
+  'Not now': 'अभी नहीं',
   Cancel: 'रद्द करें',
   'Saving…': 'सेव हो रहा है…',
   Copy: 'कॉपी',
