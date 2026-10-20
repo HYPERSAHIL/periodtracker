@@ -2,7 +2,7 @@
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
   <application>
     <provider
-      android:name="androidx.core.content.FileProvider"
+      android:name="run.periodtracker.apkinstaller.ApkInstallerFileProvider"
       android:authorities="${applicationId}.apkinstaller.provider"
       android:exported="false"
       android:grantUriPermissions="true">
