@@ -55,6 +55,8 @@ const seed = ({ narrow }) => async (page) => {
       JSON.stringify({ onboarded: true, lang: 'en', lastPeriodStart: '2026-09-22' })
     );
     localStorage.setItem('pt.entries.v1', JSON.stringify(entries));
+    // keep the install card out of the video/manifest shots
+    localStorage.setItem('pt.install.hideUntil', String(Date.now() + 8640000000));
   }, days);
   await page.goto(BASE);
   await page.getByRole('navigation').waitFor({ timeout: 8000 });
@@ -73,6 +75,14 @@ await npage.screenshot({ path: 'public/icons/screen-calendar.png' });
 await npage.getByRole('button', { name: 'Insights' }).click();
 await npage.waitForTimeout(900);
 await npage.screenshot({ path: 'public/icons/screen-insights.png' });
+await npage.getByRole('button', { name: 'Learn' }).click();
+await npage.waitForTimeout(900);
+await npage.screenshot({ path: 'public/icons/screen-learn.png' });
+await npage.getByRole('button', { name: 'Home' }).click();
+await npage.waitForTimeout(700);
+await npage.getByText(/Log today/).click();
+await npage.waitForTimeout(1200);
+await npage.screenshot({ path: 'public/icons/screen-daysheet.png' });
 await nctx.close();
 
 // wide: 1280x800 @2x → 2560x1600 (ratio 1.6)

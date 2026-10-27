@@ -422,6 +422,64 @@ async function getData(env, request, userId) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Transactional OTP email — one branded template for every code we send.
+    Table layout + inline styles only (clients strip <style>), no tracking
+    pixel, light scheme locked so the white card never inverts in dark mode.
+    Only code/minutes are interpolated — server-generated digits. */
+function otpEmail(code, minutes = Math.round(OTP_TTL_MS / 60000)) {
+  const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const serif = "Georgia,'Times New Roman',serif";
+  const mono = "ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
+  const text =
+    `Your Period Tracker verification code is ${code}\n\n` +
+    `Enter it in the app to confirm this email is yours. The code expires in ${minutes} minutes.\n\n` +
+    `You're receiving this because someone requested a verification code for this address at periodtracker.run. ` +
+    `If that wasn't you, ignore this email — nothing changes and your password still protects the account.\n\n` +
+    `Period Tracker · Private cycle tracking · periodtracker.run`;
+  const html = `<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+<title>Your Period Tracker code</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f6eeee;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f6eeee;">Your verification code is ${code}. It expires in ${minutes} minutes.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6eeee;">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#ffffff;border:1px solid #efe0e0;border-radius:16px;">
+<tr><td style="padding:28px 36px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td style="vertical-align:middle;padding-right:12px;"><img src="https://periodtracker.run/icons/icon-192.png" width="40" height="40" alt="" style="display:block;border:0;border-radius:10px;"></td>
+<td style="vertical-align:middle;font-family:${sans};font-size:16px;font-weight:600;color:#221919;">Period Tracker</td>
+</tr></table>
+</td></tr>
+<tr><td style="padding:28px 36px 0;font-family:${sans};">
+<div style="font-family:${serif};font-size:26px;line-height:1.25;color:#221919;">Your verification code</div>
+<p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#5b4449;">Enter this code in Period Tracker to confirm this email address is yours.</p>
+</td></tr>
+<tr><td style="padding:24px 36px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td align="center" style="background-color:#fff8f7;border:1px solid #f3dcdc;border-radius:12px;padding:22px 8px;">
+<div style="font-family:${mono};font-size:44px;line-height:1;font-weight:600;letter-spacing:12px;color:#221919;margin-right:-12px;">${code}</div>
+</td>
+</tr></table>
+</td></tr>
+<tr><td style="padding:16px 36px 0;font-family:${sans};font-size:14px;line-height:1.6;color:#5b4449;">This code expires in ${minutes} minutes.</td></tr>
+<tr><td style="padding:24px 36px 0;"><div style="height:1px;background-color:#f0dfdf;"></div></td></tr>
+<tr><td style="padding:20px 36px 0;font-family:${sans};font-size:13px;line-height:1.65;color:#806064;">You're receiving this because someone requested a verification code for this address at periodtracker.run. If that wasn't you, you can safely ignore this email — nothing changes and your password still protects the account.</td></tr>
+<tr><td style="padding:22px 36px 30px;font-family:${sans};font-size:12px;line-height:1.7;color:#9b8489;">Period Tracker · Private cycle tracking<br><a href="https://periodtracker.run" style="color:#b9004d;text-decoration:none;">periodtracker.run</a> · <a href="https://periodtracker.run/privacy" style="color:#9b8489;">Privacy</a> · <a href="https://periodtracker.run/terms" style="color:#9b8489;">Terms</a></td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+  return { subject: `${code} is your Period Tracker verification code`, text, html };
+}
+
+
 const GH_REPO = 'HYPERSAHIL/periodtracker';
 let ghCache = { at: 0, data: null };
 
@@ -888,22 +946,13 @@ async function route(request, env, url, rid = null) {
     }
     // No EMAIL binding is configured (free plan has no send_email UI for
     // Pages), so reach straight for the Resend REST path.
-    const mailText =
-      `Your Period Tracker verification code is ${code} (single-use — it stays valid until you enter it).\n\n` +
-      `Enter it in the app to confirm this email is yours.\n\n` +
-      `Why this email: you created a Period Tracker account with this address. ` +
-      `It contains no health information of any kind.\n\n` +
-      `If you didn't ask for this, ignore this email — your password still protects your account.`;
+    const mail = otpEmail(code);
     const resendSend = async () => {
-      // HTML alternative included: plain-text-only mails lose a spam-filter
-      // point or two (mail-tester flags "no html version"). Escaped, no
-      // images/pixels — open tracking stays off by domain config.
-      const esc = mailText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
       const rr = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         // Resend REST: `from` is a plain "Name <addr>" string, NOT an object
-        body: JSON.stringify({ from: `Period Tracker <updates@periodtracker.run>`, to: u.email, subject: `Verify your email: ${code}`, text: mailText, html: `<div style="font-family:sans-serif;max-width:560px">${esc}</div>` }),
+        body: JSON.stringify({ from: `Period Tracker <updates@periodtracker.run>`, to: u.email, subject: mail.subject, text: mail.text, html: mail.html }),
       });
       if (!rr.ok) {
         const detail = await rr.text().catch(() => '');
@@ -1812,16 +1861,15 @@ async function refreshFleet(env) {
       await env.DB.prepare(
         'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
       ).bind(email, hex(await sha256(code)), expires, now, 'admin').run();
-      const text = `Your Period Tracker verification code is ${code} (single-use, valid for 15 minutes). Enter it in the app to confirm this email is yours.`;
-      const esc2 = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      const mail = otpEmail(code);
       try {
         if (env.EMAIL) {
-          await env.EMAIL.send({ to: email, from: { email: 'updates@periodtracker.run', name: 'Period Tracker' }, subject: `Verify your email: ${code}`, text, html: `<div style="font-family:sans-serif;max-width:560px">${esc2}</div>` });
+          await env.EMAIL.send({ to: email, from: { email: 'updates@periodtracker.run', name: 'Period Tracker' }, subject: mail.subject, text: mail.text, html: mail.html });
         } else {
           const rr = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: 'Period Tracker <updates@periodtracker.run>', to: email, subject: `Verify your email: ${code}`, text, html: `<div style="font-family:sans-serif;max-width:560px">${esc2}</div>` }),
+            body: JSON.stringify({ from: 'Period Tracker <updates@periodtracker.run>', to: email, subject: mail.subject, text: mail.text, html: mail.html }),
           });
           if (!rr.ok) throw new HttpError(502, { error: 'email_failed' });
         }
