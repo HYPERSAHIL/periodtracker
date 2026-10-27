@@ -6,6 +6,179 @@
  * Admin access requires env.PT_ADMIN_KEY.
  */
 
+// Transactional email for every mail we send: one branded shell, three
+// templates (OTP, weekly report, deliverability report), one sender.
+// Delivery: Cloudflare Email binding first (env.EMAIL), Resend REST fallback.
+// Layout rules: table + inline styles only (clients strip <style>), no
+// tracking pixels, light scheme locked so the white card never inverts.
+
+const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const SERIF = "Georgia,'Times New Roman',serif";
+const MONO = "ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
+const FROM = { email: 'updates@periodtracker.run', name: 'Period Tracker' };
+
+/** Full branded document around a body fragment. Only server-generated
+    content goes in, so no escaping is needed (digits, dates, labels). */
+function emailShell({ preheader, title, body }) {
+  return `<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+<title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f6eeee;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f6eeee;">${preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6eeee;">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#ffffff;border:1px solid #efe0e0;border-radius:16px;">
+<tr><td style="padding:28px 36px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td style="vertical-align:middle;padding-right:12px;"><img src="https://periodtracker.run/icons/icon-192.png" width="40" height="40" alt="" style="display:block;border:0;border-radius:10px;"></td>
+<td style="vertical-align:middle;font-family:${SANS};font-size:16px;font-weight:600;color:#221919;">Period Tracker</td>
+</tr></table>
+</td></tr>
+<tr><td style="padding:28px 36px 0;font-family:${SANS};">
+<div style="font-family:${SERIF};font-size:26px;line-height:1.25;color:#221919;">${title}</div>
+${body}
+</td></tr>
+<tr><td style="padding:22px 36px 30px;font-family:${SANS};font-size:12px;line-height:1.7;color:#9b8489;border-top:1px solid #f0dfdf;">Period Tracker · Private cycle tracking<br><a href="https://periodtracker.run" style="color:#b9004d;text-decoration:none;">periodtracker.run</a> · <a href="https://periodtracker.run/privacy" style="color:#9b8489;">Privacy</a> · <a href="https://periodtracker.run/terms" style="color:#9b8489;">Terms</a></td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/** Big tracked code card + expiry + safety note. */
+function otpEmail(code, minutes = 15) {
+  const title = 'Your verification code';
+  const text =
+    `Your Period Tracker verification code is ${code}\n\n` +
+    `Enter it in the app to confirm this email is yours. The code expires in ${minutes} minutes.\n\n` +
+    `You're receiving this because someone requested a verification code for this address at periodtracker.run. ` +
+    `If that wasn't you, ignore this email — nothing changes and your password still protects the account.\n\n` +
+    `Period Tracker · Private cycle tracking · periodtracker.run`;
+  const body = `
+<p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#5b4449;">Enter this code in Period Tracker to confirm this email address is yours.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;"><tr>
+<td align="center" style="background-color:#fff8f7;border:1px solid #f3dcdc;border-radius:12px;padding:22px 8px;">
+<div style="font-family:${MONO};font-size:44px;line-height:1;font-weight:600;letter-spacing:12px;color:#221919;margin-right:-12px;">${code}</div>
+</td></tr></table>
+<p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:#5b4449;">This code expires in ${minutes} minutes.</p>
+<hr style="border:0;border-top:1px solid #f0dfdf;margin:24px 0 0;">
+<p style="margin:20px 0 0;font-size:13px;line-height:1.65;color:#806064;">You're receiving this because someone requested a verification code for this address at periodtracker.run. If that wasn't you, you can safely ignore this email — nothing changes and your password still protects the account.</p>`;
+  return {
+    subject: `${code} is your Period Tracker verification code`,
+    text,
+    html: emailShell({ preheader: `Your verification code is ${code}. It expires in ${minutes} minutes.`, title, body }),
+  };
+}
+
+const kpi = (value, label) => `
+<td width="50%" style="padding:0 0 10px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td style="background-color:#fff8f7;border:1px solid #f3dcdc;border-radius:12px;padding:16px;">
+<div style="font-family:${MONO};font-size:28px;line-height:1;font-weight:600;color:#221919;">${value}</div>
+<div style="margin-top:6px;font-family:${SANS};font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#806064;">${label}</div>
+</td></tr></table>
+</td>`;
+
+const row = (label, value, last = false) => `
+<tr><td style="padding:11px 0;border-bottom:${last ? '0' : '1px solid #f0dfdf'};font-size:14px;color:#5b4449;font-family:${SANS};">${label}</td>
+<td align="right" style="padding:11px 0;border-bottom:${last ? '0' : '1px solid #f0dfdf'};font-size:14px;font-weight:600;color:#221919;font-family:${MONO};">${value}</td></tr>`;
+
+/** Weekly product digest for the operator. `data` is computed live in the worker. */
+function weeklyReportEmail({ range, newAccounts, activeAccounts, installsPrompted, installsDone, syncPushes, topEvents }) {
+  const title = 'Your week at Period Tracker';
+  const rows = topEvents.length
+    ? topEvents.map((e, i) => row(e.type, e.n, i === topEvents.length - 1)).join('')
+    : row('No recorded activity', '—', true);
+  const text =
+    `Period Tracker — week at a glance (${range})\n\n` +
+    `New accounts: ${newAccounts}\nActive accounts: ${activeAccounts}\n` +
+    `Install prompts shown: ${installsPrompted}\nInstalls completed: ${installsDone}\nSync pushes: ${syncPushes}\n\n` +
+    `Top events:\n${topEvents.map((e) => `- ${e.type}: ${e.n}`).join('\n') || '- none'}\n\n` +
+    `periodtracker.run`;
+  const body = `
+<p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#806064;">${range}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:22px;">
+<tr>${kpi(newAccounts, 'New accounts')}${kpi(activeAccounts, 'Active accounts')}</tr>
+<tr>${kpi(installsDone, 'Installs completed')}${kpi(installsPrompted, 'Install prompts')}</tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:8px;"><tr>
+<td style="background-color:#fff8f7;border:1px solid #f3dcdc;border-radius:12px;padding:16px;">
+<div style="font-family:${MONO};font-size:28px;line-height:1;font-weight:600;color:#221919;">${syncPushes}</div>
+<div style="margin-top:6px;font-family:${SANS};font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#806064;">Encrypted sync pushes</div>
+</td></tr></table>
+<div style="margin-top:26px;font-family:${SANS};font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#9b8489;">Top events</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">${rows}</table>
+<p style="margin:22px 0 0;font-size:13px;line-height:1.65;color:#806064;">Reported from first-party product telemetry only. No email content and no cycle data is included in this message.</p>`;
+  return {
+    subject: `Period Tracker — week of ${range}`,
+    text,
+    html: emailShell({ preheader: `${newAccounts} new accounts · ${installsDone} installs · ${syncPushes} sync pushes`, title, body }),
+  };
+}
+
+/** Deliverability report for the operator's sending domain. */
+function deliverabilityEmail({ range, requests, sent, failed, verified, sendSuccessPct, verifyPct, probes }) {
+  const title = 'Email deliverability report';
+  const text =
+    `Period Tracker — deliverability (${range})\n\n` +
+    `Send success: ${sendSuccessPct}%\nCodes requested: ${requests}\nDelivered: ${sent}\nFailed: ${failed}\n` +
+    `Verified successful: ${verified} (${verifyPct}% of delivered)\nDelivery probes: ${probes}\n\n` +
+    `periodtracker.run`;
+  const body = `
+<p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#806064;">${range}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;"><tr>
+<td style="background-color:#fff8f7;border:1px solid #f3dcdc;border-radius:12px;padding:20px;">
+<div style="font-family:${MONO};font-size:40px;line-height:1;font-weight:600;color:#221919;">${sendSuccessPct}%</div>
+<div style="margin-top:8px;font-family:${SANS};font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#806064;">Send success rate</div>
+</td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
+<tr>${kpi(requests, 'Codes requested')}${kpi(sent, 'Delivered')}</tr>
+<tr>${kpi(failed, 'Delivery failures')}${kpi(verified, 'Verified')}</tr>
+</table>
+<div style="margin-top:26px;font-family:${SANS};font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#9b8489;">Detail</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;">
+${row('Send success', sendSuccessPct + '%')}
+${row('Verification rate (of delivered)', verifyPct + '%')}
+${row('Probe messages delivered', probes, true)}
+</table>
+<p style="margin:22px 0 0;font-size:13px;line-height:1.65;color:#806064;">Computed from first-party sending events on the Cloudflare deployment. A delivery failure here is an API rejection — it never includes the recipient's address in this message.</p>`;
+  return {
+    subject: `Period Tracker — deliverability report`,
+    text,
+    html: emailShell({ preheader: `${sendSuccessPct}% send success · ${verified} verified · ${failed} failed`, title, body }),
+  };
+}
+
+/** Cloudflare Email binding first, Resend REST fallback. Throws on failure. */
+async function sendMail(env, { to, subject, text, html }) {
+  if (env.EMAIL) {
+    try {
+      await env.EMAIL.send({ to, from: FROM, subject, text, html });
+      return 'cloudflare-email';
+    } catch (e) {
+      // binding present but refused (routing not enabled, bad recipient):
+      // fall through to Resend instead of dropping the mail
+      if (!env.RESEND_API_KEY) throw e;
+    }
+  }
+  if (!env.RESEND_API_KEY) throw new Error('no_mail_provider');
+  const rr = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: `${FROM.name} <${FROM.email}>`, to, subject, text, html }),
+  });
+  if (!rr.ok) throw new Error(`resend_${rr.status}`);
+  return 'resend';
+}
+
+
 const NEVER = '9999-12-31T23:59:59.000Z';
 // tokens with real lifetimes: sessions die with inactivity (90d), OTPs are
 // short-lived (15m). NEVER remains reserved for share links, where expiry is
@@ -422,62 +595,6 @@ async function getData(env, request, userId) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-/** Transactional OTP email — one branded template for every code we send.
-    Table layout + inline styles only (clients strip <style>), no tracking
-    pixel, light scheme locked so the white card never inverts in dark mode.
-    Only code/minutes are interpolated — server-generated digits. */
-function otpEmail(code, minutes = Math.round(OTP_TTL_MS / 60000)) {
-  const sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  const serif = "Georgia,'Times New Roman',serif";
-  const mono = "ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
-  const text =
-    `Your Period Tracker verification code is ${code}\n\n` +
-    `Enter it in the app to confirm this email is yours. The code expires in ${minutes} minutes.\n\n` +
-    `You're receiving this because someone requested a verification code for this address at periodtracker.run. ` +
-    `If that wasn't you, ignore this email — nothing changes and your password still protects the account.\n\n` +
-    `Period Tracker · Private cycle tracking · periodtracker.run`;
-  const html = `<!doctype html>
-<html lang="en" dir="ltr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light only">
-<meta name="supported-color-schemes" content="light only">
-<title>Your Period Tracker code</title>
-</head>
-<body style="margin:0;padding:0;background-color:#f6eeee;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f6eeee;">Your verification code is ${code}. It expires in ${minutes} minutes.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f6eeee;">
-<tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#ffffff;border:1px solid #efe0e0;border-radius:16px;">
-<tr><td style="padding:28px 36px 0;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="vertical-align:middle;padding-right:12px;"><img src="https://periodtracker.run/icons/icon-192.png" width="40" height="40" alt="" style="display:block;border:0;border-radius:10px;"></td>
-<td style="vertical-align:middle;font-family:${sans};font-size:16px;font-weight:600;color:#221919;">Period Tracker</td>
-</tr></table>
-</td></tr>
-<tr><td style="padding:28px 36px 0;font-family:${sans};">
-<div style="font-family:${serif};font-size:26px;line-height:1.25;color:#221919;">Your verification code</div>
-<p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#5b4449;">Enter this code in Period Tracker to confirm this email address is yours.</p>
-</td></tr>
-<tr><td style="padding:24px 36px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td align="center" style="background-color:#fff8f7;border:1px solid #f3dcdc;border-radius:12px;padding:22px 8px;">
-<div style="font-family:${mono};font-size:44px;line-height:1;font-weight:600;letter-spacing:12px;color:#221919;margin-right:-12px;">${code}</div>
-</td>
-</tr></table>
-</td></tr>
-<tr><td style="padding:16px 36px 0;font-family:${sans};font-size:14px;line-height:1.6;color:#5b4449;">This code expires in ${minutes} minutes.</td></tr>
-<tr><td style="padding:24px 36px 0;"><div style="height:1px;background-color:#f0dfdf;"></div></td></tr>
-<tr><td style="padding:20px 36px 0;font-family:${sans};font-size:13px;line-height:1.65;color:#806064;">You're receiving this because someone requested a verification code for this address at periodtracker.run. If that wasn't you, you can safely ignore this email — nothing changes and your password still protects the account.</td></tr>
-<tr><td style="padding:22px 36px 30px;font-family:${sans};font-size:12px;line-height:1.7;color:#9b8489;">Period Tracker · Private cycle tracking<br><a href="https://periodtracker.run" style="color:#b9004d;text-decoration:none;">periodtracker.run</a> · <a href="https://periodtracker.run/privacy" style="color:#9b8489;">Privacy</a> · <a href="https://periodtracker.run/terms" style="color:#9b8489;">Terms</a></td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
-  return { subject: `${code} is your Period Tracker verification code`, text, html };
-}
 
 
 const GH_REPO = 'HYPERSAHIL/periodtracker';
@@ -592,6 +709,76 @@ async function route(request, env, url, rid = null) {
   const method = request.method;
 
   if (method === 'GET' && path === '/api/health') return json({ ok: true, service: 'period-tracker-sync' });
+
+  // Ops-only mail check: sends one of the transactional templates to an
+  // address you name, with live report numbers. Dormant unless the
+  // DEV_MAIL_TOKEN secret is set (404 otherwise); token in x-dev-mail-token.
+  if (method === 'POST' && path === '/api/dev/mailtest') {
+    const token = env.DEV_MAIL_TOKEN;
+    if (!token) throw new HttpError(404, { error: 'not_found' });
+    const given = request.headers.get('x-dev-mail-token') || '';
+    const a = new TextEncoder().encode(given);
+    const b = new TextEncoder().encode(token);
+    let diff = a.length ^ b.length;
+    for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] || 0) ^ (b[i] || 0);
+    if (diff !== 0) throw new HttpError(401, { error: 'unauthorized' });
+    const body = await readBody(request);
+    const to = String(body.to || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(to)) throw new HttpError(400, { error: 'invalid_email' });
+    const kind = String(body.kind || 'otp');
+    const since = (days) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    let mail;
+    if (kind === 'otp') {
+      const code = /^\d{6}$/.test(String(body.code || '')) ? String(body.code) : String(100000 + Math.floor(Math.random() * 900000));
+      mail = otpEmail(code);
+    } else if (kind === 'weekly') {
+      const acc = await env.DB.prepare(
+        "SELECT COALESCE(SUM(anonymous = 0), 0) registered FROM users WHERE created_at > datetime('now','-7 days')"
+      ).first();
+      const act = await env.DB.prepare(
+        "SELECT COUNT(DISTINCT user_id) n FROM events WHERE created_at > datetime('now','-7 days') AND user_id IS NOT NULL"
+      ).first();
+      const ev = await env.DB.prepare(
+        "SELECT type, COUNT(*) n FROM events WHERE created_at > datetime('now','-7 days') AND type IN ('signup','signin','push','data_save','update_pwa_install','reminder_scheduled','share_created','magic_code_sent') GROUP BY type ORDER BY n DESC LIMIT 10"
+      ).all();
+      const st = await env.DB.prepare(
+        "SELECT json_extract(meta,'$.stage') stage, COUNT(*) n FROM events WHERE type='update_pwa_install' AND created_at > datetime('now','-7 days') GROUP BY stage"
+      ).all();
+      const stages = st.results || [];
+      mail = weeklyReportEmail({
+        range: `Last 7 days · since ${since(7)}`,
+        newAccounts: acc ? acc.registered : 0,
+        activeAccounts: act ? act.n : 0,
+        installsPrompted: stages.filter((r) => /prompt|shown/.test(r.stage || '')).reduce((s, r) => s + r.n, 0),
+        installsDone: stages.filter((r) => r.stage === 'installed' || r.stage === 'accepted').reduce((s, r) => s + r.n, 0),
+        syncPushes: (ev.results || []).find((r) => r.type === 'push')?.n || 0,
+        topEvents: (ev.results || []).filter((r) => r.type !== 'update_pwa_install').slice(0, 6),
+      });
+    } else if (kind === 'deliverability') {
+      const rows = await env.DB.prepare(
+        "SELECT type, COUNT(*) n FROM events WHERE created_at > datetime('now','-30 days') AND type IN ('magic_request','magic_code_sent','magic_email_failed','magic_verify','deliverability_probe') GROUP BY type"
+      ).all();
+      const n = Object.fromEntries((rows.results || []).map((r) => [r.type, r.n]));
+      const sent = n.magic_code_sent || 0;
+      const failed = n.magic_email_failed || 0;
+      const attempts = sent + failed;
+      mail = deliverabilityEmail({
+        range: `Last 30 days · since ${since(30)}`,
+        requests: n.magic_request || 0,
+        sent,
+        failed,
+        verified: n.magic_verify || 0,
+        sendSuccessPct: attempts ? Math.round((100 * sent) / attempts) : 0,
+        verifyPct: sent ? Math.round((100 * (n.magic_verify || 0)) / sent) : 0,
+        probes: n.deliverability_probe || 0,
+      });
+    } else {
+      throw new HttpError(400, { error: 'invalid_kind' });
+    }
+    const via = await sendMail(env, { to, ...mail });
+    await logEvent(env, request, null, 'mailtest_sent', { kind, via, to_domain: to.split('@')[1] });
+    return json({ ok: true, kind, via });
+  }
   await ensureEvents(); // before any logEvent: logging swallows its own errors
 
   // --- CSP violation reports (browser Reporting-Endpoints → sec_csp_report)
@@ -944,31 +1131,17 @@ async function route(request, env, url, rid = null) {
       await logEvent(env, request, u.id, 'magic_no_binding', { rid });
       return json({ ok: true, verified: true });
     }
-    // No EMAIL binding is configured (free plan has no send_email UI for
-    // Pages), so reach straight for the Resend REST path.
+    // Cloudflare Email binding is the default transport; Resend REST is the
+    // automatic fallback when the binding is not configured (see sendMail).
     const mail = otpEmail(code);
-    const resendSend = async () => {
-      const rr = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        // Resend REST: `from` is a plain "Name <addr>" string, NOT an object
-        body: JSON.stringify({ from: `Period Tracker <updates@periodtracker.run>`, to: u.email, subject: mail.subject, text: mail.text, html: mail.html }),
-      });
-      if (!rr.ok) {
-        const detail = await rr.text().catch(() => '');
-        await logEvent(env, request, u.id, 'magic_email_failed', { rid, status: rr.status, detail: detail.slice(0, 120) });
-        throw new HttpError(502, { error: 'email_failed' });
-      }
+    try {
+      const via = await sendMail(env, { to: u.email, ...mail });
       // owner-visible OTP (admin Activity feed + user detail) so support can
       // confirm delivery without asking the user to forward the code
-      await logEvent(env, request, u.id, 'magic_code_sent', { rid, otp: code });
-      return rr;
-    };
-    try {
-      await resendSend();
+      await logEvent(env, request, u.id, 'magic_code_sent', { rid, otp: code, via });
     } catch (e) {
       if (e instanceof HttpError) throw e;
-      await logEvent(env, request, u.id, 'magic_email_failed', { rid });
+      await logEvent(env, request, u.id, 'magic_email_failed', { rid, detail: String(e && e.message || e).slice(0, 120) });
       throw new HttpError(502, { error: 'email_failed' });
     }
     await logEvent(env, request, u.id, 'magic_request', { rid });
@@ -1862,22 +2035,10 @@ async function refreshFleet(env) {
         'INSERT INTO magic_codes (email, code_hash, attempts, expires_at, created_at, ip) VALUES (?, ?, 0, ?, ?, ?)'
       ).bind(email, hex(await sha256(code)), expires, now, 'admin').run();
       const mail = otpEmail(code);
-      try {
-        if (env.EMAIL) {
-          await env.EMAIL.send({ to: email, from: { email: 'updates@periodtracker.run', name: 'Period Tracker' }, subject: mail.subject, text: mail.text, html: mail.html });
-        } else {
-          const rr = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: 'Period Tracker <updates@periodtracker.run>', to: email, subject: mail.subject, text: mail.text, html: mail.html }),
-          });
-          if (!rr.ok) throw new HttpError(502, { error: 'email_failed' });
-        }
-      } catch (e) {
-        if (e instanceof HttpError) throw e;
-        throw new HttpError(502, { error: 'email_failed' });
-      }
-      await logEvent(env, request, target.id, 'magic_code_sent', { otp: code, via: 'admin' });
+      const via = await sendMail(env, { to: email, ...mail }).catch((e) => {
+        throw e instanceof HttpError ? e : new HttpError(502, { error: 'email_failed' });
+      });
+      await logEvent(env, request, target.id, 'magic_code_sent', { otp: code, via: 'admin:' + via });
       return json({ ok: true });
     }
 

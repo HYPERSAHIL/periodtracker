@@ -71,3 +71,36 @@ binding automatically; nothing else changes.
 - Minimal level sends dates only. Full adds symptom counts, never notes.
 - Transactional digests only — Email Sending forbids marketing bulk.
 - Unsubscribing deletes the row; no backup of addresses anywhere else.
+
+## Templates (one brand shell, three mails)
+
+All outbound mail shares one branded document — table layout, inline styles,
+no tracking pixel, light scheme locked. Defined inline in `api/_worker.js`
+(advanced-mode Pages functions must stay a single file):
+
+- `otpEmail(code)` — 44px tracked code card, 15-minute expiry, "if this wasn't
+  you" note. Used by `/api/magic/request` and `/api/admin/otp/resend`.
+- `weeklyReportEmail(stats)` — KPI cards (accounts, installs, sync pushes) +
+  top-event table, numbers computed live from D1.
+- `deliverabilityEmail(stats)` — send-success hero stat, delivery KPIs,
+  verification rate, computed from `magic_*` events.
+
+`sendMail(env, mail)` is the only sender: it tries the Cloudflare `EMAIL`
+binding first (see `[[send_email]]` in `wrangler.toml`) and falls back to the
+Resend REST API. Note: on the free plan Pages ignores the binding for
+arbitrary recipients (Workers Paid required), so production currently reports
+`via: resend` — the preference order is already correct if the plan changes.
+
+## Ops mail test (dormant by default)
+
+`POST /api/dev/mailtest` with header `x-dev-mail-token: <secret>` and body
+`{ "kind": "otp" | "weekly" | "deliverability", "to": "<address>" }` sends one
+template with live report numbers and logs `mailtest_sent`. The route returns
+404 unless the `DEV_MAIL_TOKEN` secret exists:
+
+```bash
+openssl rand -hex 32 | bunx -y wrangler@latest pages secret put DEV_MAIL_TOKEN --project-name periodtracker
+npm run deploy
+# turn it back off:
+bunx -y wrangler@latest pages secret delete DEV_MAIL_TOKEN --project-name periodtracker && npm run deploy
+```

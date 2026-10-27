@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "lint": "eslint src api/_worker.js vite.config.ts",
+    "lint": "eslint src api vite.config.ts",
     "format": "prettier --check src api/_worker.js vite.config.ts capacitor.config.ts",
     "selfcheck": "bun scripts/selfcheck.ts",
     "smoke": "bun scripts/smoke.tsx",

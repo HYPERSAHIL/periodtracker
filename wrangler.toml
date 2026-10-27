@@ -11,3 +11,8 @@ compatibility_date = "2024-11-01"
 binding = "DB"
 database_name = "periodtracker"
 database_id = "b9344d01-3125-4790-a6f7-9ae0d08fe254"
+
+# Outbound mail: Cloudflare Email binding is the default transport;
+# sendMail() falls back to Resend when it is absent or refuses.
+[[send_email]]
+name = "EMAIL"
