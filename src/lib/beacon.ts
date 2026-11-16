@@ -1,6 +1,8 @@
 /**
  * Funnel telemetry → POST /api/event (allowlisted server-side, lands in the
  * owner's admin Activity feed). Fire-and-forget: never throws, never blocks UI.
+ * Events fired in the same tick are batched into ONE request — boot emits a
+ * dozen beacons, and one round trip per beacon was costing seconds on mobile.
  * Failed sends are counted in localStorage and self-report on the next
  * successful send as data_beacon_status { failed, recovered }.
  */
@@ -17,8 +19,8 @@ let fails = (() => {
   }
 })();
 
-const bumpFail = () => {
-  fails += 1;
+const bumpFail = (n = 1) => {
+  fails += n;
   try {
     localStorage.setItem(FAILS_KEY, String(fails));
   } catch {
@@ -43,24 +45,35 @@ function authHeader(): Record<string, string> {
   }
 }
 
-export function track(type: string, meta?: Record<string, unknown>): void {
+type QueuedEvent = { type: string; meta?: Record<string, unknown> };
+let queue: QueuedEvent[] = [];
+let timer: ReturnType<typeof setTimeout> | null = null;
+
+function flush(): void {
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  if (!queue.length) return;
+  const events = queue;
+  queue = [];
   try {
-    lastBeaconAt = Date.now();
-    // Device knows it has no network: skip the request rather than wake the
-    // radio for a send that cannot land. Not counted as a failure since we
-    // never tried. Limitation: navigator.onLine stays true on a flaky
-    // connection that blackholes packets, so this only helps real offline.
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      // no radio wake for a batch that cannot land; not counted as a failure
+      return;
+    }
     void fetch(apiUrl('/api/event'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
       // keepalive: unload-path beacons survive the navigation that triggered them
-      keepalive: type === 'screen_vitals' || type === 'screen_pageleave',
-      body: JSON.stringify({ type, meta: { ...meta, appVersion: APP_VERSION } }),
+      keepalive: true,
+      body: JSON.stringify({
+        events: events.map((e) => ({ type: e.type, meta: { ...e.meta, appVersion: APP_VERSION } })),
+      }),
     })
       .then((res) => {
         if (!res.ok) {
-          bumpFail();
+          bumpFail(events.length);
           return;
         }
         if (fails > 0) {
@@ -71,11 +84,28 @@ export function track(type: string, meta?: Record<string, unknown>): void {
           } catch {
             /* counter is best-effort */
           }
-          if (type !== 'data_beacon_status') track('data_beacon_status', { failed: n, recovered: true });
+          if (!events.some((e) => e.type === 'data_beacon_status')) {
+            track('data_beacon_status', { failed: n, recovered: true });
+          }
         }
       })
-      .catch(bumpFail);
+      .catch(() => bumpFail(events.length));
   } catch {
     /* telemetry must never break the app */
   }
 }
+
+export function track(type: string, meta?: Record<string, unknown>): void {
+  lastBeaconAt = Date.now();
+  try {
+    queue.push({ type, meta });
+    // one microtask-level coalescing window groups boot's synchronous beacons;
+    // pagehide/unload beacons flush immediately (keepalive keeps them alive)
+    if (type === 'screen_vitals' || type === 'screen_pageleave') flush();
+    else if (timer === null) timer = setTimeout(flush, 0);
+  } catch {
+    /* telemetry must never break the app */
+  }
+}
+
+if (typeof window !== 'undefined') window.addEventListener('pagehide', flush);

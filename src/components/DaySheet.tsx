@@ -170,6 +170,7 @@ export default function DaySheet({
     !d.endoFlare;
 
   const save = () => {
+    try { navigator.vibrate?.(12); } catch { /* unsupported browser */ }
     if (isEmpty) {
       onDelete();
       return;
@@ -826,7 +827,7 @@ function isSectionEmpty(id: string, d: DayEntry): boolean {
     case 'intimacy': return !d.intercourse && !d.drive;
     case 'sleep': return d.sleepHours == null && !d.sleepQuality;
     case 'activity': return d.exerciseMinutes == null && d.steps == null && d.water == null;
-    case 'lifestyle': return !d.alcohol && !d.caffeine && !d.smoked;
+    case 'lifestyle': return d.alcohol == null && d.caffeine == null && d.smoked == null;
     case 'meds': return !d.supplements && !d.pillTaken && !d.pillMissed;
     case 'pain': return d.painLevel == null && d.painAreas.length === 0 && !d.routineImpact;
     case 'headache': return !d.migraine && !d.migraineAura && !d.migraineMed && !d.migraineHelped;

@@ -1038,4 +1038,6 @@ export const HI: Record<string, string> = {
   'Could not read that file.': 'वह फ़ाइल पढ़ी नहीं जा सकी।',
   'Privacy Policy': 'गोपनीयता नीति',
   'Terms of Service': 'सेवा की शर्तें',
+  'Share': 'शेयर करें',
+  'My cycle snapshot': 'मेरा साइकिल स्नैपशॉट',
 };

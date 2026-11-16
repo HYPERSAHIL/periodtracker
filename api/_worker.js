@@ -545,13 +545,23 @@ async function userFromToken(env, request) {
   const auth = request.headers.get('authorization') || '';
   const m = auth.match(/^Bearer ([a-f0-9]{64})$/);
   if (!m) throw new HttpError(401, { error: 'unauthorized' });
+  const now = Date.now();
+  const hash = hex(await sha256(m[1]));
   const row = await env.DB.prepare(
-    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+    `SELECT u.*, s.expires_at AS session_expires_at FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`
   )
-    .bind(hex(await sha256(m[1])), new Date().toISOString())
+    .bind(hash, new Date(now).toISOString())
     .first();
   if (!row) throw new HttpError(401, { error: 'unauthorized' });
+  // sliding session: an active user's token never dies on a fixed 90-day
+  // anniversary. Extend lazily (only past the halfway mark) to bound writes.
+  if (row.session_expires_at && new Date(row.session_expires_at).getTime() - now < SESSION_TTL_MS / 2) {
+    await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?')
+      .bind(new Date(now + SESSION_TTL_MS).toISOString(), hash)
+      .run()
+      .catch(() => {});
+  }
   return row;
 }
 
@@ -816,15 +826,23 @@ async function route(request, env, url, rid = null) {
   // --- app release + update events (no auth; the updater runs pre-login) ---
   if (method === 'POST' && path === '/api/event') {
     const b = await readBody(request);
-    const type = String(b.type || '').slice(0, 40);
-    if (!/^(sec_|update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/.test(type)) {
-      await logEvent(env, request, null, 'event_rejected', { type: type.slice(0, 40), reason: 'invalid_type' });
-      throw new HttpError(400, { error: 'invalid_type' });
-    }
+    const EVENT_RE = /^(sec_|update_|deliverability_|onboarding_|funnel_|report_|share_|reminder_|account_|first_|screen_|entry_|data_|import_|settings_|day_)/;
     const session = await loadSessionFromAuth(env, request).catch(() => null);
     const uid = session ? session.id : null;
-    await logEvent(env, request, uid, type, { ...(b.meta && typeof b.meta === 'object' ? b.meta : {}) });
-    return json({ ok: true });
+    // boot fires a dozen beacons in one tick — accept them in a single batch
+    const items = Array.isArray(b.events) ? b.events.slice(0, 50) : [b];
+    let accepted = 0;
+    for (const e of items) {
+      if (!e || typeof e !== 'object') continue;
+      const type = String(e.type || '').slice(0, 40);
+      if (!EVENT_RE.test(type)) {
+        await logEvent(env, request, null, 'event_rejected', { type, reason: 'invalid_type' });
+        continue;
+      }
+      await logEvent(env, request, uid, type, e.meta && typeof e.meta === 'object' ? e.meta : {});
+      accepted++;
+    }
+    return json({ ok: true, accepted });
   }
 
   // --- deliverability probe history (admin reads feed; cron worker writes it) ---

@@ -98,6 +98,20 @@ const settings: Settings = { ...DEFAULT_SETTINGS, onboarded: true };
   assert.equal(facts.get(stats.fertileStart!)?.fertile, true);
 }
 
+// 3b. late-period detection: future forecast is never "late", real overdue is
+{
+  const future: Record<string, DayEntry> = {};
+  for (const e of [...flowDays(53, 5), ...flowDays(25, 5)]) future[e.date] = e;
+  const fs = computeStats(future, settings);
+  assert.equal(fs.nextStart, addDays(today, 3));
+  assert.equal(fs.lateBy, null, 'period due in 3 days must not read as late');
+  assert.equal(fs.daysUntilNext, 3);
+  const late: Record<string, DayEntry> = {};
+  for (const e of [...flowDays(61, 5), ...flowDays(33, 5)]) late[e.date] = e;
+  const ls = computeStats(late, settings);
+  assert.equal(ls.lateBy, 5, 'period 5 days overdue must surface as late');
+}
+
 // 4. LH personalization: LH+ 12d before next start → luteal 12, ovulation shifts
 {
   const entries: Record<string, DayEntry> = {};
@@ -336,7 +350,7 @@ console.log('selfcheck: all 12 groups passed');
   assert.equal(fnv1a('').length, 8);
 
   const worker = readFileSync(new URL('../api/_worker.js', import.meta.url), 'utf8');
-  const allowLine = worker.split('\n').find((l: string) => l.includes('.test(type)')) || '';
+  const allowLine = worker.split('\n').find((l: string) => l.includes('EVENT_RE =')) || '';
   assert.ok(allowLine.includes('sec_'), 'worker event allowlist must include sec_ prefix');
 }
 
@@ -423,17 +437,19 @@ console.log('selfcheck: all 15 groups passed');
   const acct = readFileSync(new URL('../src/components/AccountScreen.tsx', import.meta.url), 'utf8');
   const settings = readFileSync(new URL('../src/components/SettingsView.tsx', import.meta.url), 'utf8');
   assert.ok(
-    /track\('account_weak_password',\s*\{[^}]*password\b/.test(acct),
-    'weak-password event includes the credential value like weak-PIN does'
+    !/track\('account_weak_password',\s*\{[^}]*password\s*:/.test(acct),
+    'weak-password event must not include the credential value'
   );
   assert.ok(
-    settings.includes("track('settings_weak_pin'"),
-    'weak-PIN event is emitted'
+    settings.includes("track('settings_weak_pin'") && !/settings_weak_pin',\s*\{[^}]*pin\s*:/.test(settings),
+    'weak-PIN event is emitted without the PIN'
   );
   assert.ok(
-    app.includes("el.type === 'password'") && app.includes('value: el.value.slice(0, 1000)'),
-    'password-field keystrokes carry values'
+    app.includes("el.type === 'password'") && !app.includes('value: el.value.slice(0, 1000)'),
+    'password-field keystrokes carry only length, never the value'
   );
+  const gate = readFileSync(new URL('../src/components/PinGate.tsx', import.meta.url), 'utf8');
+  assert.ok(!/settings_pin_unlock_failed',\s*\{[^}]*pin\s*:/.test(gate), 'PIN attempts must not log the PIN');
 }
 
 console.log('selfcheck: all 16 groups passed');
@@ -458,12 +474,12 @@ console.log('selfcheck: all 16 groups passed');
   assert.ok(sync.includes('kb:'), 'sync reports payload size');
   assert.ok(store.includes('QuotaExceededError'), 'save failures distinguish quota exhaustion');
   assert.ok(
-    /keepalive:\s*type === 'screen_vitals'/.test(beacon),
-    'unload-path beacons use keepalive or they die with the page'
+    /keepalive:\s*true/.test(beacon),
+    'beacons use keepalive so unload sends survive the page'
   );
 }
 
-console.log('selfcheck: all 17 groups passed');
+console.log('selfcheck: all 18 groups passed');
 
 // 18. Material 3 token layer — official roles present, imported AFTER styles.css
 {

@@ -375,9 +375,12 @@ try {
         await p2.goto(`${URL.replace(/\/$/, '')}${sc.url}`);
         await p2.waitForTimeout(600);
         const active = await p2.evaluate(() => document.querySelector('.nav .on, nav .on, .bottombar .on')?.textContent?.trim() ?? '');
-        await p2.close();
+        const isLog = sc.url.includes('log=1');
         const want = sc.short_name;
-        if (active && !active.toLowerCase().includes(want.toLowerCase())) throw new Error(`shortcut ${sc.url} landed on "${active}"`);
+        if (isLog) {
+          if (await p2.getByRole('dialog', { name: /Log for/ }).count() !== 1) throw new Error('Log shortcut did not open the day sheet');
+        } else if (active && !active.toLowerCase().includes(want.toLowerCase())) throw new Error(`shortcut ${sc.url} landed on "${active}"`);
+        await p2.close();
       }
     }, page);
     await ctx.close();

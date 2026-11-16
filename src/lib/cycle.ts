@@ -171,7 +171,8 @@ export function computeStats(entries: Record<string, DayEntry>, settings: Settin
   let daysUntilNext: number | null = null;
   if (lastStart && !paused && !stale) {
     let anchor = addDays(lastStart, avgCycle);
-    const overdue = diffDays(today, anchor); // >0 means anchor already passed
+    // diffDays(from,to) = to - from: positive when the forecast anchor is past
+    const overdue = diffDays(anchor, today); // >0 means anchor already passed
     if (overdue > 0) {
       if (overdue <= uncertaintyDays + 7) {
         lateBy = overdue; // plausible late period - surface it, don't silently re-anchor

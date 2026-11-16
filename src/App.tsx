@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { APP_VERSION, DayEntry, Settings, Tab } from './types';
 import { buildFacts, computeStats, phaseFor } from './lib/cycle';
 import {
@@ -28,11 +28,11 @@ import { Logo, IconHome, IconCalendar, IconChart, IconGear } from './components/
 import { IconBook } from './components/Icons';
 import Onboarding from './components/Onboarding';
 import Dashboard from './components/Dashboard';
-import CalendarView from './components/CalendarView';
-import Insights from './components/Insights';
-import SettingsView from './components/SettingsView';
-import Learn from './components/Learn';
-import Report from './components/Report';
+const CalendarView = lazy(() => import('./components/CalendarView'));
+const Insights = lazy(() => import('./components/Insights'));
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const Learn = lazy(() => import('./components/Learn'));
+const Report = lazy(() => import('./components/Report'));
 import PregnancyScreen from './components/PregnancyScreen';
 import DaySheet from './components/DaySheet';
 import PinGate from './components/PinGate';
@@ -120,7 +120,20 @@ function MainApp() {
     }
     return 'home';
   });
-  const [sheetDate, setSheetDate] = useState<string | null>(null);
+  const [sheetDate, setSheetDate] = useState<string | null>(() => {
+    // long-press "Log today" shortcut lands straight in the day sheet
+    try {
+      const p = new URLSearchParams(location.search);
+      if (p.get('log') === '1' && settings.onboarded) {
+        history.replaceState(null, '', '/');
+        track('log_shortcut_used');
+        return todayISO();
+      }
+    } catch {
+      /* malformed URL opens home */
+    }
+    return null;
+  });
   const [showReport, setShowReport] = useState(false);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem('pt.unlocked') === '1');
   const [accountSheet, setAccountSheet] = useState(false);
@@ -155,6 +168,7 @@ function MainApp() {
       const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       const resolved = settings.theme === 'system' ? (dark ? 'dark' : 'light') : settings.theme;
       document.documentElement.dataset.theme = resolved;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#1b1216' : '#e11d63');
       if (via === 'os') track('settings_theme_resolved', { resolved, theme: settings.theme, via });
     };
     apply('init');
@@ -284,15 +298,20 @@ function MainApp() {
   // + native reminder (re)scheduling via Capacitor (cancel-by-id makes re-runs cheap)
   useEffect(() => {
     updater.start();
+    return () => updater.stop();
+  }, []);
+
+  useEffect(() => {
     if (isNative() && settings.onboarded && settings.reminders) scheduleNativeReminders(settings, stats);
     if (isNative() && settings.onboarded) pushWidgetSnapshot(stats);
     if (isNative() && settings.onboarded) pushRecentToHealth(entries);
-    return () => updater.stop();
   }, [settings, stats, entries]);
 
   // one-shot funnel beacons (each fires at most once per device)
   useEffect(() => {
-    const seen = new Set(JSON.parse(localStorage.getItem('pt.funnel') || '[]') as string[]);
+    let stored: unknown = [];
+    try { stored = JSON.parse(localStorage.getItem('pt.funnel') || '[]'); } catch { /* corrupted state */ }
+    const seen = new Set(Array.isArray(stored) ? stored.filter((x): x is string => typeof x === 'string') : []);
     const fire = (type: string) => {
       if (seen.has(type)) return;
       seen.add(type);
@@ -380,8 +399,8 @@ function MainApp() {
       const id = el.id || el.name || el.getAttribute('aria-label') || el.tagName.toLowerCase();
       const tag = el.tagName.toLowerCase();
       if (el instanceof HTMLInputElement && el.type === 'password') {
-        noteInjection('input', el.value, { el: id.slice(0, 200), tag });
-        track('screen_input', { el: id.slice(0, 200), tag, pw: true, value: el.value.slice(0, 1000), tab });
+        // never put a password in telemetry — not even as an "injection excerpt"
+        track('screen_input', { el: id.slice(0, 200), tag, pw: true, len: el.value.length, tab });
         return;
       }
       const value =
@@ -911,7 +930,9 @@ function MainApp() {
           withBoundary(<Onboarding updateSettings={updateSettings} />, tx(lang, 'Setup'), lang)
         ) : showReport ? (
           <main className="screen">
-            {withBoundary(<Report {...props} closeReport={closeReport} />, tx(lang, 'Report'), lang)}
+            <Suspense fallback={<div className="card" aria-busy="true" />}>
+              {withBoundary(<Report {...props} closeReport={closeReport} />, tx(lang, 'Report'), lang)}
+            </Suspense>
           </main>
         ) : (
           <>
@@ -920,10 +941,13 @@ function MainApp() {
                 withBoundary(settings.mode === 'pregnant' ? <PregnancyScreen {...props} /> : <Dashboard {...props} />, tx(lang, 'Home'), lang)}
               {/* install surface for every visitor — new and returning, at the top-level UI, not buried in Settings */}
               {tab === 'home' && <InstallCard lang={lang} />}
-              {tab === 'calendar' && withBoundary(<CalendarView {...props} />, tx(lang, 'Calendar'), lang)}
-              {tab === 'insights' && withBoundary(<Insights {...props} />, tx(lang, 'Insights'), lang)}
-              {tab === 'learn' && withBoundary(<Learn {...props} />, tx(lang, 'Learn'), lang)}
-              {tab === 'settings' && withBoundary(<SettingsView {...props} />, tx(lang, 'Settings'), lang)}
+              {/* Non-home tabs load on demand: boot only parses the dashboard path. */}
+              <Suspense fallback={<div className="card" aria-busy="true" style={{ minHeight: 120 }} />}>
+                {tab === 'calendar' && withBoundary(<CalendarView {...props} />, tx(lang, 'Calendar'), lang)}
+                {tab === 'insights' && withBoundary(<Insights {...props} />, tx(lang, 'Insights'), lang)}
+                {tab === 'learn' && withBoundary(<Learn {...props} />, tx(lang, 'Learn'), lang)}
+                {tab === 'settings' && withBoundary(<SettingsView {...props} />, tx(lang, 'Settings'), lang)}
+              </Suspense>
             </main>
             <div className="footer">{tx(lang, 'Your data stays on this device · backed up automatically')} · {statusText}</div>
           </>

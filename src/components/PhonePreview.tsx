@@ -1,4 +1,4 @@
-import { fromISO, toISO, todayISO } from '../lib/date';
+import { addDays, fromISO, todayISO } from '../lib/date';
 
 export default function PhonePreview() {
   // mock frames read stale ("August 2026 · Sep 8 next period") — derive the
@@ -7,7 +7,7 @@ export default function PhonePreview() {
     const dt = fromISO(iso);
     return dt.toLocaleString('en-US', { month: 'short', day: 'numeric' });
   };
-  const day = (plus: number) => toISO(new Date(fromISO(todayISO()).getTime() + plus * 86400000));
+  const day = (plus: number) => addDays(todayISO(), plus);
   const monthLabel = fromISO(day(0)).toLocaleString('en-US', { month: 'long', year: 'numeric' });
   return (
     <div className="phone-preview" aria-hidden>

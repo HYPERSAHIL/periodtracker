@@ -225,7 +225,7 @@ body {
 }
 
 .topbar .sub {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 0;
   font-weight: 600;
@@ -1411,7 +1411,7 @@ input[type='date']:focus-visible {
 }
 
 .mode-card .mc-blurb {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
 }

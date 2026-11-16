@@ -20,6 +20,9 @@ import {
   signOut,
   syncCycle,
   verifyEmailCode,
+  mergeEntries,
+  mergeSettings,
+  mergeDeleted,
 } from '../lib/cloud';
 import { deviceInfo } from '../lib/device';
 import { track } from '../lib/beacon';
@@ -78,9 +81,11 @@ export function useCloudSync({
       try {
         await syncCycle(token, currentEntries, currentSettings, (m) => {
           if (m.changed) {
-            if (m.entries) setEntries(m.entries);
-            if (m.settings) setSettings(m.settings);
-            if (m.deleted) saveDeleted(m.deleted);
+            // merge against state AT APPLY TIME: a Settings toggle or a log
+            // saved while the request was in flight must not be reverted
+            if (m.entries) setEntries((cur) => mergeEntries(cur, m.entries!, loadDeleted()));
+            if (m.settings) setSettings((cur) => mergeSettings(cur, m.settings!));
+            if (m.deleted) saveDeleted(mergeDeleted(loadDeleted(), m.deleted));
             track('data_sync_merged', { entries: m.entries ? Object.keys(m.entries).length : 0, settings: !!m.settings });
           }
           mergeRounds++;

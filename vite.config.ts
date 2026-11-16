@@ -46,7 +46,7 @@ export default defineConfig({
         shortcuts: [
           { name: 'Open calendar', short_name: 'Calendar', url: '/?screen=calendar', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
           { name: 'Cycle insights', short_name: 'Insights', url: '/?screen=insights', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
-          { name: 'Read cycle guide', short_name: 'Learn', url: '/?screen=learn', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+          { name: 'Log today', short_name: 'Log', url: '/?log=1', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
         ],
         share_target: {
           action: '/?share=1',

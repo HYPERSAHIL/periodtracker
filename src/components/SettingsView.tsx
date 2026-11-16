@@ -10,6 +10,7 @@ import type { ShareRow, SharedSummary } from '../lib/cloud';
 import { USERNAME_RE } from '../lib/cloud';
 import { CRISIS_NOTE } from '../lib/safety';
 import { track } from '../lib/beacon';
+import { API_ORIGIN, isNative } from '../lib/native';
 import { Stepper } from './Onboarding';
 import InstallCard from './InstallCard';
 import { todayISO, prettyDate } from '../lib/date';
@@ -207,7 +208,7 @@ export default function SettingsView(p: AppProps) {
   const savePin = async () => {
     if (!/^\d{4,8}$/.test(pin)) return;
     const weak = weakPinReason(pin);
-    if (weak) track('settings_weak_pin', { pin, len: pin.length, reason: weak });
+    if (weak) track('settings_weak_pin', { len: pin.length, reason: weak });
     const salt = randomSaltB64();
     const h = await hashPin(pin, salt);
     updateSettings({ pinHash: h, pinSalt: salt });
@@ -783,7 +784,7 @@ export default function SettingsView(p: AppProps) {
           <>
             {shares.length === 0 && <p className="hint">{tx(lang, 'No active links')}</p>}
             {shares.map((s) => {
-              const link = `${location.origin}/?s=${s.token}`;
+              const link = `${isNative() ? API_ORIGIN : location.origin}/?s=${s.token}`;
               return (
                 <div key={s.token} className="set-row">
                   <div>
@@ -794,6 +795,21 @@ export default function SettingsView(p: AppProps) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
+                    {typeof navigator.share === 'function' && (
+                      <button
+                        className="btn ghost sm"
+                        onClick={async () => {
+                          try {
+                            await navigator.share({ title: 'Period Tracker', text: tx(lang, 'My cycle snapshot'), url: link });
+                            track('share_link_shared', { via: 'web' });
+                          } catch (e) {
+                            if ((e as Error)?.name !== 'AbortError') track('share_link_failed', { reason: 'web_share' });
+                          }
+                        }}
+                      >
+                        {tx(lang, 'Share')}
+                      </button>
+                    )}
                     <button
                       className="btn ghost sm"
                       onClick={async () => {

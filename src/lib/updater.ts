@@ -30,6 +30,7 @@ class UpdateManager {
   state: UpdateState = { stage: 'idle', version: null, progress: 0, sizeBytes: null, notes: null };
   private listeners = new Set<Listener>();
   private timer: number | null = null;
+  private progressListenerAdded = false;
 
   subscribe(fn: Listener): () => void {
     this.listeners.add(fn);
@@ -80,9 +81,12 @@ class UpdateManager {
       localStorage.setItem('pt.lastVersion', APP_VERSION);
     }
 
-    ApkInstaller.addListener?.('downloadProgress', (s: { progress: number }) => {
-      if (this.state.stage === 'downloading') this.set({ progress: Math.min(100, s.progress) });
-    });
+    if (!this.progressListenerAdded) {
+      ApkInstaller.addListener?.('downloadProgress', (s: { progress: number }) => {
+        if (this.state.stage === 'downloading') this.set({ progress: Math.min(100, s.progress) });
+      });
+      this.progressListenerAdded = true;
+    }
 
     await this.check();
     // background re-check every 6 hours while the app is open

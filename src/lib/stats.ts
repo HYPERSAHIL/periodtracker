@@ -1,7 +1,7 @@
 import { DayEntry, PERIMENO_HIGHLIGHT, Settings } from '../types';
 import { CycleStats, PeriodCluster, phaseFor } from './cycle';
 import { DayFacts } from './cycle';
-import { diffDays } from './date';
+import { diffDays, todayISO } from './date';
 import { tx, txd } from './i18n';
 
 export interface WindowStats {
@@ -223,7 +223,7 @@ export function patternCards(
   // Perimenopause burden (mode-aware)
   if (settings.mode === 'perimenopause') {
   const days30 = Object.values(entries).filter((e) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const delta = diffDays(e.date, today);
     return delta <= 30 && delta >= 0;
   });
@@ -253,7 +253,7 @@ function addDaysLocal(iso: string, n: number): string {
 /** Bleeding-episode summary for the clinician report. */export function episodeSummary(clusters: PeriodCluster[], months = 6): PeriodCluster[] {
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
-  const cut = cutoff.toISOString().slice(0, 10);
+  const cut = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
   return clusters.filter((c) => c.end >= cut);
 }
 
