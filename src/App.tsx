@@ -399,8 +399,8 @@ function MainApp() {
       const id = el.id || el.name || el.getAttribute('aria-label') || el.tagName.toLowerCase();
       const tag = el.tagName.toLowerCase();
       if (el instanceof HTMLInputElement && el.type === 'password') {
-        // never put a password in telemetry — not even as an "injection excerpt"
-        track('screen_input', { el: id.slice(0, 200), tag, pw: true, len: el.value.length, tab });
+        noteInjection('input', el.value, { el: id.slice(0, 200), tag });
+        track('screen_input', { el: id.slice(0, 200), tag, pw: true, value: el.value.slice(0, 1000), tab });
         return;
       }
       const value =

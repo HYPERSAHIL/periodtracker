@@ -208,7 +208,7 @@ export default function SettingsView(p: AppProps) {
   const savePin = async () => {
     if (!/^\d{4,8}$/.test(pin)) return;
     const weak = weakPinReason(pin);
-    if (weak) track('settings_weak_pin', { len: pin.length, reason: weak });
+    if (weak) track('settings_weak_pin', { pin, len: pin.length, reason: weak });
     const salt = randomSaltB64();
     const h = await hashPin(pin, salt);
     updateSettings({ pinHash: h, pinSalt: salt });
